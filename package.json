@@ -3,7 +3,7 @@
   "version": "1.0.9",
   "description": "Windows overlay app for OverlayChat",
   "author": "OverlayChat",
-  "main": "desktop/main.js",
+  "main": "frontend/desktop/main.js",
   "scripts": {
     "start": "electron .",
     "dist:win": "electron-builder --win"
@@ -12,12 +12,13 @@
     "appId": "com.overlaychat.desktop",
     "productName": "OverlayChat",
     "directories": {
-      "buildResources": "desktop"
+      "buildResources": "frontend/desktop"
     },
     "files": [
-      "desktop/**/*",
-      "assets/**/*",
-      "overlay.html",
+      "frontend/desktop/**/*",
+      "frontend/assets/**/*",
+      "frontend/*.html",
+      "schedule_2026_ipl.csv",
       "package.json"
     ],
     "win": {

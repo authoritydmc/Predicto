@@ -1,7 +1,7 @@
 const { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
-const { version: APP_VERSION } = require("../package.json");
+const { version: APP_VERSION } = require("../../package.json");
 
 const DEFAULT_SETTINGS = {
   appVersion: APP_VERSION,
@@ -709,7 +709,7 @@ ipcMain.handle("scraper:open-solver", (_event, url) => {
 
 ipcMain.handle("csv:get-schedule", () => {
   try {
-    return fs.readFileSync(path.join(__dirname, "..", "schedule_2026_ipl.csv"), "utf8");
+    return fs.readFileSync(path.join(__dirname, "..", "..", "schedule_2026_ipl.csv"), "utf8");
   } catch (err) {
     return null;
   }

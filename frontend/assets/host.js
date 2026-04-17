@@ -4,7 +4,8 @@ import {
   isFirebaseConfigured,
   onValue,
   roomRef,
-  saveRoomMeta
+  saveRoomMeta,
+  clearChat
 } from "./firebase.js";
 import { getAudienceEntryUrl, buildRoomUrl, getRoomId, setHidden, applyTeamTheme } from "./shared.js";
 
@@ -158,7 +159,7 @@ clearChatButton.addEventListener("click", async () => {
 
   setStatus("Clearing chat...");
   try {
-    await clearRoomNode(roomId, "chat");
+    await clearChat(roomId);
     setStatus("Chat cleared", "neutral");
   } catch (error) {
     console.error(error);

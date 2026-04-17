@@ -9,7 +9,8 @@ import {
   sendChatMessage,
   sendReaction,
   ref,
-  set
+  set,
+  chatRef
 } from "./firebase.js";
 import {
   escapeHtml,
@@ -487,7 +488,7 @@ if (!roomSelected) {
       renderLeaderboard(standings);
     });
 
-    onValue(query(roomRef(roomId, "chat"), limitToLast(20)), (snapshot) => {
+    onValue(query(chatRef(roomId), limitToLast(20)), (snapshot) => {
       const entries = snapshot.val() || {};
       const messages = Object.entries(entries).map(([id, value]) => ({
         id,

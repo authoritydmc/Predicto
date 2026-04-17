@@ -2,59 +2,41 @@
   "rules": {
     "rooms": {
       "$room_id": {
-        // --------------------------------------------------------------------------
         // PUBLIC READ ACCESS
-        // Everyone (the audience UI and overlay) needs to read these live nodes
-        // --------------------------------------------------------------------------
         ".read": true,
 
-        // --------------------------------------------------------------------------
         // BACKEND ONLY WRITES (Secured)
-        // Only the Python monitor service (using Admin SDK) can modify game state,
-        // sync scores, pause predictions, and log official history. 
-        // --------------------------------------------------------------------------
-        "meta": {
-          ".write": false 
-        },
-        "innings_history": {
-          ".write": false
-        },
-        "history": {
-          ".write": false
-        },
-        "season_leaderboard": {
-          ".write": false
-        },
-        "monitor_state": {
-          ".write": false
-        },
+        "meta": { ".write": false },
+        "innings_history": { ".write": false },
+        "history": { ".write": false },
+        "season_leaderboard": { ".write": false },
+        "monitor_state": { ".write": false },
 
-        // --------------------------------------------------------------------------
         // AUDIENCE WRITES (Publicly writable but structurally mapped)
-        // --------------------------------------------------------------------------
         "predictions": {
-          // Users can submit or update predictions ONLY if the match isn't paused
-          // The $client_id is randomly generated on the client and stored in LocalStorage
           "$client_id": {
              ".write": "root.child('rooms/'+$room_id+'/meta/predictionsPaused').val() !== true"
           }
         },
-        
         "prediction_history": {
           "$client_id": {
             ".write": true
           }
-        },
-
-        "chat": {
-          // Anyone can send a chat message at any time
-          ".write": true
-        },
-
-        "reaction": {
-           // Anyone can spam reactions
-          ".write": true
         }
+      }
+    },
+    
+    // Extracted out of rooms structure
+    "chat": {
+      "$room_id": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "reaction": {
+      "$room_id": {
+        ".read": true,
+        ".write": true
       }
     }
   }

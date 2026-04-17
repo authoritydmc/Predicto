@@ -1,4 +1,4 @@
-import { db, onValue, roomRef, query, limitToLast } from "./firebase.js";
+import { db, onValue, roomRef, chatRef, query, limitToLast } from "./firebase.js";
 import { getRoomId, escapeHtml, applyTeamTheme, stripKlipyUrl, getTeamCode } from "./shared.js";
 
 const roomId = getRoomId();
@@ -204,7 +204,7 @@ onValue(roomRef(roomId, "predictions"), (snapshot) => {
   updateTickerDOM();
 });
 
-const chatQuery = query(roomRef(roomId, "chat"), limitToLast(10));
+const chatQuery = query(chatRef(roomId), limitToLast(10));
 onValue(chatQuery, (snapshot) => {
   const data = snapshot.val() || {};
   currentMessages = Object.entries(data)

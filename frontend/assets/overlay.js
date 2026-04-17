@@ -6,7 +6,8 @@ import {
   query,
   removeChatMessage,
   removePrediction,
-  roomRef
+  roomRef,
+  chatRef
 } from "./firebase.js";
 import {
   getAudienceEntryUrl,
@@ -536,7 +537,7 @@ if (!isFirebaseConfigured || !db) {
     }
   });
 
-  onValue(query(roomRef(roomId, "chat"), limitToLast(5)), (snapshot) => {
+  onValue(query(chatRef(roomId), limitToLast(5)), (snapshot) => {
     const entries = snapshot.val() || {};
     const messages = Object.entries(entries).map(([id, value]) => ({
       id,

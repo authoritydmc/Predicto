@@ -21,7 +21,7 @@ if (isFirebaseConfigured) {
   db = getDatabase(app);
 }
 
-export { db, isFirebaseConfigured, onValue, query, limitToLast, ref, get, set };
+export { db, isFirebaseConfigured, onValue, query, limitToLast, ref, get, set, remove, update };
 
 const roomPath = (roomId, child = "") =>
   child ? `rooms/${roomId}/${child}` : `rooms/${roomId}`;
@@ -32,6 +32,16 @@ export const roomRef = (roomId, child = "") => {
   }
 
   return ref(db, roomPath(roomId, child));
+};
+
+export const chatRef = (roomId, child = "") => {
+  if (!db) throw new Error("Firebase is not configured");
+  return ref(db, child ? `chat/${roomId}/${child}` : `chat/${roomId}`);
+};
+
+export const reactionRef = (roomId) => {
+  if (!db) throw new Error("Firebase is not configured");
+  return ref(db, `reaction/${roomId}`);
 };
 
 export const getOnce = async (ref) => {
@@ -58,8 +68,8 @@ export const savePrediction = async (roomId, clientId, payload) => {
 };
 
 export const sendChatMessage = async (roomId, payload) => {
-  const chatRef = roomRef(roomId, "chat");
-  const nextRef = push(chatRef);
+  const cRef = chatRef(roomId);
+  const nextRef = push(cRef);
   await set(nextRef, {
     ...payload,
     createdAt: serverTimestamp(),
@@ -125,7 +135,7 @@ export const removePrediction = async (roomId, clientId) => {
 };
 
 export const removeChatMessage = async (roomId, messageId) => {
-  await set(roomRef(roomId, `chat/${messageId}`), null);
+  await set(chatRef(roomId, messageId), null);
 };
 
 export const updateActiveSession = async (roomId) => {
@@ -136,9 +146,17 @@ export const updateActiveSession = async (roomId) => {
 };
 
 export const sendReaction = async (roomId, payload) => {
-  const reactionRef = roomRef(roomId, "reaction");
-  await set(reactionRef, {
+  const rRef = reactionRef(roomId);
+  await set(rRef, {
     ...payload,
     timestamp: serverTimestamp()
   });
+};
+
+export const clearChat = async (roomId) => {
+  await set(chatRef(roomId), null);
+};
+
+export const clearReaction = async (roomId) => {
+  await set(reactionRef(roomId), null);
 };

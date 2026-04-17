@@ -2,7 +2,7 @@ import {
   db,
   isFirebaseConfigured,
   onValue,
-  roomRef
+  reactionRef
 } from "./firebase.js";
 import {
   getRoomId,
@@ -21,7 +21,7 @@ let reactionTimer = null;
 if (!isFirebaseConfigured || !db) {
   console.warn("Firebase not configured for Reaction Window");
 } else {
-  onValue(roomRef(roomId, "reaction"), (snapshot) => {
+  onValue(reactionRef(roomId), (snapshot) => {
     const data = snapshot.val();
     
     // If data is null, it means "Clear Reactions" was clicked
