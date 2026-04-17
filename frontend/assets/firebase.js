@@ -23,7 +23,7 @@ if (isFirebaseConfigured) {
 
 export { db, isFirebaseConfigured, onValue, query, limitToLast, ref, get, set, remove, update };
 
-const roomPath = (roomId, child = "") =>
+export const roomPath = (roomId, child = "") =>
   child ? `rooms/${roomId}/${child}` : `rooms/${roomId}`;
 
 export const roomRef = (roomId, child = "") => {

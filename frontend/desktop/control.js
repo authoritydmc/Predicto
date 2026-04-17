@@ -6,6 +6,7 @@ import {
   limitToLast,
   ref,
   roomRef,
+  roomPath,
   saveRoomMeta,
   clearRoomNode,
   getOnce,
@@ -18,6 +19,10 @@ import {
   saveSeasonLeaderboard
 } from "../assets/firebase.js";
 import { getAudienceEntryUrl, escapeHtml, sortHistoryLatestFirst } from "../assets/shared.js";
+import { initWindowLogger } from "../assets/logger.js";
+
+initWindowLogger("Desktop Control Panel");
+console.log("[Init] Desktop Control Panel loaded and logger initialized");
 
 const settingsForm = document.querySelector("#settingsForm");
 const roomIdInput = document.querySelector("#roomId");
@@ -51,6 +56,7 @@ const showTickerButton = document.querySelector("#showTicker");
 const hideTickerButton = document.querySelector("#hideTicker");
 const reloadTickerButton = document.querySelector("#reloadTicker");
 const resetTickerBoundsButton = document.querySelector("#resetTickerBounds");
+const toggleDebugWindowButton = document.querySelector("#toggleDebugWindow");
 const sortStatus = document.querySelector("#sortStatus");
 const toggleSortModeButton = document.querySelector("#toggleSortMode");
 const dotSort = document.querySelector("#dotSort");
@@ -117,6 +123,18 @@ let currentSettings = null;
 let currentMeta = {};
 let stopMetaSubscription = null;
 let heartbeatInterval = null;
+
+// === INITIALIZATION LOGGING ===
+console.log("[Init] OverlayChat Desktop Control Panel Starting");
+console.log("[Init] Firebase configured:", isFirebaseConfigured);
+console.log("[Init] Database connection:", db ? "Connected" : "Not initialized");
+if (!isFirebaseConfigured) {
+  console.error("[Init] CRITICAL: Firebase not configured. Check firebase-config.js");
+}
+if (!db) {
+  console.error("[Init] CRITICAL: Database not initialized. Firebase config may be missing or invalid");
+}
+console.log("[Init] DOM elements loaded successfully");
 
 const normalizeRoomId = (value) =>
   value.toLowerCase().replace(/[^a-z0-9-_]/g, "").slice(0, 40) || "ipl";
@@ -199,7 +217,7 @@ const getFormMeta = () => {
   const battingTeam = document.querySelector('input[name="battingTeam"]:checked')?.value;
   const innings = document.querySelector('input[name="innings"]:checked')?.value;
 
-  return {
+  const formData = {
     matchTitle: matchTitleInput.value.trim(),
     teamA: teamAInput.value.trim(),
     teamB: teamBInput.value.trim(),
@@ -213,10 +231,16 @@ const getFormMeta = () => {
     hideJoin: Boolean(currentMeta.hideJoin),
     automationPaused: document.getElementById("automationPaused")?.checked || false
   };
+  
+  console.log("[getFormMeta] Form data collected:", formData);
+  return formData;
 };
 
 const subscribeToMeta = (roomId) => {
+  console.log("[Firebase] Subscribing to room metadata:", roomId);
+  
   if (stopMetaSubscription) {
+    console.log("[Firebase] Stopping previous subscription");
     stopMetaSubscription();
     stopMetaSubscription = null;
   }
@@ -227,6 +251,9 @@ const subscribeToMeta = (roomId) => {
   }
 
   if (!isFirebaseConfigured || !db) {
+    console.error("[Firebase] Cannot subscribe: Firebase not configured or DB not initialized");
+    console.error("[Firebase] isFirebaseConfigured:", isFirebaseConfigured);
+    console.error("[Firebase] db:", db);
     currentMeta = {};
     syncPauseUi();
     syncChatUi();
@@ -238,8 +265,12 @@ const subscribeToMeta = (roomId) => {
   tick();
   heartbeatInterval = setInterval(tick, 20000);
 
-  stopMetaSubscription = onValue(roomRef(roomId, "meta"), (snapshot) => {
-    currentMeta = snapshot.val() || {};
+  try {
+    console.log("[Firebase] Setting up real-time listener for:", roomPath(roomId, "meta"));
+    stopMetaSubscription = onValue(roomRef(roomId, "meta"), (snapshot) => {
+      console.log("[Firebase] Metadata update received for room:", roomId);
+      currentMeta = snapshot.val() || {};
+      console.log("[Firebase] Current metadata:", currentMeta);
 
     const teamA = currentMeta.teamA || "";
     const teamB = currentMeta.teamB || "";
@@ -279,7 +310,15 @@ const subscribeToMeta = (roomId) => {
     syncSortUi();
     syncWinProbUi();
     updateResolutionVisibility();
-  });
+    }, (error) => {
+      console.error("[Firebase] Error setting up listener:", error);
+      console.error("[Firebase] Error code:", error.code);
+      console.error("[Firebase] Error message:", error.message);
+    });
+  } catch (error) {
+    console.error("[Firebase] Exception while subscribing:", error);
+    console.error("[Firebase] Exception stack:", error.stack);
+  }
 };
 
 const syncWinProbUi = () => {
@@ -475,27 +514,62 @@ settingsForm.addEventListener("submit", async (event) => {
   submitBtn.textContent = "Deploying...";
 
   try {
+    console.log("[Form Submit] Starting deployment for room:", roomId);
+    
+    // Step 1: Update desktop settings
+    console.log("[Form Submit] Updating desktop settings...");
     const nextSettings = await window.overlayDesktop.updateSettings({
       roomId,
       opacity: Number(opacityInput.value)
     });
+    console.log("[Form Submit] Desktop settings updated:", nextSettings);
     setStatusText(nextSettings);
+    
+    // Step 2: Re-subscribe to Firebase metadata
+    console.log("[Form Submit] Subscribing to room metadata...");
     subscribeToMeta(roomId);
 
+    // Step 3: Save room metadata to Firebase
     if (isFirebaseConfigured && db) {
-      await saveRoomMeta(roomId, getFormMeta());
+      const roomMeta = getFormMeta();
+      console.log("[Form Submit] Firebase configured:", isFirebaseConfigured);
+      console.log("[Form Submit] Database initialized:", !!db);
+      console.log("[Form Submit] Saving room metadata to Firebase:", roomMeta);
+      try {
+        await saveRoomMeta(roomId, roomMeta);
+        console.log("[Form Submit] Room metadata saved successfully to:", roomPath(roomId, "meta"));
+      } catch (firebaseError) {
+        console.error("[Form Submit] Firebase save error:", firebaseError);
+        console.error("[Form Submit] Firebase error code:", firebaseError.code);
+        console.error("[Form Submit] Firebase error message:", firebaseError.message);
+        throw firebaseError;
+      }
+    } else {
+      console.warn("[Form Submit] Firebase not properly initialized");
+      console.warn("[Form Submit] isFirebaseConfigured:", isFirebaseConfigured);
+      console.warn("[Form Submit] db instance:", db);
+      if (!isFirebaseConfigured) {
+        console.warn("[Form Submit] Reason: Firebase config not loaded from firebase-config.js");
+      }
+      if (!db) {
+        console.warn("[Form Submit] Reason: Database connection failed");
+      }
     }
 
+    // Step 4: Reload overlay
+    console.log("[Form Submit] Reloading overlay...");
     await window.overlayDesktop.reloadOverlay();
+    console.log("[Form Submit] Overlay reloaded successfully");
 
-    submitBtn.textContent = "Deployed";
+    submitBtn.textContent = "Deployed ✓";
     setTimeout(() => {
       submitBtn.disabled = false;
       submitBtn.textContent = originalText;
     }, 1500);
   } catch (error) {
-    console.error(error);
-    submitBtn.textContent = "Error";
+    console.error("[Form Submit] Error during deployment:", error);
+    console.error("[Form Submit] Error stack:", error.stack);
+    submitBtn.textContent = "Error - Check Console";
     setTimeout(() => {
       submitBtn.disabled = false;
       submitBtn.textContent = originalText;
@@ -644,6 +718,10 @@ reloadTickerButton.addEventListener("click", async () => {
 
 resetTickerBoundsButton.addEventListener("click", async () => {
   setStatusText(await window.overlayDesktop.resetTickerBounds());
+});
+
+toggleDebugWindowButton.addEventListener("click", async () => {
+  await window.overlayDesktop.toggleDebugWindow();
 });
 
 if (showReactionButton) {

@@ -1,7 +1,29 @@
 const { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const WebSocket = require("ws");
 const { version: APP_VERSION } = require("../../package.json");
+
+// Enable hot reload in dev/local mode
+const isDev = process.env.NODE_ENV === "development";
+if (isDev) {
+  try {
+    require("electron-reload")(__dirname, {
+      electron: path.resolve(__dirname, "../../node_modules/.bin/electron"),
+      awaitWriteFinish: {
+        stabilityWaitTime: 500,
+        pollInterval: 100
+      },
+      // Watch both frontend folders and HTML files
+      glob: [
+        path.join(__dirname, "**/*.{js,html,css}"),
+        path.join(__dirname, "..", "assets", "**/*.{js,html,css}")
+      ]
+    });
+  } catch (e) {
+    console.warn("electron-reload not available (only for development):", e.message);
+  }
+}
 
 const rawAppMode = process.env.APP_MODE || process.env.NODE_ENV || "production";
 const APP_MODE = (() => {
@@ -41,10 +63,77 @@ const DEFAULT_SETTINGS = {
   }
 };
 
+// === WEBSOCKET SERVER FOR CROSS-WINDOW LOGGING ===
+const WS_PORT = 9999;
+let wss = null;
+let wsClients = new Set();
+let wsLogBuffer = [];
+const WS_MAX_LOGS = 1000;
+
+const initWebSocketServer = () => {
+  try {
+    wss = new WebSocket.Server({ port: WS_PORT });
+    
+    wss.on("connection", (ws) => {
+      wsClients.add(ws);
+      console.log(`[WebSocket] Client connected. Total clients: ${wsClients.size}`);
+      
+      // Send existing logs to the newly connected client
+      ws.send(JSON.stringify({ type: "logs-batch", data: wsLogBuffer }));
+      
+      ws.on("message", (message) => {
+        try {
+          const parsed = JSON.parse(message);
+          
+          if (parsed.type === "log") {
+            // Store and broadcast log to all clients
+            const logEntry = {
+              level: parsed.level,
+              message: parsed.message,
+              timestamp: parsed.timestamp,
+              window: parsed.window || "Unknown"
+            };
+            
+            wsLogBuffer.unshift(logEntry);
+            if (wsLogBuffer.length > WS_MAX_LOGS) {
+              wsLogBuffer.pop();
+            }
+            
+            // Broadcast to all connected clients
+            const broadcastMsg = JSON.stringify({ type: "log", data: logEntry });
+            wsClients.forEach(client => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(broadcastMsg);
+              }
+            });
+          }
+        } catch (err) {
+          console.error("[WebSocket] Error processing message:", err.message);
+        }
+      });
+      
+      ws.on("close", () => {
+        wsClients.delete(ws);
+        console.log(`[WebSocket] Client disconnected. Total clients: ${wsClients.size}`);
+      });
+      
+      ws.on("error", (err) => {
+        console.error("[WebSocket] Client error:", err.message);
+      });
+    });
+    
+    console.log(`[WebSocket] Server started on ws://localhost:${WS_PORT}`);
+  } catch (err) {
+    console.error("[WebSocket] Failed to start server:", err.message);
+  }
+};
+
 let controlWindow = null;
 let overlayWindow = null;
 let tickerWindow = null;
 let reactionWindow = null;
+let debugWindow = null;
+let debugWindowLogs = [];
 
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");
 
@@ -388,6 +477,41 @@ const ensureControlWindow = () => {
   return controlWindow;
 };
 
+const ensureDebugWindow = () => {
+  if (debugWindow && !debugWindow.isDestroyed()) {
+    debugWindow.focus();
+    return debugWindow;
+  }
+
+  debugWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    minWidth: 400,
+    minHeight: 300,
+    show: true,
+    minimizable: true,
+    autoHideMenuBar: true,
+    backgroundColor: "#0a0e27",
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      enableRemoteModule: true
+    }
+  });
+
+  debugWindow.loadFile(path.join(__dirname, "..", "debug.html"));
+  
+  if (isDev || process.env.DEBUG) {
+    debugWindow.webContents.openDevTools();
+  }
+
+  debugWindow.on("closed", () => {
+    debugWindow = null;
+  });
+
+  return debugWindow;
+};
+
 const updateSettings = (partial) => {
   settings = {
     ...settings,
@@ -432,6 +556,7 @@ const registerShortcuts = () => {
 };
 
 app.whenReady().then(() => {
+  initWebSocketServer();
   ensureControlWindow();
   if (settings.overlayVisible) {
     ensureOverlayWindow();
@@ -556,6 +681,41 @@ ipcMain.handle("ticker:reset-bounds", () => {
   window.setBounds(settings.tickerBounds);
   broadcastState();
   return settings;
+});
+
+ipcMain.handle("debug:toggle", () => {
+  if (debugWindow && !debugWindow.isDestroyed()) {
+    if (debugWindow.isVisible()) {
+      debugWindow.hide();
+    } else {
+      debugWindow.show();
+    }
+  } else {
+    ensureDebugWindow();
+  }
+});
+
+ipcMain.on("debug:log", (event, { level, message, timestamp }) => {
+  // Store log
+  debugWindowLogs.unshift({ level, message, timestamp });
+  if (debugWindowLogs.length > 1000) {
+    debugWindowLogs.pop();
+  }
+
+  // Forward to debug window if it's open
+  if (debugWindow && !debugWindow.isDestroyed()) {
+    debugWindow.webContents.send("debug:log", { level, message, timestamp });
+  }
+});
+
+ipcMain.on("debug:request-logs", (event) => {
+  if (debugWindow && !debugWindow.isDestroyed()) {
+    debugWindow.webContents.send("debug:logs-batch", debugWindowLogs);
+  }
+});
+
+ipcMain.on("debug:clear", (event) => {
+  debugWindowLogs = [];
 });
 
 ipcMain.handle("overlay:reset-bounds", () => {

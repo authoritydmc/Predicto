@@ -9,6 +9,10 @@ import {
   roomRef,
   chatRef
 } from "./firebase.js";
+import { initWindowLogger } from "./logger.js";
+
+initWindowLogger("Overlay");
+console.log("[Init] Overlay window loaded and logger initialized");
 import {
   getAudienceEntryUrl,
   escapeHtml,

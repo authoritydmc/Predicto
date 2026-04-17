@@ -1,5 +1,9 @@
 import { db, onValue, roomRef, chatRef, query, limitToLast } from "./firebase.js";
 import { getRoomId, escapeHtml, applyTeamTheme, stripKlipyUrl, getTeamCode } from "./shared.js";
+import { initWindowLogger } from "./logger.js";
+
+initWindowLogger("Ticker");
+console.log("[Init] Ticker window loaded and logger initialized");
 
 const roomId = getRoomId();
 const tickerStats = document.getElementById("tickerStats");

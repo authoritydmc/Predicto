@@ -7,6 +7,10 @@ import {
   saveRoomMeta,
   clearChat
 } from "./firebase.js";
+import { initWindowLogger } from "./logger.js";
+
+initWindowLogger("Host");
+console.log("[Init] Host window loaded and logger initialized");
 import { getAudienceEntryUrl, buildRoomUrl, getRoomId, setHidden, applyTeamTheme } from "./shared.js";
 
 const roomId = getRoomId();

@@ -8,6 +8,10 @@ import {
   getRoomId,
   setHidden
 } from "./shared.js";
+import { initWindowLogger } from "./logger.js";
+
+initWindowLogger("Reaction");
+console.log("[Init] Reaction window loaded and logger initialized");
 
 const roomId = getRoomId();
 const reactionOverlay = document.querySelector("#reactionOverlay");

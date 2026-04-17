@@ -12,6 +12,10 @@ import {
   set,
   chatRef
 } from "./firebase.js";
+import { initWindowLogger } from "./logger.js";
+
+initWindowLogger("Audience");
+console.log("[Init] Audience window loaded and logger initialized");
 import {
   escapeHtml,
   formatWinnerCounts,
