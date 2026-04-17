@@ -3,6 +3,14 @@ const fs = require("fs");
 const path = require("path");
 const { version: APP_VERSION } = require("../../package.json");
 
+const rawAppMode = process.env.APP_MODE || process.env.NODE_ENV || "production";
+const APP_MODE = (() => {
+  const normalized = rawAppMode.toLowerCase();
+  if (normalized === "local") return "local";
+  if (normalized === "dev" || normalized === "development") return "dev";
+  return "prod";
+})();
+
 const DEFAULT_SETTINGS = {
   appVersion: APP_VERSION,
   roomId: "ipl",
@@ -79,7 +87,8 @@ const saveSettings = () => {
 
 const getOverlayQuery = () => ({
   room: settings.roomId,
-  mode: "desktop"
+  mode: "desktop",
+  appMode: APP_MODE
 });
 
 const loadOverlayPage = (window) => {
@@ -192,6 +201,7 @@ const ensureOverlayWindow = () => {
     transparent: true,
     hasShadow: false,
     title: " ",
+    minimizable: true,
     darkTheme: true,
     roundedCorners: false,
     autoHideMenuBar: true,
@@ -240,6 +250,7 @@ const ensureTickerWindow = () => {
     transparent: true,
     hasShadow: false,
     title: " ",
+    minimizable: true,
     darkTheme: true,
     roundedCorners: false,
     autoHideMenuBar: true,
@@ -289,6 +300,7 @@ const ensureReactionWindow = () => {
     transparent: true,
     hasShadow: false,
     title: " ",
+    minimizable: true,
     darkTheme: true,
     roundedCorners: false,
     autoHideMenuBar: true,
@@ -352,6 +364,7 @@ const ensureControlWindow = () => {
     height: 760,
     minWidth: 420,
     minHeight: 720,
+    minimizable: true,
     autoHideMenuBar: true,
     backgroundColor: "#08121e",
     webPreferences: {
@@ -361,7 +374,9 @@ const ensureControlWindow = () => {
     }
   });
 
-  controlWindow.loadFile(path.join(__dirname, "control.html"));
+  controlWindow.loadFile(path.join(__dirname, "control.html"), {
+    query: { appMode: APP_MODE }
+  });
   controlWindow.on("closed", () => {
     // Destroy all associated windows when the control panel is closed
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.destroy();

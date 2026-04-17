@@ -5,7 +5,11 @@
   "author": "OverlayChat",
   "main": "frontend/desktop/main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "cross-env NODE_ENV=development APP_MODE=local concurrently \"python backend/server.py\" \"electron .\"",
+    "start:dev": "cross-env NODE_ENV=development electron .",
+    "start:local": "cross-env NODE_ENV=development APP_MODE=local electron .",
+    "start:prod": "cross-env NODE_ENV=production electron .",
+    "start:server": "cross-env NODE_ENV=development python backend/server.py",
     "dist:win": "electron-builder --win"
   },
   "build": {
@@ -27,6 +31,8 @@
     }
   },
   "devDependencies": {
+    "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3",
     "electron": "37.3.1",
     "electron-builder": "^26.0.12"
   },

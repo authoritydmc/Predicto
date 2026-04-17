@@ -6,11 +6,11 @@ The project is thoughtfully structured into a `frontend/` containing the UI comp
 
 ## Project Structure
 
-- `frontend/`: Contains the pre-built web assets (HTML/JS/CSS).
+- `frontend/`: Contains the browser UI assets for audience and host pages.
   - `index.html`: Audience page for predictions and chat.
   - `overlay.html`: Browser-based stream overlay.
   - `host.html`: Host controls for match setup and room reset.
-  - `desktop/`: Windows Desktop App wrapper (Electron).
+  - `desktop/`: Windows local host app wrapper (Electron).
 - `backend/`: Contains the Python automation logic and API/Static server.
   - `monitor.py`: The live scraper and Match monitoring logic for automation.
   - `scoring.py`: The calculation engine for points allocation.
@@ -19,14 +19,24 @@ The project is thoughtfully structured into a `frontend/` containing the UI comp
 
 ## Frontend Setup & Run (Desktop App)
 
-The desktop app is an Electron wrapper around the hosted overlay. Run these commands from the root directory:
+The desktop app is an Electron wrapper around the hosted overlay and the backend server. Run these commands from the root directory:
 
 ```bash
-# Install dependencies for the Electron app
+# Install dependencies for the Electron app and local startup tooling
 npm install
 
-# Run the desktop app locally
-npm run start
+# Run the local backend server and desktop host together in development/local mode
+npm start
+```
+
+The Electron app decides mode from environment variables:
+- `APP_MODE=local` or `NODE_ENV=development` => app mode is `local`/`dev`
+- otherwise => app mode is `prod`
+
+For a production Electron build without the local startup server:
+
+```bash
+npm run start:prod
 ```
 
 ### Build a Windows `.exe`

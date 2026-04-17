@@ -30,6 +30,7 @@ const labelBattingB = document.querySelector("#labelBattingB");
 const hideJoinInput = document.querySelector("#hideJoin");
 const audienceUrlInput = document.querySelector("#audienceUrl");
 const copyAudienceUrlButton = document.querySelector("#copyAudienceUrl");
+const openAudienceUrlButton = document.querySelector("#openAudienceUrl");
 const opacityInput = document.querySelector("#opacity");
 const opacityValue = document.querySelector("#opacityValue");
 const reactionOpacityInput = document.querySelector("#reactionOpacity");
@@ -448,6 +449,19 @@ const copyAudienceUrl = async () => {
     }, 1400);
   }
 };
+
+if (openAudienceUrlButton) {
+  openAudienceUrlButton.addEventListener("click", async () => {
+    try {
+      const url = audienceUrlInput.value;
+      if (url) {
+        await window.overlayDesktop.openExternal(url);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  });
+}
 
 settingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
