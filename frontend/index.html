@@ -74,17 +74,44 @@
         </section>
 
         <!-- Favorite Team Display -->
-        <section id="favoriteTeamSection" class="panel favorite-team-panel hidden">
+        <section id="favoriteTeamSection" class="panel favorite-team-panel hidden" aria-live="polite">
+
           <div class="favorite-team-display">
-            <div class="favorite-team-logo" id="favoriteTeamLogo"></div>
+
+            <!-- Logo -->
+            <figure class="favorite-team-logo" id="favoriteTeamLogo">
+              <!-- JS will inject <img>, fallback below stays if JS fails -->
+              <div class="team-logo-fallback">--</div>
+            </figure>
+
+            <!-- Info -->
             <div class="favorite-team-info">
+
               <p class="favorite-team-label">Your Favorite Team</p>
-              <h3 class="favorite-team-name" id="favoriteTeamName">-</h3>
-              <button id="changeFavoriteTeamBtn" class="ghost-link-xs">
-                <i class="fa-solid fa-edit"></i> Change Team (<span id="changesRemaining">3</span> changes left)
-              </button>
+
+              <h3 class="favorite-team-name" id="favoriteTeamName">
+                Select a Team
+              </h3>
+
+              <!-- Meta row -->
+              <div class="favorite-team-meta">
+                <button
+                        id="changeFavoriteTeamBtn"
+                        class="ghost-link-xs"
+                        type="button"
+                        aria-label="Change favorite team"
+                >
+                  <i class="fa-solid fa-pen"></i>
+                  Change Team
+                  <span class="changes-badge">
+            (<span id="changesRemaining">3</span> left)
+          </span>
+                </button>
+              </div>
+
             </div>
           </div>
+
         </section>
 
         <section id="setupNotice" class="setup-notice hidden">
@@ -292,6 +319,7 @@
     <div id="playerListModal" class="dashboard-overlay viz-modal hidden"></div>
     <div id="playerTrendModal" class="dashboard-overlay viz-modal hidden"></div>
     <div id="compareModal" class="dashboard-overlay viz-modal hidden"></div>
+
 
     <script type="module" src="./assets/audience.js?v=3"></script>
   </body>

@@ -1553,26 +1553,97 @@ async function checkAndShowFavoriteTeamModal() {
   }
 }
 
+// Displays user's favorite IPL team with logo and controls
 function displayFavoriteTeam(profile) {
+  // Get DOM elements
   const favoriteTeamSection = document.getElementById("favoriteTeamSection");
   const favoriteTeamLogo = document.getElementById("favoriteTeamLogo");
   const favoriteTeamName = document.getElementById("favoriteTeamName");
   const changeFavoriteTeamBtn = document.getElementById("changeFavoriteTeamBtn");
   const changesRemaining = document.getElementById("changesRemaining");
 
-  const team = IPL_TEAMS.find(t => t.code === profile.favoriteTeam);
-  if (!team) return;
-
-  favoriteTeamSection?.classList.remove("hidden");
-
-  if (favoriteTeamLogo) {
-    favoriteTeamLogo.innerHTML = team.svg;
+  // 🛡️ Safety: ensure profile exists
+  if (!profile || !profile.favoriteTeam) {
+    console.warn("Profile or favoriteTeam missing");
+    return;
   }
 
+  // 🔍 Case-insensitive team lookup
+  const team = IPL_TEAMS.find(
+    t => t.code.toLowerCase() === profile.favoriteTeam.toLowerCase()
+  );
+
+  // 🛑 If team not found
+  if (!team) {
+    console.warn("Team not found for code:", profile.favoriteTeam);
+
+    if (favoriteTeamName) {
+      favoriteTeamName.textContent = "Unknown Team";
+    }
+
+    if (favoriteTeamLogo) {
+      favoriteTeamLogo.innerHTML = "";
+    }
+
+    return;
+  }
+
+  // ✅ Show section
+  if (favoriteTeamSection) {
+    favoriteTeamSection.classList.remove("hidden");
+  }
+
+  // 🖼️ Render logo safely
+  if (favoriteTeamLogo) {
+    // Clear previous content
+    favoriteTeamLogo.innerHTML = "";
+
+    // Create image element
+    const img = document.createElement("img");
+    console.log("Rendering logo for team:",+team.logo)
+    // Set image source
+    img.src = team.logo;
+
+    // Accessibility
+    img.alt = team.name;
+
+    // Styling (adjust if needed)
+    img.style.width = "60px";
+    img.style.height = "60px";
+    img.style.objectFit = "contain";
+
+    // ❌ Handle broken/missing image
+    img.onerror = () => {
+      console.warn("Logo failed to load:", team.logo);
+
+      // fallback UI (simple colored circle with code)
+      favoriteTeamLogo.innerHTML = `
+        <div style="
+          width:60px;
+          height:60px;
+          border-radius:50%;
+          background:${team.color};
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          color:white;
+          font-weight:bold;
+        ">
+          ${team.code}
+        </div>
+      `;
+    };
+
+    // Append image
+    favoriteTeamLogo.appendChild(img);
+  }
+
+  // 🏷️ Set team name
   if (favoriteTeamName) {
     favoriteTeamName.textContent = team.name;
   }
 
+  // 🔢 Calculate remaining changes
   const changeCount = profile.favoriteTeamChangeCount || 0;
   const remaining = MAX_TEAM_CHANGES - changeCount;
 
@@ -1580,17 +1651,25 @@ function displayFavoriteTeam(profile) {
     changesRemaining.textContent = remaining;
   }
 
+  // 🔘 Handle change button
   if (changeFavoriteTeamBtn) {
     if (remaining <= 0) {
       changeFavoriteTeamBtn.disabled = true;
-      changeFavoriteTeamBtn.innerHTML = '<i class="fa-solid fa-lock"></i> No changes remaining';
+      changeFavoriteTeamBtn.innerHTML =
+        '<i class="fa-solid fa-lock"></i> No changes remaining';
     } else {
       changeFavoriteTeamBtn.disabled = false;
-      changeFavoriteTeamBtn.onclick = () => openTeamChangeModal();
+
+      // Remove old handlers (important)
+      changeFavoriteTeamBtn.onclick = null;
+
+      // Add new handler
+      changeFavoriteTeamBtn.onclick = () => {
+        openTeamChangeModal();
+      };
     }
   }
 }
-
 function openTeamChangeModal() {
   const changeCount = currentUserProfile.favoriteTeamChangeCount || 0;
   const remaining = MAX_TEAM_CHANGES - changeCount;
@@ -1611,18 +1690,32 @@ function openTeamChangeModal() {
   favoriteTeamModal?.classList.remove("hidden");
 }
 
+// Renders selectable IPL team grid with logos
 function renderTeamGrid() {
   const teamGrid = document.getElementById("teamGrid");
   if (!teamGrid) return;
 
+  // Build HTML with <img> instead of inline SVG
   teamGrid.innerHTML = IPL_TEAMS.map(team => `
     <div class="team-option" data-team="${team.code}">
-      <div class="team-option-logo">${team.svg}</div>
+
+      <div class="team-option-logo">
+        <img
+          src="${team.logo}"
+          alt="${team.name}"
+          width="50"
+          height="50"
+          style="object-fit:contain"
+          onerror="this.onerror=null; this.parentElement.innerHTML='<div style=&quot;width:50px;height:50px;border-radius:50%;background:${team.color};display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;&quot;>${team.code}</div>';"
+        />
+      </div>
+
       <div class="team-option-code">${team.code}</div>
       <div class="team-option-name">${team.name}</div>
     </div>
   `).join("");
 
+  // Attach click handlers
   teamGrid.querySelectorAll(".team-option").forEach(option => {
     option.addEventListener("click", async () => {
       const teamCode = option.dataset.team;
@@ -1630,7 +1723,6 @@ function renderTeamGrid() {
     });
   });
 }
-
 async function selectFavoriteTeam(teamCode) {
   const clientId = getClientId();
   const favoriteTeamModal = document.getElementById("favoriteTeamModal");
