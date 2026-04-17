@@ -2,28 +2,30 @@
 
 Browser-based audience predictions and live chat for sports streams. Viewers open a public URL, submit their score prediction and winner pick, and chat in real time. The overlay page can be used directly as a browser source, and the repo now also includes a Windows desktop overlay app.
 
-## Included web pages
+The project is thoughtfully structured into a `frontend/` containing the UI components and a `backend/` containing a Python-based automation scraper and static file server.
 
-- `index.html`: audience page for predictions and chat
-- `overlay.html`: browser-based stream overlay
-- `host.html`: host controls for match setup and room reset
+## Project Structure
 
-All three pages are room-based. Use `?room=your-room-name` on the URL so one host, one audience page, and one overlay page all listen to the same match room.
+- `frontend/`: Contains the pre-built web assets (HTML/JS/CSS).
+  - `index.html`: Audience page for predictions and chat.
+  - `overlay.html`: Browser-based stream overlay.
+  - `host.html`: Host controls for match setup and room reset.
+  - `desktop/`: Windows Desktop App wrapper (Electron).
+- `backend/`: Contains the Python automation logic and API/Static server.
+  - `monitor.py`: The live scraper and Match monitoring logic for automation.
+  - `scoring.py`: The calculation engine for points allocation.
+  - `server.py`: A FastAPI endpoint for serving the frontend static files.
+  - `requirements.txt`: Python package requirements.
 
-## Included Windows app
+## Frontend Setup & Run (Desktop App)
 
-The `desktop/` app is an Electron wrapper around the hosted overlay:
-
-- transparent always-on-top overlay window
-- draggable native window
-- room switcher
-- opacity control
-- click-through toggle for mouse passthrough
-
-### Run the desktop app
+The desktop app is an Electron wrapper around the hosted overlay. Run these commands from the root directory:
 
 ```bash
+# Install dependencies for the Electron app
 npm install
+
+# Run the desktop app locally
 npm run start
 ```
 
@@ -33,31 +35,50 @@ npm run start
 npm run dist:win
 ```
 
-The app opens a small control window and, by default, an overlay window that loads:
-
-- `https://overlaychat-6f3c1.web.app/overlay.html?room=ipl-main&mode=desktop`
-
 Keyboard shortcuts inside the desktop app:
-
 - `Ctrl+Shift+X`: toggle click-through
 - `Ctrl+Shift+O`: show overlay window
 
+## Backend Setup & Run (Python Automation)
+
+The backend handles scraping real-time matches from Cricbuzz, scoring the predictions, and pushing updates to Firebase. 
+
+**Note:** The backend monitor requires a `.env` file containing secrets (`FIREBASE_SERVICE_ACCOUNT`, `DISCORD_WEBHOOK_URL`, `FIREBASE_ROOM`).
+
+```bash
+# Navigate to the backend directory
+cd backend
+
+# Create a virtual environment and load it (Windows format shown)
+python -m venv venv
+venv\Scripts\activate
+
+# Install the Python dependencies (FastAPI, Firebase, Requests)
+pip install -r requirements.txt
+
+# --- RUNNING THE SERVICES ---
+
+# 1. Run the local static server (to test the HTML UI locally at http://localhost:4173)
+python server.py
+
+# 2. Run the live match monitor for prediction automation
+python monitor.py
+```
+
 ## Firebase
 
-The current Firebase project is `overlaychat-6f3c1`. Realtime Database rules are currently open for prototype testing in `database.rules.json`.
+The current Firebase project is `indusind-5529e`. Realtime Database rules are currently configured for testing prototypes in `database.rules.json`.
 
-## Hosted URLs
+## Hosted Web URLs
 
-- Host: `https://overlaychat-6f3c1.web.app/host.html?room=ipl-main`
-- Audience: `https://overlaychat-6f3c1.web.app/index.html?room=ipl-main`
-- Overlay: `https://overlaychat-6f3c1.web.app/overlay.html?room=ipl-main`
+If building and deploying standard web routes:
+- Host: `https://indusind-5529e.web.app/host.html?room=ipl-main`
+- Audience: `https://indusind-5529e.web.app/index.html?room=ipl-main`
+- Overlay: `https://indusind-5529e.web.app/overlay.html?room=ipl-main`
 
-## Recommended next production step
+## Recommended Next Steps
 
-Before you put this in front of a real audience, add:
-
-- Firebase Anonymous Auth
-- write limits and validation rules
-- chat moderation or blocked words
-- rate limiting for spam protection
-- optional host approval before messages appear on overlay
+Before you put this in front of a real audience, verify:
+- Firebase Anonymous Auth write limits
+- Chat moderation layers
+- Appropriate logging outputs in `monitor.py`

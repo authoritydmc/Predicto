@@ -1,51 +1,60 @@
 {
   "rules": {
     "rooms": {
-      "$roomId": {
+      "$room_id": {
+        // --------------------------------------------------------------------------
+        // PUBLIC READ ACCESS
+        // Everyone (the audience UI and overlay) needs to read these live nodes
+        // --------------------------------------------------------------------------
+        ".read": true,
+
+        // --------------------------------------------------------------------------
+        // BACKEND ONLY WRITES (Secured)
+        // Only the Python monitor service (using Admin SDK) can modify game state,
+        // sync scores, pause predictions, and log official history. 
+        // --------------------------------------------------------------------------
         "meta": {
-          ".read": true,
-          ".write": true
-        },
-        "chat": {
-          ".read": true,
-          ".write": true,
-          "$messageId": {
-            ".validate": "newData.val() == null || (newData.child('name').isString() && newData.child('message').isString())"
-          }
-        },
-        "predictions": {
-          ".read": true,
-          ".write": true,
-          "$clientId": {
-            ".validate": "newData.val() == null || (newData.hasChildren(['clientId', 'name', 'predictedWinner', 'updatedAt']) || newData.hasChildren(['clientId', 'name', 'predictedWinner', 'submittedAt']))"
-          }
-        },
-        "early_2nd_predictions": {
-          ".read": true,
-          ".write": true
+          ".write": false 
         },
         "innings_history": {
-          ".read": true,
-          ".write": true
+          ".write": false
         },
         "history": {
-          ".read": true,
-          ".write": true
+          ".write": false
         },
         "season_leaderboard": {
-          ".read": true,
+          ".write": false
+        },
+        "monitor_state": {
+          ".write": false
+        },
+
+        // --------------------------------------------------------------------------
+        // AUDIENCE WRITES (Publicly writable but structurally mapped)
+        // --------------------------------------------------------------------------
+        "predictions": {
+          // Users can submit or update predictions ONLY if the match isn't paused
+          // The $client_id is randomly generated on the client and stored in LocalStorage
+          "$client_id": {
+             ".write": "root.child('rooms/'+$room_id+'/meta/predictionsPaused').val() !== true"
+          }
+        },
+        
+        "prediction_history": {
+          "$client_id": {
+            ".write": true
+          }
+        },
+
+        "chat": {
+          // Anyone can send a chat message at any time
           ".write": true
         },
+
         "reaction": {
-          ".read": true,
+           // Anyone can spam reactions
           ".write": true
         }
-      }
-    },
-    "active_sessions": {
-      ".read": true,
-      "$roomId": {
-        ".write": true
       }
     }
   }
