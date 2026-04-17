@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -25,9 +25,6 @@ jobs:
 
       - name: Install Node dependencies
         run: npm install
-
-      - name: Build frontend (if needed)
-        run: npm run build 2>/dev/null || true
 
       - name: Set up service account credentials
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_INDUSIND }}' > /tmp/firebase-key.json
