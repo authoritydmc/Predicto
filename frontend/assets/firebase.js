@@ -59,7 +59,8 @@ export const savePrediction = async (roomId, clientId, payload) => {
 
   // 2. Append to match-specific audit trail for this user
   // We use the match title as a sub-folder to keep it organized
-  const matchId = payload.matchId || "unknown_match";
+  // Firebase paths cannot contain . # $ [ or ]
+  const matchId = (payload.matchId || "unknown_match").replace(/[.#$\[\]]/g, "_");
   const historyRef = roomRef(roomId, `prediction_history/${clientId}/${matchId}`);
   await set(push(historyRef), {
     ...payload,
