@@ -1,43 +1,7 @@
 {
+  /* Visit https://firebase.google.com/docs/database/security to learn more about security rules. */
   "rules": {
-    "rooms": {
-      "$room_id": {
-        // PUBLIC READ ACCESS
-        ".read": true,
-
-        // BACKEND ONLY WRITES (Secured)
-        "meta": { ".write": false },
-        "innings_history": { ".write": false },
-        "history": { ".write": false },
-        "season_leaderboard": { ".write": false },
-        "monitor_state": { ".write": false },
-
-        // AUDIENCE WRITES (Publicly writable but structurally mapped)
-        "predictions": {
-          "$client_id": {
-             ".write": "root.child('rooms/'+$room_id+'/meta/predictionsPaused').val() !== true"
-          }
-        },
-        "prediction_history": {
-          "$client_id": {
-            ".write": true
-          }
-        }
-      }
-    },
-    
-    // Extracted out of rooms structure
-    "chat": {
-      "$room_id": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "reaction": {
-      "$room_id": {
-        ".read": true,
-        ".write": true
-      }
-    }
+    ".read": false,
+    ".write": false
   }
 }
