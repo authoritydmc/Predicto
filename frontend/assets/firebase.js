@@ -23,25 +23,53 @@ if (isFirebaseConfigured) {
 
 export { db, isFirebaseConfigured, onValue, query, limitToLast, ref, get, set, remove, update };
 
-export const roomPath = (roomId, child = "") =>
-  child ? `rooms/${roomId}/${child}` : `rooms/${roomId}`;
-
-export const roomRef = (roomId, child = "") => {
-  if (!db) {
-    throw new Error("Firebase is not configured");
-  }
-
-  return ref(db, roomPath(roomId, child));
-};
-
-export const chatRef = (roomId, child = "") => {
+// Room metadata only (teamA, teamB, matchTitle, flags)
+export const roomRef = (roomId) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, child ? `chat/${roomId}/${child}` : `chat/${roomId}`);
+  return ref(db, `rooms/${roomId}`);
 };
 
+// Active predictions for a room
+export const predictionsRef = (roomId, clientId = null) => {
+  if (!db) throw new Error("Firebase is not configured");
+  return ref(db, clientId ? `predictions/${roomId}/${clientId}` : `predictions/${roomId}`);
+};
+
+// Prediction history per user per match
+export const predictionHistoryRef = (roomId, clientId, matchId = null) => {
+  if (!db) throw new Error("Firebase is not configured");
+  const basePath = `prediction_history/${roomId}/${clientId}`;
+  return ref(db, matchId ? `${basePath}/${matchId}` : basePath);
+};
+
+// Match history (results and standings)
+export const matchHistoryRef = (roomId, matchId = null) => {
+  if (!db) throw new Error("Firebase is not configured");
+  return ref(db, matchId ? `match_history/${roomId}/${matchId}` : `match_history/${roomId}`);
+};
+
+// Season leaderboard
+export const seasonLeaderboardRef = (roomId) => {
+  if (!db) throw new Error("Firebase is not configured");
+  return ref(db, `season_leaderboard/${roomId}`);
+};
+
+// User profile data
+export const userRef = (clientId) => {
+  if (!db) throw new Error("Firebase is not configured");
+  return ref(db, `users/${clientId}`);
+};
+
+// Chat messages
+export const chatRef = (roomId, messageId = null) => {
+  if (!db) throw new Error("Firebase is not configured");
+  return ref(db, messageId ? `chat/${roomId}/${messageId}` : `chat/${roomId}`);
+};
+
+// Reactions
 export const reactionRef = (roomId) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `reaction/${roomId}`);
+  return ref(db, `reactions/${roomId}`);
 };
 
 export const getOnce = async (ref) => {
@@ -50,19 +78,17 @@ export const getOnce = async (ref) => {
 
 export const savePrediction = async (roomId, clientId, payload) => {
   const ts = serverTimestamp();
-  
+
   // 1. Update the current active prediction
-  await set(roomRef(roomId, `predictions/${clientId}`), {
+  await set(predictionsRef(roomId, clientId), {
     ...payload,
     updatedAt: ts,
   });
 
   // 2. Append to match-specific audit trail for this user
-  // We use the match title as a sub-folder to keep it organized
   // Firebase paths cannot contain . # $ [ or ]
   const matchId = (payload.matchId || "unknown_match").replace(/[.#$\[\]]/g, "_");
-  const historyRef = roomRef(roomId, `prediction_history/${clientId}/${matchId}`);
-  await set(push(historyRef), {
+  await set(push(predictionHistoryRef(roomId, clientId, matchId)), {
     ...payload,
     loggedAt: ts
   });
@@ -78,41 +104,38 @@ export const sendChatMessage = async (roomId, payload) => {
 };
 
 export const saveRoomMeta = async (roomId, payload) => {
-  await update(roomRef(roomId, "meta"), {
+  await update(roomRef(roomId), {
     ...payload,
     updatedAt: serverTimestamp(),
   });
 };
 
-export const clearRoomNode = async (roomId, child) => {
-  await remove(roomRef(roomId, child));
+export const clearPredictions = async (roomId) => {
+  await remove(predictionsRef(roomId));
 };
 
-export const saveInningsHistory = async (roomId, innings, results) => {
-  await set(roomRef(roomId, `innings_history/${innings}`), results);
+export const saveMatchResult = async (roomId, matchId, results) => {
+  await set(matchHistoryRef(roomId, matchId), {
+    ...results,
+    savedAt: serverTimestamp()
+  });
 };
 
-export const getInningsHistory = async (roomId) => {
-  const snapshot = await get(roomRef(roomId, "innings_history"));
+export const getMatchHistory = async (roomId) => {
+  const snapshot = await get(matchHistoryRef(roomId));
   return snapshot.val() || {};
 };
 
-export const archiveToHistory = async (roomId, dateKey, data) => {
-  await set(roomRef(roomId, `history/${dateKey}`), {
+export const archiveMatch = async (roomId, matchId, data) => {
+  await set(matchHistoryRef(roomId, matchId), {
     ...data,
     archivedAt: serverTimestamp()
   });
 };
 
-export const getHistory = async (roomId) => {
-  const snapshot = await get(roomRef(roomId, "history"));
-  return snapshot.val() || {};
-};
-
 export const wipeMatchData = async (roomId) => {
-  await remove(roomRef(roomId, "predictions"));
-  await remove(roomRef(roomId, "innings_history"));
-  await update(roomRef(roomId, "meta"), {
+  await remove(predictionsRef(roomId));
+  await update(roomRef(roomId), {
     matchTitle: "",
     teamA: "",
     teamB: "",
@@ -125,18 +148,18 @@ export const wipeMatchData = async (roomId) => {
 };
 
 export const saveSeasonLeaderboard = async (roomId, data) => {
-  await set(roomRef(roomId, "season_leaderboard"), {
+  await set(seasonLeaderboardRef(roomId), {
     standings: data,
     updatedAt: serverTimestamp()
   });
 };
 
 export const removePrediction = async (roomId, clientId) => {
-  await set(roomRef(roomId, `predictions/${clientId}`), null);
+  await remove(predictionsRef(roomId, clientId));
 };
 
 export const removeChatMessage = async (roomId, messageId) => {
-  await set(chatRef(roomId, messageId), null);
+  await remove(chatRef(roomId, messageId));
 };
 
 export const updateActiveSession = async (roomId) => {
@@ -155,9 +178,9 @@ export const sendReaction = async (roomId, payload) => {
 };
 
 export const clearChat = async (roomId) => {
-  await set(chatRef(roomId), null);
+  await remove(chatRef(roomId));
 };
 
 export const clearReaction = async (roomId) => {
-  await set(reactionRef(roomId), null);
+  await remove(reactionRef(roomId));
 };

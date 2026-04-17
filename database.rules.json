@@ -6,13 +6,45 @@
         ".write": true
       }
     },
+    "predictions": {
+      "$roomId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "prediction_history": {
+      "$roomId": {
+        "$clientId": {
+          ".read": true,
+          ".write": true
+        }
+      }
+    },
+    "match_history": {
+      "$roomId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "season_leaderboard": {
+      "$roomId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "users": {
+      "$clientId": {
+        ".read": true,
+        ".write": true
+      }
+    },
     "chat": {
       "$roomId": {
         ".read": true,
         ".write": true
       }
     },
-    "reaction": {
+    "reactions": {
       "$roomId": {
         ".read": true,
         ".write": true
