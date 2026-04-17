@@ -47,6 +47,17 @@
       </section>
 
       <div id="audienceApp" class="hidden">
+        <!-- Favorite Team Selection Modal -->
+        <div id="favoriteTeamModal" class="modal-overlay hidden">
+          <div class="modal-content team-selector-modal">
+            <div class="modal-header">
+              <h2><i class="fa-solid fa-heart"></i> Choose Your Favorite Team</h2>
+              <p>Select your favorite IPL team (one-time choice)</p>
+            </div>
+            <div id="teamGrid" class="team-grid"></div>
+          </div>
+        </div>
+
         <section class="hero audience-hero audience-hero-compact">
           <div class="hero-meta">
             <span>Code: <strong id="roomBadge">loading...</strong></span>
@@ -57,6 +68,20 @@
               </button>
               <button id="viewLeaderboard" class="glass-pill-btn">
                 <i class="fa-solid fa-trophy"></i> Leaderboard
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Favorite Team Display -->
+        <section id="favoriteTeamSection" class="panel favorite-team-panel hidden">
+          <div class="favorite-team-display">
+            <div class="favorite-team-logo" id="favoriteTeamLogo"></div>
+            <div class="favorite-team-info">
+              <p class="favorite-team-label">Your Favorite Team</p>
+              <h3 class="favorite-team-name" id="favoriteTeamName">-</h3>
+              <button id="changeFavoriteTeamBtn" class="ghost-link-xs">
+                <i class="fa-solid fa-edit"></i> Change Team (<span id="changesRemaining">3</span> changes left)
               </button>
             </div>
           </div>

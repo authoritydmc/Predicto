@@ -184,3 +184,21 @@ export const clearChat = async (roomId) => {
 export const clearReaction = async (roomId) => {
   await remove(reactionRef(roomId));
 };
+
+export const getUserProfile = async (clientId) => {
+  const snapshot = await get(userRef(clientId));
+  return snapshot.val() || {};
+};
+
+export const saveUserFavoriteTeam = async (clientId, teamName) => {
+  const profile = await getUserProfile(clientId);
+  const changeCount = (profile.favoriteTeamChangeCount || 0) + 1;
+
+  await update(userRef(clientId), {
+    favoriteTeam: teamName,
+    favoriteTeamSetAt: serverTimestamp(),
+    favoriteTeamChangeCount: changeCount
+  });
+
+  return changeCount;
+};

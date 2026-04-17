@@ -10,8 +10,11 @@ import {
   sendReaction,
   ref,
   set,
-  chatRef
+  chatRef,
+  getUserProfile,
+  saveUserFavoriteTeam
 } from "./firebase.js";
+import { IPL_TEAMS } from "./teams.js";
 import { initWindowLogger } from "./logger.js";
 
 initWindowLogger("Audience");
@@ -1523,3 +1526,153 @@ window.addEventListener("viewMatchDetails", (e) => {
     setHidden(matchDetailView, true);
   }
 });
+
+// ============================================================================
+// FAVORITE TEAM SELECTION
+// ============================================================================
+
+const MAX_TEAM_CHANGES = 3;
+let currentUserProfile = null;
+
+async function checkAndShowFavoriteTeamModal() {
+  if (!isFirebaseConfigured) return;
+
+  const clientId = getClientId();
+  currentUserProfile = await getUserProfile(clientId);
+
+  const favoriteTeamSection = document.getElementById("favoriteTeamSection");
+  const favoriteTeamModal = document.getElementById("favoriteTeamModal");
+
+  if (currentUserProfile.favoriteTeam) {
+    displayFavoriteTeam(currentUserProfile);
+  } else {
+    if (favoriteTeamModal) {
+      renderTeamGrid();
+      favoriteTeamModal.classList.remove("hidden");
+    }
+  }
+}
+
+function displayFavoriteTeam(profile) {
+  const favoriteTeamSection = document.getElementById("favoriteTeamSection");
+  const favoriteTeamLogo = document.getElementById("favoriteTeamLogo");
+  const favoriteTeamName = document.getElementById("favoriteTeamName");
+  const changeFavoriteTeamBtn = document.getElementById("changeFavoriteTeamBtn");
+  const changesRemaining = document.getElementById("changesRemaining");
+
+  const team = IPL_TEAMS.find(t => t.code === profile.favoriteTeam);
+  if (!team) return;
+
+  favoriteTeamSection?.classList.remove("hidden");
+
+  if (favoriteTeamLogo) {
+    favoriteTeamLogo.innerHTML = team.svg;
+  }
+
+  if (favoriteTeamName) {
+    favoriteTeamName.textContent = team.name;
+  }
+
+  const changeCount = profile.favoriteTeamChangeCount || 0;
+  const remaining = MAX_TEAM_CHANGES - changeCount;
+
+  if (changesRemaining) {
+    changesRemaining.textContent = remaining;
+  }
+
+  if (changeFavoriteTeamBtn) {
+    if (remaining <= 0) {
+      changeFavoriteTeamBtn.disabled = true;
+      changeFavoriteTeamBtn.innerHTML = '<i class="fa-solid fa-lock"></i> No changes remaining';
+    } else {
+      changeFavoriteTeamBtn.disabled = false;
+      changeFavoriteTeamBtn.onclick = () => openTeamChangeModal();
+    }
+  }
+}
+
+function openTeamChangeModal() {
+  const changeCount = currentUserProfile.favoriteTeamChangeCount || 0;
+  const remaining = MAX_TEAM_CHANGES - changeCount;
+
+  if (remaining <= 0) {
+    alert("You have used all your team changes!");
+    return;
+  }
+
+  const favoriteTeamModal = document.getElementById("favoriteTeamModal");
+  const modalHeader = favoriteTeamModal?.querySelector(".modal-header p");
+
+  if (modalHeader) {
+    modalHeader.textContent = `Select your favorite IPL team (${remaining} changes remaining)`;
+  }
+
+  renderTeamGrid();
+  favoriteTeamModal?.classList.remove("hidden");
+}
+
+function renderTeamGrid() {
+  const teamGrid = document.getElementById("teamGrid");
+  if (!teamGrid) return;
+
+  teamGrid.innerHTML = IPL_TEAMS.map(team => `
+    <div class="team-option" data-team="${team.code}">
+      <div class="team-option-logo">${team.svg}</div>
+      <div class="team-option-code">${team.code}</div>
+      <div class="team-option-name">${team.name}</div>
+    </div>
+  `).join("");
+
+  teamGrid.querySelectorAll(".team-option").forEach(option => {
+    option.addEventListener("click", async () => {
+      const teamCode = option.dataset.team;
+      await selectFavoriteTeam(teamCode);
+    });
+  });
+}
+
+async function selectFavoriteTeam(teamCode) {
+  const clientId = getClientId();
+  const favoriteTeamModal = document.getElementById("favoriteTeamModal");
+
+  const changeCount = currentUserProfile.favoriteTeamChangeCount || 0;
+  if (currentUserProfile.favoriteTeam && changeCount >= MAX_TEAM_CHANGES) {
+    alert("You have used all your team changes!");
+    return;
+  }
+
+  try {
+    const newChangeCount = await saveUserFavoriteTeam(clientId, teamCode);
+
+    currentUserProfile.favoriteTeam = teamCode;
+    currentUserProfile.favoriteTeamChangeCount = newChangeCount;
+
+    displayFavoriteTeam(currentUserProfile);
+
+    if (favoriteTeamModal) {
+      favoriteTeamModal.classList.add("hidden");
+    }
+
+    const team = IPL_TEAMS.find(t => t.code === teamCode);
+    console.log(`[Favorite Team] Set to ${teamCode} (${team?.name})`);
+
+    const remaining = MAX_TEAM_CHANGES - newChangeCount;
+    if (remaining > 0) {
+      setTimeout(() => {
+        alert(`Team updated! You have ${remaining} change${remaining === 1 ? '' : 's'} remaining.`);
+      }, 300);
+    } else {
+      setTimeout(() => {
+        alert(`Team updated! This was your final change.`);
+      }, 300);
+    }
+  } catch (err) {
+    console.error("[Favorite Team] Error saving:", err);
+    alert("Failed to save favorite team. Please try again.");
+  }
+}
+
+// Check on room join
+if (roomSelected && isFirebaseConfigured) {
+  checkAndShowFavoriteTeamModal();
+}
