@@ -1,5 +1,11 @@
 export const DEFAULT_ROOM = "ipl";
 export const HOSTED_AUDIENCE_ORIGIN = "https://vrccim.com";
+export const LOCAL_AUDIENCE_ORIGIN = "http://localhost:4173";
+
+const getAppMode = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("appMode")?.toLowerCase();
+};
 
 export const getRoomId = () => {
   const params = new URLSearchParams(window.location.search);
@@ -14,6 +20,10 @@ export const hasExplicitRoomCode = () => {
 
 export const getAudienceEntryUrl = () => {
   if (window.location.protocol === "file:") {
+    const appMode = getAppMode();
+    if (appMode === "local") {
+      return `${LOCAL_AUDIENCE_ORIGIN}/`;
+    }
     return `${HOSTED_AUDIENCE_ORIGIN}/`;
   }
 
@@ -53,11 +63,14 @@ export const isHostedShortRouteSupported = () =>
 
 export const buildRoomUrl = ({ shortPath, fallbackPath }, roomId) => {
   if (window.location.protocol === "file:") {
-    const url = new URL(HOSTED_AUDIENCE_ORIGIN);
-    url.pathname = shortPath === "/a" ? "/" : shortPath;
+    const appMode = getAppMode();
+    const useLocal = appMode === "local";
+    const baseOrigin = useLocal ? LOCAL_AUDIENCE_ORIGIN : HOSTED_AUDIENCE_ORIGIN;
+    const targetPath = useLocal ? fallbackPath : shortPath === "/a" ? "/" : shortPath;
+    const url = new URL(targetPath, baseOrigin);
     url.search = "";
     if (roomId && roomId !== DEFAULT_ROOM) {
-      url.searchParams.set("r", roomId);
+      url.searchParams.set(useLocal ? "room" : "r", roomId);
     }
     return url.toString();
   }

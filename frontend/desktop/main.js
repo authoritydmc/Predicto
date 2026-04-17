@@ -14,7 +14,7 @@ const APP_MODE = (() => {
 const DEFAULT_SETTINGS = {
   appVersion: APP_VERSION,
   roomId: "ipl",
-  overlayBaseUrl: "https://overlaychat-6f3c1.web.app/o",
+  overlayBaseUrl: APP_MODE === "local" ? "http://localhost:4173/overlay.html" : "https://overlaychat-6f3c1.web.app/o",
   clickThrough: false,
   overlayVisible: true,
   opacity: 1,
