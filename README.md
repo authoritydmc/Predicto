@@ -1,78 +1,98 @@
 # OverlayChat
 
+Browser-based audience predictions and live chat for sports streams. The architecture is cleanly split between an audience-facing Web App (React) and a Broadcaster Desktop App (Electron/Python).
 
-## Frontend Setup & Run (Desktop App)
+## Project Structure
 
-The desktop app is an Electron wrapper around the hosted overlay and the backend server. Run these commands from the root directory:
+1. **Frontend (Audience Web App)**
+   - Located in the `frontend/` directory.
+   - Built with **Vite + React (TypeScript)**.
+   - Handles the audience-facing views where users join rooms, submit predictions, and use live chat dynamically.
+2. **Backend (Electron Broadcaster App & Python Automation)**
+   - Located in the `backend/` directory.
+   - Electron UI (Control Panel, Overlays) wraps around local HTML files.
+   - Python logic (`monitor.py`) handles automated scoring pipelines, data scraping, and analytics syncing.
+
+The data layer uses Firebase Realtime Database with a strict match-centric data model. All live keys are isolated under a `matchId` per room per environment.
+
+## Environment Architecture
+
+OverlayChat heavily isolates local testing from production:
+- **Local Environment**: `APP_MODE=local` writes exclusively to the `/local/...` node of your Firebase database. Prevents breaking live deployment matches while developing.
+- **Production Environment**: `APP_MODE=prod` writes directly to standard nodes (`/prod/...`).
+
+---
+
+## 💻 Local Development & Testing
+
+You will want to run both the Frontend (Vite) and Backend (Electron) simultaneously to test full-stack features.
+
+### 1. Setup
 
 ```bash
-# Install dependencies for the Electron app and local startup tooling
+# Root dependencies (Electron tools)
 npm install
 
-# Run the local backend server and desktop host together in development/local mode
+# Frontend dependencies (React project)
+cd frontend
+npm install
+cd ..
+
+# Backend dependencies (Python)
+python -m venv venv
+venv\Scripts\activate   # (On Windows)
+pip install -r backend/requirements.txt
+```
+
+### 2. Start the Backend / Broadcaster App
+
+From the root directory, launch the Electron wrapper locally. This runs in Development Mode (`APP_MODE=local`):
+```bash
 npm start
 ```
+*Tip: To just run the python web server: `npm run start:server`.*
 
-The Electron app decides mode from environment variables:
-- `APP_MODE=local` or `NODE_ENV=development` => app mode is `local`/`dev`
-- otherwise => app mode is `prod`
-
-For a production Electron build without the local startup server:
-
+### 3. Start the Audience Frontend
+Open a separate terminal, navigate to `frontend/`, and boot the Vite server:
 ```bash
-npm run start:prod
+cd frontend
+npm run dev
 ```
+Navigate to `http://localhost:5173`. Make sure the Electron App is open so you can hit "Start New Match" generated to the local DB before attempting to submit predictions.
 
-### Build a Windows `.exe`
+---
+
+## 🚀 Production Deployment
+
+### 1. Deploy the Audience Web App (Frontend)
+We configure a root-level convenience script that packages the Vite build natively and pushes your public directory to Firebase Hosting.
 
 ```bash
+# From the root directory:
+npm run deploy
+```
+*(This automatically runs `npm run build` inside `/frontend` and triggers `firebase deploy`)*
+
+**Note:** GitHub Actions via `.github/workflows` also automatically trigger this exact deployment sequence on PR merges into main.
+
+### 2. Build the Windows Desktop Execution (Backend)
+To create the `.exe` that the actual stream broadcaster will launch locally from their desktop:
+
+```bash
+# From the root directory:
 npm run dist:win
 ```
 
-Keyboard shortcuts inside the desktop app:
-- `Ctrl+Shift+X`: toggle click-through
-- `Ctrl+Shift+O`: show overlay window
-
-## Backend Setup & Run (Python Automation)
-
-The backend handles scraping real-time matches from Cricbuzz, scoring the predictions, and pushing updates to Firebase. 
-
-**Note:** The backend monitor requires a `.env` file containing secrets (`FIREBASE_SERVICE_ACCOUNT`, `DISCORD_WEBHOOK_URL`, `FIREBASE_ROOM`).
-
+### 3. Running Background Python Automators in Production
+If you require running the scraping/calculation engine in production manually from a server:
 ```bash
-# Navigate to the backend directory
-cd backend
-
-# Create a virtual environment and load it (Windows format shown)
-python -m venv venv
-venv\Scripts\activate
-
-# Install the Python dependencies (FastAPI, Firebase, Requests)
-pip install -r requirements.txt
-
-# --- RUNNING THE SERVICES ---
-
-# 1. Run the local static server (to test the HTML UI locally at http://localhost:4173)
-python server.py
-
-# 2. Run the live match monitor for prediction automation
-python monitor.py
+# From the root directory:
+npm run monitor
 ```
+*(This guarantees `APP_MODE=prod` is injected during startup).*
 
-## Firebase
+---
 
-The current Firebase project is `indusind-5529e`. Realtime Database rules are currently configured for testing prototypes in `database.rules.json`.
-
-## Hosted Web URLs
-
-If building and deploying standard web routes:
-- Host: `https://indusind-5529e.web.app/host.html?room=ipl-main`
-- Audience: `https://indusind-5529e.web.app/index.html?room=ipl-main`
-- Overlay: `https://indusind-5529e.web.app/overlay.html?room=ipl-main`
-
-## Recommended Next Steps
-
-Before you put this in front of a real audience, verify:
-- Firebase Anonymous Auth write limits
-- Chat moderation layers
-- Appropriate logging outputs in `monitor.py`
+## Keyboard Shortcuts (Desktop App)
+- `Ctrl+Shift+X`: toggle interaction click-through for transparent overlays
+- `Ctrl+Shift+O`: manually force-open the overlay window
