@@ -15,7 +15,6 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   hideTicker: () => ipcRenderer.invoke("ticker:hide"),
   reloadTicker: () => ipcRenderer.invoke("ticker:reload"),
   resetTickerBounds: () => ipcRenderer.invoke("ticker:reset-bounds"),
-  toggleDebugWindow: () => ipcRenderer.invoke("debug:toggle"),
   showReaction: () => ipcRenderer.invoke("reaction:show"),
   hideReaction: () => ipcRenderer.invoke("reaction:hide"),
   reloadReaction: () => ipcRenderer.invoke("reaction:reload"),
@@ -26,15 +25,8 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   onOverlayUrl: (callback) => {
     ipcRenderer.on("overlay:url", (_event, value) => callback(value));
   },
-  clearNode: (roomId, node) => ipcRenderer.invoke("room:clear-node", roomId, node),
   fetchWinProbability: (url) => ipcRenderer.invoke("google:fetch-win-prob", url),
   viewScraperDebug: () => ipcRenderer.invoke("scraper:view-debug"),
   openScraperSolver: (url) => ipcRenderer.invoke("scraper:open-solver", url),
-  getScheduleCsv: () => ipcRenderer.invoke("csv:get-schedule")
-});
-
-contextBridge.exposeInMainWorld("debugBridge", {
-  sendLog: (level, message, timestamp) => {
-    ipcRenderer.send("debug:log", { level, message, timestamp });
-  }
+  getScheduleCsv: () => ipcRenderer.invoke("csv:get-schedule"),
 });

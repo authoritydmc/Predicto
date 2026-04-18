@@ -7,6 +7,13 @@ import TickerWindow from './windows/TickerWindow';
 import ReactionWindow from './windows/ReactionWindow';
 import DebugWindow from './windows/DebugWindow';
 import './styles/global.css';
+import './styles/control.css';
+import './styles/legacy.css';
+import initLogger from './utils/logger';
+
+// Auto-detect window name from hash
+const winName = window.location.hash.replace('#/', '').split('?')[0] || 'control';
+initLogger(winName);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

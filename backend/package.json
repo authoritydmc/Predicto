@@ -1,11 +1,12 @@
 {
   "name": "overlaychat-desktop",
   "version": "1.0.9",
+  "type": "module",
   "description": "Windows overlay app for OverlayChat",
   "author": "OverlayChat",
-  "main": "desktop/main.js",
+  "main": "desktop/main.cjs",
   "scripts": {
-    "dev": "concurrently \"vite --port 5174\" \"cross-env NODE_ENV=development APP_MODE=local electron desktop/main.js\"",
+    "dev": "concurrently \"vite --port 5174\" \"cross-env NODE_ENV=development APP_MODE=local electron desktop/main.cjs\"",
     "start": "npm run dev",
     "build": "vite build",
     "dist:win": "npm run build && electron-builder --win",
@@ -34,14 +35,17 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.19",
     "concurrently": "^8.2.0",
     "cross-env": "^7.0.3",
     "electron": "37.3.1",
     "electron-builder": "^26.0.12",
     "electron-reload": "^2.0.0-alpha.1",
+    "postcss": "^8.4.38",
     "vite": "^8.0.8"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
     "axios": "^1.14.0",
     "dotenv": "^16.4.5",
     "firebase": "^12.12.0",
@@ -49,6 +53,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.1",
+    "tailwindcss": "^4.2.2",
     "ws": "^8.20.0"
   }
 }
