@@ -69,7 +69,7 @@ def parse_schedule_date(date_str, time_str):
 
 async def sync_season_leaderboard(room):
     try:
-        ref = db.reference(f"rooms/{room}/history")
+        ref = db.reference(f"{DB_ROOT}/history/{room}")
         history = ref.get() or {}
         season_map = {}
         for key, match in history.items():
@@ -91,7 +91,7 @@ async def sync_season_leaderboard(room):
             })
 
         players.sort(key=lambda x: x["total"], reverse=True)
-        db.reference(f"rooms/{room}/season_leaderboard").set(players)
+        db.reference(f"{DB_ROOT}/season_leaderboard/{room}").set(players)
         log(f"[Leaderboard] Successfully synced stats for {len(players)} players.")
     except Exception as e:
         log(f"[Leaderboard Error] Failed to sync: {e}")
@@ -111,7 +111,7 @@ def run_monitor():
     todays_matches = [m for m in schedule if m['date'] == today_str]
     next_match = next((m for m in schedule if parse_schedule_date(m['date'], m['time']) > now), None)
 
-    meta_ref = db.reference(f"rooms/{ROOM}/meta")
+    meta_ref = db.reference(f"{DB_ROOT}/meta/{active_match_id}")
 
     if next_match:
         current_meta = meta_ref.get() or {}
@@ -120,8 +120,8 @@ def run_monitor():
         if not current_meta.get('teamA') or (not is_team_match(current_meta['teamA'], next_match['home']) and not current_meta.get('secondInnings')):
             log(f"[Setup] Pre-loading Next Match: {next_match['home']} vs {next_match['away']}")
             if not is_live:
-                db.reference(f"rooms/{ROOM}/innings_history").delete()
-                db.reference(f"rooms/{ROOM}/predictions").delete()
+                db.reference(f"{DB_ROOT}/innings_history/{active_match_id}").delete()
+                db.reference(f"{DB_ROOT}/predictions/{active_match_id}").delete()
                 meta_ref.update({
                     "matchTitle": next_match["titleStr"],
                     "teamA": next_match["home"], "teamB": next_match["away"],
@@ -136,9 +136,9 @@ def run_monitor():
 
     target_match_idx = 0
     if len(todays_matches) > 1:
-        state0 = db.reference(f"rooms/{ROOM}/monitor_state").get()
+        state0 = db.reference(f"{DB_ROOT}/monitor_state/{active_match_id}").get()
         meta0 = meta_ref.get()
-        history0 = db.reference(f"rooms/{ROOM}/history/{todays_matches[0]['matchNo']}").get()
+        history0 = db.reference(f"{DB_ROOT}/history/{ROOM}/{todays_matches[0]['matchNo']}").get()
         is_match0_finished = state0 and state0.get('matchNo') == todays_matches[0]['matchNo'] and state0.get('finished')
         is_room_on_match2 = meta0 and is_team_match(meta0.get('teamA'), todays_matches[1]['home'])
         if is_match0_finished or is_room_on_match2 or history0:
@@ -147,8 +147,8 @@ def run_monitor():
     initial_meta = meta_ref.get() or {}
     first_target = todays_matches[target_match_idx]
     if first_target and (not is_team_match(initial_meta.get('teamA'), first_target['home']) or not is_team_match(initial_meta.get('teamB'), first_target['away'])):
-        db.reference(f"rooms/{ROOM}/innings_history").delete()
-        db.reference(f"rooms/{ROOM}/predictions").delete()
+        db.reference(f"{DB_ROOT}/innings_history/{active_match_id}").delete()
+        db.reference(f"{DB_ROOT}/predictions/{active_match_id}").delete()
         meta_ref.update({
             "matchTitle": first_target["titleStr"],
             "teamA": first_target["home"], "teamB": first_target["away"],
@@ -230,23 +230,23 @@ def run_monitor():
                     if not first_innings_resolved:
                         grace_elapsed = (time.time() - predictions_opened_at) if predictions_opened_at else float('inf')
                         if not is_first_innings_locked and s1 and s1['o'] >= 3.0 and grace_elapsed >= 900:
-                            db.reference(f"rooms/{ROOM}/meta/predictionsPaused").set(True)
+                            db.reference(f"{DB_ROOT}/meta/{active_match_id}/predictionsPaused").set(True)
                             is_first_innings_locked = True
                         
                         is_innings_break = "innings break" in status.lower() or s2
                         if s1 and (s1['o'] >= 19.6 or s1['w'] >= 10 or is_innings_break):
-                            preds = db.reference(f"rooms/{ROOM}/predictions").get() or {}
+                            preds = db.reference(f"{DB_ROOT}/predictions/{active_match_id}").get() or {}
                             meta = meta_ref.get() or {}
                             for pid, p in preds.items():
                                 stats = calculate_innings1_points(p, s1['r'], meta)
                                 preds[pid] = {**p, **stats, "points": stats["points"]}
-                            db.reference(f"rooms/{ROOM}/innings_history/1st").set(preds)
-                            db.reference(f"rooms/{ROOM}/predictions").delete()
+                            db.reference(f"{DB_ROOT}/innings_history/{active_match_id}/1st").set(preds)
+                            db.reference(f"{DB_ROOT}/predictions/{active_match_id}").delete()
                             meta_ref.update({"secondInnings": True, "currentOver": "0.0", "predictionsPaused": False, "disableScoreA": not meta.get("disableScoreA"), "disableScoreB": not meta.get("disableScoreB")})
                             first_innings_resolved = True
                     elif s2:
                         if not is_second_innings_locked and s2['o'] >= 3.0:
-                            db.reference(f"rooms/{ROOM}/meta/predictionsPaused").set(True)
+                            db.reference(f"{DB_ROOT}/meta/{active_match_id}/predictionsPaused").set(True)
                             is_second_innings_locked = True
 
                         if s2['o'] >= 19.6 or s2['w'] >= 10 or match_winner or (s1 and s2['r'] > s1['r']):
@@ -255,14 +255,14 @@ def run_monitor():
                             resolved_actual_winner = target_match['home'] if is_team_match(match_winner, target_match['home']) else target_match['away']
                             
                             meta = meta_ref.get() or {}
-                            preds = db.reference(f"rooms/{ROOM}/predictions").get() or {}
+                            preds = db.reference(f"{DB_ROOT}/predictions/{active_match_id}").get() or {}
                             actual_result = s2['o'] if is_chaser_winner else s2['r']
                             for pid, p in preds.items():
                                 stats = calculate_innings2_points(p, resolved_actual_winner, actual_result, meta, is_chaser_winner)
                                 preds[pid] = {**p, **stats, "points": stats["points"]}
-                            db.reference(f"rooms/{ROOM}/innings_history/2nd").set(preds)
+                            db.reference(f"{DB_ROOT}/innings_history/{active_match_id}/2nd").set(preds)
 
-                            h1 = db.reference(f"rooms/{ROOM}/innings_history/1st").get() or {}
+                            h1 = db.reference(f"{DB_ROOT}/innings_history/{active_match_id}/1st").get() or {}
                             finals = calculate_match_finals(h1, preds)
 
                             date_key = f"{today_str.replace('-','')}_{int(time.time()*1000)}"
@@ -272,13 +272,13 @@ def run_monitor():
                                 "innings1": h1, "innings2": preds, "finalStandings": finals,
                                 "matchResults": {"actual1st": s1['r'] if s1 else 0, "actual2nd": actual_result, "actualWinner": resolved_actual_winner}
                             }
-                            db.reference(f"rooms/{ROOM}/history/{date_key}").set(archive_payload)
+                            db.reference(f"{DB_ROOT}/history/{ROOM}/{date_key}").set(archive_payload)
                             
                             asyncio.run(sync_season_leaderboard(ROOM))
 
-                            db.reference(f"rooms/{ROOM}/predictions").delete()
-                            db.reference(f"rooms/{ROOM}/innings_history").delete()
-                            db.reference(f"rooms/{ROOM}/monitor_state").set({"matchNo": target_match['matchNo'], "finished": True})
+                            db.reference(f"{DB_ROOT}/predictions/{active_match_id}").delete()
+                            db.reference(f"{DB_ROOT}/innings_history/{active_match_id}").delete()
+                            db.reference(f"{DB_ROOT}/monitor_state/{active_match_id}").set({"matchNo": target_match['matchNo'], "finished": True})
                             break
 
                 delay = 180

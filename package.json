@@ -3,7 +3,7 @@
   "version": "1.0.9",
   "description": "Windows overlay app for OverlayChat",
   "author": "OverlayChat",
-  "main": "frontend/desktop/main.js",
+  "main": "backend/desktop/main.js",
   "scripts": {
     "start": "cross-env NODE_ENV=development APP_MODE=local concurrently \"python backend/server.py\" \"electron .\"",
     "start:dev": "cross-env NODE_ENV=development electron .",
@@ -16,12 +16,11 @@
     "appId": "com.overlaychat.desktop",
     "productName": "OverlayChat",
     "directories": {
-      "buildResources": "frontend/desktop"
+      "buildResources": "backend/desktop"
     },
     "files": [
-      "frontend/desktop/**/*",
-      "frontend/assets/**/*",
-      "frontend/*.html",
+      "backend/desktop/**/*",
+      "frontend/dist/**/*",
       "schedule_2026_ipl.csv",
       "package.json"
     ],

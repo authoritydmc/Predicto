@@ -8,6 +8,9 @@ import {
   roomRef,
   roomPath,
   saveRoomMeta,
+  set,
+  activeMatchRef,
+  roomConfigRef,
   clearRoomNode,
   getOnce,
   updateActiveSession,
@@ -27,6 +30,9 @@ console.log("[Init] Desktop Control Panel loaded and logger initialized");
 const settingsForm = document.querySelector("#settingsForm");
 const roomIdInput = document.querySelector("#roomId");
 const matchTitleInput = document.querySelector("#matchTitle");
+const sportTypeInput = document.querySelector("#sportType");
+const generateMatchIdBtn = document.querySelector("#generateMatchIdBtn");
+const activeMatchIdDisplay = document.querySelector("#activeMatchIdDisplay");
 const teamAInput = document.querySelector("#teamA");
 const teamBInput = document.querySelector("#teamB");
 const allowRepredictionInput = document.querySelector("#allowReprediction");
@@ -136,6 +142,10 @@ if (!db) {
 }
 console.log("[Init] DOM elements loaded successfully");
 
+const generateMatchId = () => {
+  return 'match_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+};
+
 const normalizeRoomId = (value) =>
   value.toLowerCase().replace(/[^a-z0-9-_]/g, "").slice(0, 40) || "ipl";
 
@@ -214,6 +224,7 @@ const syncSortUi = () => {
 };
 
 const getFormMeta = () => {
+  // If activeMatchId is present, we are saving match meta, else room meta
   const battingTeam = document.querySelector('input[name="battingTeam"]:checked')?.value;
   const innings = document.querySelector('input[name="innings"]:checked')?.value;
 
@@ -237,6 +248,7 @@ const getFormMeta = () => {
 };
 
 const subscribeToMeta = (roomId) => {
+  subscribeToActiveMatch(roomId);
   console.log("[Firebase] Subscribing to room metadata:", roomId);
   
   if (stopMetaSubscription) {
@@ -536,7 +548,10 @@ settingsForm.addEventListener("submit", async (event) => {
       console.log("[Form Submit] Database initialized:", !!db);
       console.log("[Form Submit] Saving room metadata to Firebase:", roomMeta);
       try {
-        await saveRoomMeta(roomId, roomMeta);
+        await saveRoomMeta(activeMatchId || roomId, roomMeta);
+await set(ref(db, `${appMode === 'local' ? 'local' : 'prod'}/rooms/${roomId}/config`), {
+  sportType: sportTypeInput ? sportTypeInput.value : 'cricket'
+});
         console.log("[Form Submit] Room metadata saved successfully to:", roomPath(roomId, "meta"));
       } catch (firebaseError) {
         console.error("[Form Submit] Firebase save error:", firebaseError);
@@ -750,6 +765,39 @@ window.overlayDesktop.onSettingsChanged((settings) => {
   subscribeToMeta(settings.roomId);
   updateSeasonLeaderboard();
 });
+
+
+let activeMatchId = null;
+
+if (generateMatchIdBtn) {
+  generateMatchIdBtn.addEventListener("click", async () => {
+    if (!isFirebaseConfigured || !db) return;
+    const roomId = normalizeRoomId(roomIdInput.value.trim());
+    if (!confirm("Start a new match for room " + roomId + "? This will clear live inputs.")) return;
+    
+    activeMatchId = generateMatchId();
+    activeMatchIdDisplay.textContent = activeMatchId;
+    
+    // Save to Firebase
+    await set(ref(db, `${appMode === 'local' ? 'local' : 'prod'}/rooms/${roomId}/active_match`), activeMatchId);
+    
+    // Also clear existing display overlays if you want
+    await wipeMatchData(roomId); // Note: wipeMatchData may need updating to matchId!
+  });
+}
+
+const subscribeToActiveMatch = (roomId) => {
+  onValue(ref(db, `${appMode === 'local' ? 'local' : 'prod'}/rooms/${roomId}/active_match`), (snap) => {
+    activeMatchId = snap.val();
+    if (activeMatchIdDisplay) activeMatchIdDisplay.textContent = activeMatchId || "--";
+  });
+  onValue(ref(db, `${appMode === 'local' ? 'local' : 'prod'}/rooms/${roomId}/config`), (snap) => {
+    const config = snap.val();
+    if (config && config.sportType && sportTypeInput) {
+      sportTypeInput.value = config.sportType;
+    }
+  });
+};
 
 // --- CLEAR HANDLERS ---
 const handleClear = async (node, button) => {

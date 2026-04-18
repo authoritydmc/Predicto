@@ -1,21 +1,5 @@
 # OverlayChat
 
-Browser-based audience predictions and live chat for sports streams. Viewers open a public URL, submit their score prediction and winner pick, and chat in real time. The overlay page can be used directly as a browser source, and the repo now also includes a Windows desktop overlay app.
-
-The project is thoughtfully structured into a `frontend/` containing the UI components and a `backend/` containing a Python-based automation scraper and static file server.
-
-## Project Structure
-
-- `frontend/`: Contains the browser UI assets for audience and host pages.
-  - `index.html`: Audience page for predictions and chat.
-  - `overlay.html`: Browser-based stream overlay.
-  - `host.html`: Host controls for match setup and room reset.
-  - `desktop/`: Windows local host app wrapper (Electron).
-- `backend/`: Contains the Python automation logic and API/Static server.
-  - `monitor.py`: The live scraper and Match monitoring logic for automation.
-  - `scoring.py`: The calculation engine for points allocation.
-  - `server.py`: A FastAPI endpoint for serving the frontend static files.
-  - `requirements.txt`: Python package requirements.
 
 ## Frontend Setup & Run (Desktop App)
 

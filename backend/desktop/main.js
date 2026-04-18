@@ -17,7 +17,7 @@ if (isDev) {
       // Watch both frontend folders and HTML files
       glob: [
         path.join(__dirname, "**/*.{js,html,css}"),
-        path.join(__dirname, "..", "assets", "**/*.{js,html,css}")
+        path.join(__dirname, "assets", "**/*.{js,html,css}")
       ]
     });
   } catch (e) {
@@ -181,19 +181,19 @@ const getOverlayQuery = () => ({
 });
 
 const loadOverlayPage = (window) => {
-  window.loadFile(path.join(__dirname, "..", "overlay.html"), {
+  window.loadFile(path.join(__dirname, "overlay.html"), {
     query: getOverlayQuery()
   });
 };
 
 const loadTickerPage = (window) => {
-  window.loadFile(path.join(__dirname, "..", "ticker.html"), {
+  window.loadFile(path.join(__dirname, "ticker.html"), {
     query: getOverlayQuery()
   });
 };
 
 const loadReactionPage = (window) => {
-  window.loadFile(path.join(__dirname, "..", "reaction.html"), {
+  window.loadFile(path.join(__dirname, "reaction.html"), {
     query: getOverlayQuery()
   });
 };
@@ -499,7 +499,7 @@ const ensureDebugWindow = () => {
     }
   });
 
-  debugWindow.loadFile(path.join(__dirname, "..", "debug.html"));
+  debugWindow.loadFile(path.join(__dirname, "debug.html"));
   
   if (isDev || process.env.DEBUG) {
     debugWindow.webContents.openDevTools();

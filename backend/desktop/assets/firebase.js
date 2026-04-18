@@ -15,6 +15,9 @@ import {
 import { firebaseConfig, isFirebaseConfigured } from "./firebase-config.js";
 
 let db = null;
+const urlParams = new URLSearchParams(window.location.search);
+const appMode = urlParams.get('appMode') || 'prod';
+const dbRoot = appMode === 'local' ? 'local' : 'prod';
 
 if (isFirebaseConfigured) {
   const app = initializeApp(firebaseConfig);
@@ -26,50 +29,50 @@ export { db, isFirebaseConfigured, onValue, query, limitToLast, ref, get, set, r
 // Room metadata only (teamA, teamB, matchTitle, flags)
 export const roomRef = (roomId) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `rooms/${roomId}`);
+  return ref(db, `${dbRoot}/meta/${roomId}`);
 };
 
 // Active predictions for a room
 export const predictionsRef = (roomId, clientId = null) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, clientId ? `predictions/${roomId}/${clientId}` : `predictions/${roomId}`);
+  return ref(db, clientId ? `${dbRoot}/predictions/${roomId}/${clientId}` : `${dbRoot}/predictions/${roomId}`);
 };
 
 // Prediction history per user per match
 export const predictionHistoryRef = (roomId, clientId, matchId = null) => {
   if (!db) throw new Error("Firebase is not configured");
-  const basePath = `prediction_history/${roomId}/${clientId}`;
+  const basePath = `${dbRoot}/prediction_history/${roomId}/${clientId}`;
   return ref(db, matchId ? `${basePath}/${matchId}` : basePath);
 };
 
 // Match history (results and standings)
 export const matchHistoryRef = (roomId, matchId = null) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, matchId ? `match_history/${roomId}/${matchId}` : `match_history/${roomId}`);
+  return ref(db, matchId ? `${dbRoot}/match_history/${roomId}/${matchId}` : `${dbRoot}/match_history/${roomId}`);
 };
 
 // Season leaderboard
 export const seasonLeaderboardRef = (roomId) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `season_leaderboard/${roomId}`);
+  return ref(db, `${dbRoot}/season_leaderboard/${roomId}`);
 };
 
 // User profile data
 export const userRef = (clientId) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `users/${clientId}`);
+  return ref(db, `${dbRoot}/users/${clientId}`);
 };
 
 // Chat messages
 export const chatRef = (roomId, messageId = null) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, messageId ? `chat/${roomId}/${messageId}` : `chat/${roomId}`);
+  return ref(db, messageId ? `${dbRoot}/chat/${roomId}/${messageId}` : `${dbRoot}/chat/${roomId}`);
 };
 
 // Reactions
 export const reactionRef = (roomId) => {
   if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `reactions/${roomId}`);
+  return ref(db, `${dbRoot}/reactions/${roomId}`);
 };
 
 export const getOnce = async (ref) => {
@@ -164,7 +167,7 @@ export const removeChatMessage = async (roomId, messageId) => {
 
 export const updateActiveSession = async (roomId) => {
   if (!db) return;
-  await set(ref(db, `active_sessions/${roomId}`), {
+  await set(ref(db, `${dbRoot}/active_sessions/${roomId}`), {
     lastActive: serverTimestamp()
   });
 };
@@ -202,3 +205,5 @@ export const saveUserFavoriteTeam = async (clientId, teamName) => {
 
   return changeCount;
 };
+
+export const clearRoomNode = async (roomId, node) => { await remove(ref(db, ${dbRoot}//)); };
