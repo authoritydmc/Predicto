@@ -24,121 +24,95 @@ if (isFirebaseConfigured) {
   db = getDatabase(app);
 }
 
-export { db, isFirebaseConfigured, onValue, query, limitToLast, ref, get, set, remove, update };
-
-// Room metadata only (teamA, teamB, matchTitle, flags)
-export const roomRef = (roomId) => {
-  if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `${dbRoot}/meta/${roomId}`);
+export { 
+  db, isFirebaseConfigured, onValue, query, limitToLast, ref, get, set, remove, update,
+  serverTimestamp, push
 };
 
-// Active predictions for a room
-export const predictionsRef = (roomId, clientId = null) => {
-  if (!db) throw new Error("Firebase is not configured");
-  return ref(db, clientId ? `${dbRoot}/predictions/${roomId}/${clientId}` : `${dbRoot}/predictions/${roomId}`);
+// --- SCHEMA HELPERS ---
+
+// 1. Room Level (Config and Discovery)
+export const roomActiveMatchRef = (roomId) => {
+  return ref(db, `${dbRoot}/rooms/${roomId}/active_match`);
 };
 
-// Prediction history per user per match
-export const predictionHistoryRef = (roomId, clientId, matchId = null) => {
-  if (!db) throw new Error("Firebase is not configured");
-  const basePath = `${dbRoot}/prediction_history/${roomId}/${clientId}`;
-  return ref(db, matchId ? `${basePath}/${matchId}` : basePath);
+export const roomConfigRef = (roomId) => {
+  return ref(db, `${dbRoot}/rooms/${roomId}/config`);
 };
 
-// Match history (results and standings)
-export const matchHistoryRef = (roomId, matchId = null) => {
-  if (!db) throw new Error("Firebase is not configured");
-  return ref(db, matchId ? `${dbRoot}/match_history/${roomId}/${matchId}` : `${dbRoot}/match_history/${roomId}`);
+// 2. Match Level (Live Data)
+export const matchMetaRef = (matchId) => {
+  return ref(db, `${dbRoot}/meta/${matchId}`);
 };
 
-// Season leaderboard
-export const seasonLeaderboardRef = (roomId) => {
-  if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `${dbRoot}/season_leaderboard/${roomId}`);
+export const matchPredictionsRef = (matchId, clientId = null) => {
+  const path = clientId ? `${dbRoot}/predictions/${matchId}/${clientId}` : `${dbRoot}/predictions/${matchId}`;
+  return ref(db, path);
 };
 
-// User profile data
+export const matchChatRef = (matchId, messageId = null) => {
+  const path = messageId ? `${dbRoot}/chat/${matchId}/${messageId}` : `${dbRoot}/chat/${matchId}`;
+  return ref(db, path);
+};
+
+export const matchReactionRef = (matchId) => {
+  return ref(db, `${dbRoot}/reactions/${matchId}`);
+};
+
+export const matchInningsHistoryRef = (matchId) => {
+  return ref(db, `${dbRoot}/innings_history/${matchId}`);
+};
+
+// 3. User & History
 export const userRef = (clientId) => {
-  if (!db) throw new Error("Firebase is not configured");
   return ref(db, `${dbRoot}/users/${clientId}`);
 };
 
-// Chat messages
-export const chatRef = (roomId, messageId = null) => {
-  if (!db) throw new Error("Firebase is not configured");
-  return ref(db, messageId ? `${dbRoot}/chat/${roomId}/${messageId}` : `${dbRoot}/chat/${roomId}`);
+export const matchHistoryRef = (roomId, matchId = null) => {
+  const path = matchId ? `${dbRoot}/history/${roomId}/${matchId}` : `${dbRoot}/history/${roomId}`;
+  return ref(db, path);
 };
 
-// Reactions
-export const reactionRef = (roomId) => {
-  if (!db) throw new Error("Firebase is not configured");
-  return ref(db, `${dbRoot}/reactions/${roomId}`);
+export const seasonLeaderboardRef = (roomId) => {
+  return ref(db, `${dbRoot}/season_leaderboard/${roomId}`);
 };
 
-export const getOnce = async (ref) => {
-  return await get(ref);
+// --- DATA ACTIONS ---
+
+export const getOnce = async (r) => {
+  return await get(r);
 };
 
-export const savePrediction = async (roomId, clientId, payload) => {
-  const ts = serverTimestamp();
-
-  // 1. Update the current active prediction
-  await set(predictionsRef(roomId, clientId), {
-    ...payload,
-    updatedAt: ts,
-  });
-
-  // 2. Append to match-specific audit trail for this user
-  // Firebase paths cannot contain . # $ [ or ]
-  const matchId = (payload.matchId || "unknown_match").replace(/[.#$\[\]]/g, "_");
-  await set(push(predictionHistoryRef(roomId, clientId, matchId)), {
-    ...payload,
-    loggedAt: ts
-  });
-};
-
-export const sendChatMessage = async (roomId, payload) => {
-  const cRef = chatRef(roomId);
-  const nextRef = push(cRef);
-  await set(nextRef, {
-    ...payload,
-    createdAt: serverTimestamp(),
-  });
-};
-
-export const saveRoomMeta = async (roomId, payload) => {
-  await update(roomRef(roomId), {
+export const saveRoomMeta = async (matchId, payload) => {
+  await update(matchMetaRef(matchId), {
     ...payload,
     updatedAt: serverTimestamp(),
   });
 };
 
-export const clearPredictions = async (roomId) => {
-  await remove(predictionsRef(roomId));
+export const clearRoomNode = async (matchId, node) => {
+  if (!db) return;
+  await remove(ref(db, `${dbRoot}/${node}/${matchId}`));
 };
 
-export const saveMatchResult = async (roomId, matchId, results) => {
-  await set(matchHistoryRef(roomId, matchId), {
-    ...results,
-    savedAt: serverTimestamp()
+export const updateActiveSession = async (roomId) => {
+  if (!db) return;
+  await set(ref(db, `${dbRoot}/active_sessions/${roomId}`), {
+    lastActive: serverTimestamp()
   });
 };
 
-export const getMatchHistory = async (roomId) => {
-  const snapshot = await get(matchHistoryRef(roomId));
-  return snapshot.val() || {};
+export const removePrediction = async (matchId, clientId) => {
+  await remove(matchPredictionsRef(matchId, clientId));
 };
 
-export const archiveMatch = async (roomId, matchId, data) => {
-  await set(matchHistoryRef(roomId, matchId), {
-    ...data,
-    archivedAt: serverTimestamp()
-  });
+export const removeChatMessage = async (matchId, messageId) => {
+  await remove(matchChatRef(matchId, messageId));
 };
 
-export const wipeMatchData = async (roomId) => {
-  await remove(predictionsRef(roomId));
-  await update(roomRef(roomId), {
+export const wipeMatchData = async (matchId) => {
+  await remove(matchPredictionsRef(matchId));
+  await update(matchMetaRef(matchId), {
     matchTitle: "",
     teamA: "",
     teamB: "",
@@ -149,61 +123,3 @@ export const wipeMatchData = async (roomId) => {
     updatedAt: serverTimestamp()
   });
 };
-
-export const saveSeasonLeaderboard = async (roomId, data) => {
-  await set(seasonLeaderboardRef(roomId), {
-    standings: data,
-    updatedAt: serverTimestamp()
-  });
-};
-
-export const removePrediction = async (roomId, clientId) => {
-  await remove(predictionsRef(roomId, clientId));
-};
-
-export const removeChatMessage = async (roomId, messageId) => {
-  await remove(chatRef(roomId, messageId));
-};
-
-export const updateActiveSession = async (roomId) => {
-  if (!db) return;
-  await set(ref(db, `${dbRoot}/active_sessions/${roomId}`), {
-    lastActive: serverTimestamp()
-  });
-};
-
-export const sendReaction = async (roomId, payload) => {
-  const rRef = reactionRef(roomId);
-  await set(rRef, {
-    ...payload,
-    timestamp: serverTimestamp()
-  });
-};
-
-export const clearChat = async (roomId) => {
-  await remove(chatRef(roomId));
-};
-
-export const clearReaction = async (roomId) => {
-  await remove(reactionRef(roomId));
-};
-
-export const getUserProfile = async (clientId) => {
-  const snapshot = await get(userRef(clientId));
-  return snapshot.val() || {};
-};
-
-export const saveUserFavoriteTeam = async (clientId, teamName) => {
-  const profile = await getUserProfile(clientId);
-  const changeCount = (profile.favoriteTeamChangeCount || 0) + 1;
-
-  await update(userRef(clientId), {
-    favoriteTeam: teamName,
-    favoriteTeamSetAt: serverTimestamp(),
-    favoriteTeamChangeCount: changeCount
-  });
-
-  return changeCount;
-};
-
-export const clearRoomNode = async (roomId, node) => { await remove(ref(db, ${dbRoot}//)); };

@@ -3,26 +3,27 @@
   "version": "1.0.9",
   "description": "Windows overlay app for OverlayChat",
   "author": "OverlayChat",
-  "main": "backend/desktop/main.js",
+  "main": "desktop/main.js",
   "scripts": {
-    "start": "cross-env NODE_ENV=development APP_MODE=local concurrently \"python backend/server.py\" \"electron .\"",
+    "start": "cross-env NODE_ENV=development APP_MODE=local concurrently \"python server.py\" \"electron .\"",
     "start:dev": "cross-env NODE_ENV=development electron .",
     "start:local": "cross-env NODE_ENV=development APP_MODE=local electron .",
     "start:prod": "cross-env NODE_ENV=production electron .",
-    "start:server": "cross-env NODE_ENV=development python backend/server.py",
+    "start:server": "cross-env NODE_ENV=development python server.py",
     "dist:win": "electron-builder --win",
-    "deploy": "cd frontend && npm run build && cd .. && firebase deploy",
-    "monitor": "cross-env APP_MODE=prod python backend/monitor.py"
+    "deploy": "cd ../frontend && npm run build && cd ../backend && firebase deploy",
+    "monitor": "cross-env APP_MODE=prod python monitor.py"
   },
   "build": {
     "appId": "com.overlaychat.desktop",
     "productName": "OverlayChat",
     "directories": {
-      "buildResources": "backend/desktop"
+      "buildResources": "desktop",
+      "output": "dist"
     },
     "files": [
-      "backend/desktop/**/*",
-      "frontend/dist/**/*",
+      "desktop/**/*",
+      "../frontend/dist/**/*",
       "schedule_2026_ipl.csv",
       "package.json"
     ],

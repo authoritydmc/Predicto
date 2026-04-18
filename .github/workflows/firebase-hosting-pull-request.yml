@@ -21,3 +21,4 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SCOREPREDICTOR_9DD45 }}
           projectId: scorepredictor-9dd45
+          entryPoint: ./backend

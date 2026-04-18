@@ -10,8 +10,7 @@ Browser-based audience predictions and live chat for sports streams. The archite
    - Handles the audience-facing views where users join rooms, submit predictions, and use live chat dynamically.
 2. **Backend (Electron Broadcaster App & Python Automation)**
    - Located in the `backend/` directory.
-   - Electron UI (Control Panel, Overlays) wraps around local HTML files.
-   - Python logic (`monitor.py`) handles automated scoring pipelines, data scraping, and analytics syncing.
+   - Contains the core logic, Electron UI, and automated scoring pipelines.
 
 The data layer uses Firebase Realtime Database with a strict match-centric data model. All live keys are isolated under a `matchId` per room per environment.
 
@@ -30,27 +29,25 @@ You will want to run both the Frontend (Vite) and Backend (Electron) simultaneou
 ### 1. Setup
 
 ```bash
-# Root dependencies (Electron tools)
-npm install
-
 # Frontend dependencies (React project)
 cd frontend
 npm install
-cd ..
 
-# Backend dependencies (Python)
+# Backend dependencies (Electron tools & Python)
+cd ../backend
+npm install
 python -m venv venv
 venv\Scripts\activate   # (On Windows)
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 2. Start the Backend / Broadcaster App
 
-From the root directory, launch the Electron wrapper locally. This runs in Development Mode (`APP_MODE=local`):
+From the `backend/` directory, launch the Electron wrapper locally. This runs in Development Mode (`APP_MODE=local`):
 ```bash
+cd backend
 npm start
 ```
-*Tip: To just run the python web server: `npm run start:server`.*
 
 ### 3. Start the Audience Frontend
 Open a separate terminal, navigate to `frontend/`, and boot the Vite server:
@@ -58,38 +55,33 @@ Open a separate terminal, navigate to `frontend/`, and boot the Vite server:
 cd frontend
 npm run dev
 ```
-Navigate to `http://localhost:5173`. Make sure the Electron App is open so you can hit "Start New Match" generated to the local DB before attempting to submit predictions.
 
 ---
 
 ## 🚀 Production Deployment
 
 ### 1. Deploy the Audience Web App (Frontend)
-We configure a root-level convenience script that packages the Vite build natively and pushes your public directory to Firebase Hosting.
+Use the convenience script inside the `backend/` directory to build and deploy everything.
 
 ```bash
-# From the root directory:
+cd backend
 npm run deploy
 ```
-*(This automatically runs `npm run build` inside `/frontend` and triggers `firebase deploy`)*
-
-**Note:** GitHub Actions via `.github/workflows` also automatically trigger this exact deployment sequence on PR merges into main.
+*(This automatically builds the React frontend and triggers Firebase Host deployment)*
 
 ### 2. Build the Windows Desktop Execution (Backend)
-To create the `.exe` that the actual stream broadcaster will launch locally from their desktop:
+To create the `.exe` for the broadcaster:
 
 ```bash
-# From the root directory:
+cd backend
 npm run dist:win
 ```
 
 ### 3. Running Background Python Automators in Production
-If you require running the scraping/calculation engine in production manually from a server:
 ```bash
-# From the root directory:
+cd backend
 npm run monitor
 ```
-*(This guarantees `APP_MODE=prod` is injected during startup).*
 
 ---
 

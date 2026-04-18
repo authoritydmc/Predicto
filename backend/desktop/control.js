@@ -5,7 +5,7 @@ import {
   query,
   limitToLast,
   ref,
-  roomRef,
+  matchMetaRef, matchPredictionsRef, matchChatRef, roomActiveMatchRef, roomConfigRef,
   roomPath,
   saveRoomMeta,
   set,
@@ -20,9 +20,9 @@ import {
   getHistory,
   wipeMatchData,
   saveSeasonLeaderboard
-} from "../assets/firebase.js";
-import { getAudienceEntryUrl, escapeHtml, sortHistoryLatestFirst } from "../assets/shared.js";
-import { initWindowLogger } from "../assets/logger.js";
+} from "./assets/firebase.js";
+import { getAudienceEntryUrl, escapeHtml, sortHistoryLatestFirst } from "./assets/shared.js";
+import { initWindowLogger } from "./assets/logger.js";
 
 initWindowLogger("Desktop Control Panel");
 console.log("[Init] Desktop Control Panel loaded and logger initialized");
@@ -279,7 +279,7 @@ const subscribeToMeta = (roomId) => {
 
   try {
     console.log("[Firebase] Setting up real-time listener for:", roomPath(roomId, "meta"));
-    stopMetaSubscription = onValue(roomRef(roomId, "meta"), (snapshot) => {
+    stopMetaSubscription = onValue(matchMetaRef(activeMatchId || roomId), (snapshot) => {
       console.log("[Firebase] Metadata update received for room:", roomId);
       currentMeta = snapshot.val() || {};
       console.log("[Firebase] Current metadata:", currentMeta);
@@ -549,7 +549,7 @@ settingsForm.addEventListener("submit", async (event) => {
       console.log("[Form Submit] Saving room metadata to Firebase:", roomMeta);
       try {
         await saveRoomMeta(activeMatchId || roomId, roomMeta);
-await set(ref(db, `${appMode === 'local' ? 'local' : 'prod'}/rooms/${roomId}/config`), {
+await set(roomConfigRef(roomId), {
   sportType: sportTypeInput ? sportTypeInput.value : 'cricket'
 });
         console.log("[Form Submit] Room metadata saved successfully to:", roomPath(roomId, "meta"));
@@ -779,7 +779,7 @@ if (generateMatchIdBtn) {
     activeMatchIdDisplay.textContent = activeMatchId;
     
     // Save to Firebase
-    await set(ref(db, `${appMode === 'local' ? 'local' : 'prod'}/rooms/${roomId}/active_match`), activeMatchId);
+    await set(roomActiveMatchRef(roomId), activeMatchId);
     
     // Also clear existing display overlays if you want
     await wipeMatchData(roomId); // Note: wipeMatchData may need updating to matchId!
