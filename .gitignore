@@ -72,4 +72,12 @@ dist/
 # tmp files/folders
 tmp/
 scratch/ 
+# IDE and agent specific folders
+.agents/
+.claude/
+.continue/
+.idea/
+.vscode/
+
 # assets/firebase-config.js
+# backend/desktop/assets/firebase-config.js
