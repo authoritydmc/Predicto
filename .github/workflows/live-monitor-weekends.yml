@@ -35,5 +35,5 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_ROOM: ipl
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          ENVIRONMENT: prod
+          APP_MODE: prod
         run: python backend/monitor.py

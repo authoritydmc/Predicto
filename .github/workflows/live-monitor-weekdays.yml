@@ -19,18 +19,19 @@ jobs:
       - name: Checkout Repository Configuration
         uses: actions/checkout@v3
 
-      - name: Setup Node.js Setup
-        uses: actions/setup-node@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          node-version: '18'
+          python-version: '3.10'
 
       - name: Install Cloud Dependencies
-        run: npm i firebase-admin axios dotenv
+        run: pip install -r backend/requirements.txt
 
       - name: Run Live Monitor Engine
         env:
+          APP_MODE: prod
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_ROOM: ipl
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         # Exits natively with code 0 once the match finishes
-        run: node automation/monitor.js
+        run: python backend/monitor.py
