@@ -22,34 +22,6 @@ OverlayChat heavily isolates local testing from production:
 
 ---
 
-## 💻 Local Development & Testing
-
-You will want to run both the Frontend (Vite) and Backend (Electron) simultaneously to test full-stack features.
-
-### 1. Setup
-
-```bash
-# Frontend dependencies (React project)
-cd frontend
-npm install
-
-# Backend dependencies (Electron tools & Python)
-cd ../backend
-npm install
-python -m venv venv
-venv\Scripts\activate   # (On Windows)
-pip install -r requirements.txt
-```
-
-### 2. Start the Backend / Broadcaster App
-
-From the `backend/` directory, launch the Electron wrapper locally. This runs in Development Mode (`APP_MODE=local`):
-```bash
-cd backend
-npm start
-```
-
-### 3. Start the Audience Frontend
 Open a separate terminal, navigate to `frontend/`, and boot the Vite server:
 ```bash
 cd frontend

@@ -2,7 +2,7 @@ const { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell } = requir
 const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
-const { version: APP_VERSION } = require("../../package.json");
+const { version: APP_VERSION } = require("../package.json");
 
 // Enable hot reload in dev/local mode
 const isDev = process.env.NODE_ENV === "development";
