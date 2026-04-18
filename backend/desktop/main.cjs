@@ -1,7 +1,25 @@
 const { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { WebSocketServer } = require("ws");
 const { version: APP_VERSION } = require("../package.json");
+
+// ── WebSocket Log Server ──────────────────────────────────────────────────────
+let wss = null;
+const initLogServer = () => {
+  wss = new WebSocketServer({ port: 9222 });
+  wss.on("connection", (ws) => {
+    ws.on("message", (data) => {
+      // Broadcast to all other clients
+      wss.clients.forEach((client) => {
+        if (client !== ws && client.readyState === 1) {
+          client.send(data.toString());
+        }
+      });
+    });
+  });
+};
+initLogServer();
 
 const isDev = process.env.NODE_ENV === "development";
 const VITE_DEV_SERVER_URL = "http://localhost:5174";
@@ -32,6 +50,7 @@ let controlWindow = null;
 let overlayWindow = null;
 let tickerWindow = null;
 let reactionWindow = null;
+let debugWindow = null;
 
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");
 
@@ -197,6 +216,23 @@ const ensureReactionWindow = () => {
   return reactionWindow;
 };
 
+const ensureDebugWindow = () => {
+  if (debugWindow && !debugWindow.isDestroyed()) {
+    debugWindow.focus();
+    return debugWindow;
+  }
+  debugWindow = new BrowserWindow({
+    width: 600, height: 800,
+    title: "System Debug Log",
+    autoHideMenuBar: true,
+    backgroundColor: "#020617",
+    webPreferences: commonWebPrefs
+  });
+  debugWindow.loadURL(getWindowUrl("debug"));
+  debugWindow.on("closed", () => { debugWindow = null; });
+  return debugWindow;
+};
+
 const ensureControlWindow = () => {
   if (controlWindow && !controlWindow.isDestroyed()) { controlWindow.focus(); return controlWindow; }
   controlWindow = new BrowserWindow({
@@ -320,6 +356,11 @@ ipcMain.handle("reaction:reset-bounds", () => {
   settings.reactionBounds = { ...DEFAULT_SETTINGS.reactionBounds }; saveSettings();
   const win = ensureReactionWindow(); win.setBounds(settings.reactionBounds); broadcastState();
   return settings;
+});
+
+ipcMain.handle("debug:show", () => {
+  ensureDebugWindow();
+  return true;
 });
 
 ipcMain.handle("external:open", (_event, url) => shell.openExternal(url));

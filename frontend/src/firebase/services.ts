@@ -3,11 +3,11 @@ import { rtdb } from './config';
 
 const dbRoot = import.meta.env.DEV ? 'local' : 'prod';
 
-export const activeMatchRef = (roomId: string) => ref(rtdb, `${dbRoot}/rooms/${roomId}/active_match`);
-export const roomConfigRef = (roomId: string) => ref(rtdb, `${dbRoot}/rooms/${roomId}/config`);
-export const metaRef = (matchId: string) => ref(rtdb, `${dbRoot}/meta/${matchId}`);
-export const chatRef = (matchId: string) => ref(rtdb, `${dbRoot}/chat/${matchId}`);
-export const predictionsRef = (matchId: string, clientId: string) => ref(rtdb, `${dbRoot}/predictions/${matchId}/${clientId}`);
+export const metaRef = (roomId: string) => ref(rtdb, `${dbRoot}/meta/${roomId}`);
+export const chatRef = (roomId: string) => ref(rtdb, `${dbRoot}/chat/${roomId}`);
+export const predictionsRef = (roomId: string, clientId: string) => 
+  ref(rtdb, `${dbRoot}/predictions/${roomId}/${clientId}`);
+export const activeMatchRef = (roomId: string) => ref(rtdb, `${dbRoot}/rooms/${roomId}/active_match`); // Keep legacy discovery if needed
 export const seasonLeaderboardRef = (roomId: string) => ref(rtdb, `${dbRoot}/season_leaderboard/${roomId}`);
 export const userRef = (clientId: string) => ref(rtdb, `${dbRoot}/users/${clientId}`);
 

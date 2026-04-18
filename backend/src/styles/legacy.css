@@ -1,0 +1,203 @@
+/* ─── Overlay & Ticker Design System ── matching source styles.css ── */
+
+:root {
+  --shadow-apple: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --glass-blur: saturate(180%) blur(24px);
+  --accent-blue: #007aff;
+  --accent-red: #ff3b30;
+}
+
+.overlay-widget {
+  background: var(--team-gradient, rgba(5, 7, 10, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: var(--shadow-apple);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  animation: overlay-fade-in 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.overlay-topbar {
+  width: 100%;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+.overlay-topbar:active { cursor: grabbing; }
+
+.overlay-drag-handle {
+  width: 36px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+}
+
+.predictions-ribbon {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 12px;
+  min-height: 0;
+}
+
+.overlay-ribbon-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #f5f7fb;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* Prediction Graph */
+.prediction-graph {
+  margin: 4px 0 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.graph-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.graph-track {
+  height: 6px;
+  width: 100%;
+  background: #ff3b30;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.graph-fill {
+  height: 100%;
+  background: #007aff;
+  border-right: 1.5px solid rgba(255, 255, 255, 0.3);
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Prediction Cards */
+.prediction-cards {
+  display: grid;
+  gap: 1px;
+  overflow-y: auto;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+}
+.prediction-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(5, 7, 10, 0.4);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: all 0.2s;
+  position: relative;
+}
+.prediction-card:last-child { border-bottom: none; }
+.prediction-card:hover { background: rgba(255,255,255,0.08); }
+
+.prediction-name { font-weight: 600; font-size: 0.9rem; flex: 1; }
+.prediction-val { font-weight: 800; font-size: 0.95rem; color: #fff; margin: 0 12px; }
+
+.team-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.1);
+}
+
+.overlay-admin-remove {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #ff3b30;
+  color: #fff;
+  border: none;
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.prediction-card:hover .overlay-admin-remove { opacity: 1; }
+
+/* Ticker Scroll Animation */
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+.ticker-wrapper {
+  background: var(--team-gradient, rgba(0,0,0,0.85));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.ticker-static {
+  flex-shrink: 0;
+  padding: 0 20px;
+  background: rgba(0,0,0,0.3);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-weight: 800;
+  font-size: 14px;
+  border-right: 1px solid rgba(255,255,255,0.1);
+  z-index: 10;
+}
+
+.ticker-track {
+  display: flex;
+  white-space: nowrap;
+  animation: ticker-scroll var(--ticker-duration, 30s) linear infinite;
+  padding-left: 100%;
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 40px;
+}
+
+.ticker-badge {
+  background: var(--accent-blue);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ticker-msg { font-weight: 500; font-size: 13px; }
+.ticker-sep { opacity: 0.3; }

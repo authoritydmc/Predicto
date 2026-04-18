@@ -29,4 +29,5 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   viewScraperDebug: () => ipcRenderer.invoke("scraper:view-debug"),
   openScraperSolver: (url) => ipcRenderer.invoke("scraper:open-solver", url),
   getScheduleCsv: () => ipcRenderer.invoke("csv:get-schedule"),
+  showDebug: () => ipcRenderer.invoke("debug:show"),
 });

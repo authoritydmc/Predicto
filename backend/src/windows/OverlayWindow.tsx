@@ -1,82 +1,128 @@
-import React, { useState, useEffect } from 'react';
-import { onValue, matchMetaRef, matchPredictionsRef, roomActiveMatchRef } from '../firebase/db';
+import React, { useState, useEffect, useMemo } from 'react';
+import { db, roomRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
+import { getTeamTheme } from '../utils/shared';
+import '../styles/legacy.css';
 
 const OverlayWindow: React.FC = () => {
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+  const [roomId, setRoomId] = useState('ipl');
   const [meta, setMeta] = useState<any>({});
-  const [predictions, setPredictions] = useState<any[]>([]);
+  const [predictions, setPredictions] = useState<any>({});
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const rId = params.get('room') || 'ipl';
-    onValue(roomActiveMatchRef(rId), (snap) => setActiveMatchId(snap.val()));
+    // @ts-ignore
+    window.overlayDesktop.getSettings().then((s: any) => {
+      setRoomId(s.roomId || 'ipl');
+    });
+
+    // @ts-ignore
+    window.overlayDesktop.onSettingsChanged((s: any) => {
+      if (s.roomId) setRoomId(s.roomId);
+    });
   }, []);
 
   useEffect(() => {
-    if (!activeMatchId) return;
-    onValue(matchMetaRef(activeMatchId), (snap) => setMeta(snap.val() || {}));
-    onValue(matchPredictionsRef(activeMatchId), (snap) => {
-      const data = snap.val() || {};
-      // Sort predictions by score gap or custom logic if needed
-      setPredictions(Object.values(data));
-    });
-  }, [activeMatchId]);
+    if (!isFirebaseConfigured || !db || !roomId) return;
 
-  const percA = meta.winProbabilityA || 50;
+    const unsubMeta = onValue(roomRef(roomId, 'meta'), snap => setMeta(snap.val() || {}));
+    const unsubPreds = onValue(roomRef(roomId, 'predictions'), snap => setPredictions(snap.val() || {}));
+
+    return () => {
+      unsubMeta();
+      unsubPreds();
+    };
+  }, [roomId]);
+
+  const teamA = meta.teamA || 'Team A';
+  const teamB = meta.teamB || 'Team B';
+  const theme = useMemo(() => getTeamTheme(teamA), [teamA]);
+
+  const sortedPredictions = useMemo(() => {
+    const list = Object.entries(predictions).map(([cid, p]: [string, any]) => ({ clientId: cid, ...p }));
+    const sort = meta.predictionSort || 'newest';
+    
+    if (sort === 'score') {
+      return list.sort((a, b) => {
+        const valA = meta.secondInnings ? (meta.disableScoreA ? (a.scoreB || 0) : (a.scoreA || 0)) : (a.scoreA || a.scoreB || 0);
+        const valB = meta.secondInnings ? (meta.disableScoreA ? (b.scoreB || 0) : (b.scoreA || b.scoreB || 0)) : (b.scoreA || b.scoreB || 0);
+        return Number(valB) - Number(valA);
+      });
+    }
+    return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  }, [predictions, meta]);
+
+  const removePrediction = (cid: string) => {
+    if (!confirm('Remove this prediction?')) return;
+    clearRoomNode(roomId, `predictions/${cid}`).catch(console.error);
+  };
+
+  if (meta.hideOverlay) return null;
 
   return (
-    <div className="prediction-overlay">
-      
-      {/* Probability Header */}
-      <section className="overlay-header">
-         <div className="live-pill">
-            <span className="live-dot"></span>
-            <span className="live-text">Live Predictions</span>
-            <span className="live-count">{predictions.length} live</span>
-         </div>
-         
-         <div className="prob-container">
-            <div className="team-score team-a">
-               <div className="team-logo">RCB</div>
-               <div className="team-meta">
-                  <span className="team-name">{meta.teamA || 'RCB'}</span>
-                  <span className="team-perc">{percA}%</span>
-               </div>
+    <div className="overlay-widget" style={{ 
+      '--team-gradient': `linear-gradient(135deg, ${theme.primary} 0%, ${theme.alt} 100%)`,
+      '--accent-blue': theme.primary
+    } as any}>
+      <div className="overlay-topbar">
+        <div className="overlay-drag-handle" />
+      </div>
+
+      <main className="predictions-ribbon">
+        <div className="overlay-ribbon-header">
+          <span>{meta.matchTitle || 'Live Predictions'}</span>
+          <span className="team-badge" style={{ background: 'rgba(255,255,255,0.2)' }}>
+            {meta.secondInnings ? '2nd Innings' : '1st Innings'}
+          </span>
+        </div>
+
+        {meta.showWinProb && (
+          <div className="prediction-graph">
+            <div className="graph-labels">
+               <span style={{ color: '#fff', opacity: 0.8 }}>{teamA} {meta.winProbabilityA || 50}%</span>
+               <span style={{ color: '#fff', opacity: 0.8 }}>{teamB} {meta.winProbabilityB || 50}%</span>
             </div>
+            <div className="graph-track">
+              <div 
+                className="graph-fill" 
+                style={{ 
+                  width: `${meta.winProbabilityA || 50}%`,
+                  background: 'rgba(255,255,255,0.3)'
+                }} 
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="prediction-cards custom-scrollbar">
+          {sortedPredictions.map((p) => {
+            const isA = (p.predictedWinner || '').toLowerCase() === teamA.toLowerCase();
+            const guess = meta.secondInnings 
+              ? (meta.disableScoreA ? p.scoreB : p.scoreA) 
+              : (isA ? p.scoreA : (p.scoreB || p.scoreA));
             
-            <div className="prob-bar-wrapper">
-               <div className="prob-bar">
-                  <div style={{ width: `${percA}%` }} className="prob-progress prob-a"></div>
-                  <div style={{ width: `${100-percA}%` }} className="prob-progress prob-b"></div>
-               </div>
-            </div>
-
-            <div className="team-score team-b">
-               <div className="team-meta">
-                  <span className="team-name">{meta.teamB || 'DC'}</span>
-                  <span className="team-perc">{100-percA}%</span>
-               </div>
-               <div className="team-logo">DC</div>
-            </div>
-         </div>
-      </section>
-
-      {/* Leaderboard List */}
-      <main className="leaderboard-list scroll-hide">
-         {predictions.map((p, i) => (
-            <div key={i} className="leaderboard-item animate-slide-in" style={{ animationDelay: `${i * 100}ms` }}>
-               <div className="item-rank">{i + 1}</div>
-               <div className="item-name">{p.name || 'Anup'}</div>
-               <div className="item-pred">
-                  <span className="pred-val">{p.scoreA || p.scoreB || '208'}</span>
-                  <div className={`pred-team-badge ${p.predictedWinner === 'a' ? 'bg-a' : 'bg-b'}`}>
-                     {p.predictedWinner === 'a' ? (meta.teamA || 'RCB') : (meta.teamB || 'DC')}
-                  </div>
-               </div>
-            </div>
-         ))}
+            return (
+              <div key={p.clientId} className="prediction-card">
+                <span className="prediction-name">{p.name || 'Anonymous'}</span>
+                <span className="prediction-val">{guess || '---'} {meta.secondInnings && isA ? 'overs' : ''}</span>
+                <span className="team-badge" style={{ 
+                  background: isA ? 'rgba(0, 122, 255, 0.3)' : 'rgba(255, 59, 48, 0.3)',
+                  color: '#fff'
+                }}>
+                  {isA ? (teamA.slice(0, 3)) : (teamB.slice(0, 3))}
+                </span>
+                <button className="overlay-admin-remove" onClick={() => removePrediction(p.clientId)}>×</button>
+              </div>
+            );
+          })}
+          {sortedPredictions.length === 0 && (
+            <div className="p-4 text-center opacity-30 italic text-[11px]">Waiting for predictions...</div>
+          )}
+        </div>
       </main>
-
+      
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+      `}} />
     </div>
   );
 };

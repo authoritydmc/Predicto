@@ -5,15 +5,21 @@ echo ==========================================
 echo    OverlayChat Management Console
 echo ==========================================
 echo.
+echo [0] Start Full Local Stack (Broadcaster + Audience)
 echo [1] Start Host App (Broadcaster Electron + Python)
 echo [2] Start Audience App (React Web Dev Mode)
 echo [3] Deploy Production (Frontend + Firebase)
 echo [4] Clean Root node_modules (Maintenance)
 echo [5] Exit
 echo.
-set /p opt="Select an option (1-5): "
+set /p opt="Select an option (0-5): "
 
-if "%opt%"=="1" (
+if "%opt%"=="0" (
+    echo Launching Full Local Stack...
+    start cmd /k "echo Launching Host Backend... && cd backend && npm start"
+    start cmd /k "echo Launching Audience Frontend... && cd frontend && npm run dev"
+    goto :eof
+) else if "%opt%"=="1" (
     echo Launching Host Backend...
     cd backend
     if not exist node_modules (

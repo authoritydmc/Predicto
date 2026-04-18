@@ -1,49 +1,99 @@
 import React, { useState, useEffect } from 'react';
-import { onValue, roomActiveMatchRef, matchReactionRef } from '../firebase/db';
+import { db, roomRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
 
 const ReactionWindow: React.FC = () => {
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+  const [roomId, setRoomId] = useState('ipl');
   const [reaction, setReaction] = useState<any>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const rId = params.get('room') || 'ipl';
-    onValue(roomActiveMatchRef(rId), (snap) => setActiveMatchId(snap.val()));
+    // @ts-ignore
+    window.overlayDesktop.getSettings().then((s: any) => {
+      setRoomId(s.roomId || 'ipl');
+    });
+
+    // @ts-ignore
+    window.overlayDesktop.onSettingsChanged((s: any) => {
+      if (s.roomId) setRoomId(s.roomId);
+    });
   }, []);
 
   useEffect(() => {
-    if (!activeMatchId) return;
-    onValue(matchReactionRef(activeMatchId), (snap) => {
+    if (!isFirebaseConfigured || !db || !roomId) return;
+
+    const unsub = onValue(roomRef(roomId, 'reaction'), snap => {
       const data = snap.val();
-      if (data) {
+      if (data && data.url) {
         setReaction(data);
-        setTimeout(() => setReaction(null), 5000);
+        setVisible(true);
+        // Clear after 6 seconds parity with source
+        const timer = setTimeout(() => {
+          setVisible(false);
+          // Only clear if it's the same reaction we're showing
+          clearRoomNode(roomId, 'reaction').catch(console.error);
+        }, 6000);
+        return () => clearTimeout(timer);
+      } else {
+        setVisible(false);
       }
     });
-  }, [activeMatchId]);
+
+    return () => unsub();
+  }, [roomId]);
+
+  if (!reaction || !visible) return null;
 
   return (
-    <div className="h-full w-full relative group">
-      {/* Draggable Area - only visible on hover to indicate movement possibility */}
-      <div className="absolute inset-0 border-2 border-dashed border-white/0 group-hover:border-white/20 rounded-3xl transition-all pointer-events-none"></div>
-      <div 
-        style={{ WebkitAppRegion: 'drag' } as any}
-        className="absolute top-0 left-0 w-full h-8 cursor-grab flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-         <div className="w-10 h-1 bg-white/20 rounded-full"></div>
+    <div className="reaction-container" style={{
+      width: '100vw',
+      height: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'none',
+      overflow: 'hidden'
+    }}>
+      <div className="reaction-box" style={{
+        animation: 'reaction-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.5))'
+      }}>
+        <img 
+          src={reaction.url} 
+          alt="Reaction" 
+          style={{ 
+            maxWidth: '80vw', 
+            maxHeight: '80vh', 
+            borderRadius: '24px',
+            border: '8px solid white'
+          }} 
+        />
+        {reaction.name && (
+          <div style={{
+            marginTop: 20,
+            background: 'rgba(0,0,0,0.8)',
+            color: 'white',
+            padding: '10px 30px',
+            borderRadius: '40px',
+            fontSize: 24,
+            fontWeight: 800,
+            textAlign: 'center',
+            textTransform: 'uppercase',
+            letterSpacing: 2,
+            border: '2px solid rgba(255,255,255,0.2)',
+            backdropFilter: 'blur(10px)'
+          }}>
+            {reaction.name} REACTION
+          </div>
+        )}
       </div>
 
-      {reaction && (
-        <div className="h-full w-full flex items-center justify-center p-4">
-           <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-500 text-center">
-              {reaction.mediaUrl && (
-                <img src={reaction.mediaUrl} className="max-w-[200px] max-h-[150px] mx-auto rounded-xl mb-3 shadow-lg" alt="reaction" />
-              )}
-              <div className="text-[10px] font-black uppercase tracking-widest text-indigo-400">{reaction.name}</div>
-              <div className="text-xs text-white/80 mt-1">{reaction.type === 'image' ? 'Sent a sticker!' : 'Reacted!'}</div>
-           </div>
-        </div>
-      )}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes reaction-pop {
+          0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+          70% { transform: scale(1.1) rotate(2deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+      `}} />
     </div>
   );
 };

@@ -3,8 +3,9 @@ import {
   db, isFirebaseConfigured, onValue, query, ref, roomRef,
   saveRoomMeta, clearRoomNode, getOnce,
   saveInningsHistory, getInningsHistory, archiveToHistory,
-  getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession
+  getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot
 } from '../firebase/db';
+import { getAudienceUrl } from '../utils/shared';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const normalizeRoomId = (v: string) =>
@@ -14,7 +15,7 @@ const escapeHtml = (v = '') =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-const AUDIENCE_URL = 'https://vrccim.com/';
+const AUDIENCE_URL = 'http://localhost:5173/'; // Fallback
 
 const oversToBalls = (val: string | number) => {
   const num = Number(val || 0);
@@ -739,15 +740,43 @@ const ControlPanel: React.FC = () => {
       <header className="cp-header">
         <div className="cp-header-main">
           <div className="cp-header-content">
-            <span className="cp-badge">Desktop</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="cp-badge">Desktop</span>
+              <span className={`cp-badge ${getDbRoot() === 'local' ? 'cp-badge-local' : 'cp-badge-prod'}`} style={{ 
+                background: getDbRoot() === 'local' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                color: getDbRoot() === 'local' ? '#818cf8' : '#34d399',
+                border: getDbRoot() === 'local' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)'
+              }}>
+                {getDbRoot().toUpperCase()}
+              </span>
+            </div>
             <h1>Overlay Executive</h1>
             <p>Control the broadcast overlay in real-time.</p>
           </div>
-          <div className="cp-header-controls">
+          <div className="cp-header-controls" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                // @ts-ignore
+                window.overlayDesktop.showDebug();
+              }}
+              className="cp-action-btn cp-small"
+              style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', borderColor: 'rgba(99, 102, 241, 0.2)' }}
+            >
+              Advanced Debug Log
+            </button>
             <button className="cp-action-btn cp-pill" onClick={openHistory}>
               <span>📚</span> View Match History
             </button>
           </div>
+        </div>
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span className="ppg-label" style={{ fontSize: 9 }}>AUDIENCE JOIN LINK</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '0.02em' }}>
+              {getAudienceUrl(roomId)}
+            </span>
+          </div>
+          <button className="cp-glass-btn cp-small" onClick={copyAudienceUrl}>Copy Link</button>
         </div>
       </header>
 
@@ -818,10 +847,13 @@ const ControlPanel: React.FC = () => {
                 </div>
               </div>
               <div className="cp-form-row">
-                <label>Audience Access</label>
+                <label>Join Link (Preview)</label>
                 <div className="cp-input-action-group">
-                  <input id="audienceUrl" value={AUDIENCE_URL} readOnly />
-                  <button id="copyAudienceUrl" className="cp-action-btn" type="button" onClick={copyAudienceUrl}>Copy</button>
+                  <input value={getAudienceUrl(fRoomId)} readOnly />
+                  <button className="cp-action-btn" type="button" onClick={() => {
+                    // @ts-ignore
+                    window.overlayDesktop.copyText(getAudienceUrl(fRoomId));
+                  }}>Copy</button>
                 </div>
               </div>
               <button className="cp-primary-btn cp-wide-btn" type="submit">Deploy Changes</button>

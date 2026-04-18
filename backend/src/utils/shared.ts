@@ -1,0 +1,49 @@
+/**
+ * Shared utilities for the OverlayChat desktop app
+ */
+
+export const getAppMode = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('appMode') || 'prod';
+};
+
+export const getAudienceUrl = (roomId: string) => {
+    const mode = getAppMode();
+    const base = mode === 'local' ? 'http://localhost:5173' : 'https://vrccim.com';
+    return `${base}/room/${roomId.toLowerCase()}`;
+};
+
+export const formatRelativeTime = (timestamp: number | string | any) => {
+    if (!timestamp) return 'just now';
+    const date = typeof timestamp === 'number' ? timestamp : (typeof timestamp === 'object' && timestamp?.seconds ? timestamp.seconds * 1000 : Date.now());
+    const diffMs = Math.max(0, Date.now() - Number(date));
+    const diffMin = Math.floor(diffMs / 60000);
+
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour}h ago`;
+    return `${Math.floor(diffHour / 24)}d ago`;
+};
+
+export const escapeHtml = (v = '') =>
+    v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+export const TEAM_COLORS: Record<string, { primary: string, alt: string }> = {
+    'mi': { primary: '#004BA0', alt: '#D1AB3E' },
+    'rcb': { primary: '#EC1C24', alt: '#2B2A29' },
+    'csk': { primary: '#FFFF00', alt: '#0081E9' },
+    'dc': { primary: '#0078BC', alt: '#EF1B23' },
+    'kkr': { primary: '#3A225D', alt: '#B3A123' },
+    'pbks': { primary: '#ED1B24', alt: '#D71920' },
+    'rr': { primary: '#254AA5', alt: '#CBA052' },
+    'srh': { primary: '#F26522', alt: '#ED1A3B' },
+    'lsg': { primary: '#0057E7', alt: '#D1AB3E' },
+    'gt': { primary: '#0B4973', alt: '#CBA052' }
+};
+
+export const getTeamTheme = (teamName: string) => {
+    const key = (teamName || '').toLowerCase().trim();
+    return TEAM_COLORS[key] || { primary: '#007AFF', alt: '#5856D6' };
+};
