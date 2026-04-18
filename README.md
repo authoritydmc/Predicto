@@ -1,62 +1,61 @@
-# OverlayChat
+# OverlayChat 
 
-Browser-based audience predictions and live chat for sports streams. The architecture is cleanly split between an audience-facing Web App (React) and a Broadcaster Desktop App (Electron/Python).
+A premium sports broadcasting tool for live audience predictions and interactive chat overlays. 
 
-## Project Structure
-
-1. **Frontend (Audience Web App)**
-   - Located in the `frontend/` directory.
-   - Built with **Vite + React (TypeScript)**.
-   - Handles the audience-facing views where users join rooms, submit predictions, and use live chat dynamically.
-2. **Backend (Electron Broadcaster App & Python Automation)**
-   - Located in the `backend/` directory.
-   - Contains the core logic, Electron UI, and automated scoring pipelines.
-
-The data layer uses Firebase Realtime Database with a strict match-centric data model. All live keys are isolated under a `matchId` per room per environment.
-
-## Environment Architecture
-
-OverlayChat heavily isolates local testing from production:
-- **Local Environment**: `APP_MODE=local` writes exclusively to the `/local/...` node of your Firebase database. Prevents breaking live deployment matches while developing.
-- **Production Environment**: `APP_MODE=prod` writes directly to standard nodes (`/prod/...`).
+## 🏗️ Architecture
+The project is split into two specialized applications:
+1.  **Audience App (`/frontend`)**: A React web application for users to join via QR/link and submit predictions.
+2.  **Broadcaster App (`/backend`)**: An Electron + React application for the streamer to control the match state, manage overlays, and automate scoring.
 
 ---
 
-Open a separate terminal, navigate to `frontend/`, and boot the Vite server:
+## 💻 Local Development Guide
+
+### 1. Prerequisites
+- **Node.js**: v18+ recommended.
+- **Python 3.10+**: For automated scoring scripts.
+- **Firebase Project**: You need a Realtime Database instance.
+
+### 2. Initial Setup
+Run the following at the repository root to initialize both environments:
 ```bash
-cd frontend
-npm run dev
+./run.bat  # Select option 4 to clean old artifacts, then follow setups
 ```
+*Note: The management script will automatically prompt you to install dependencies if they are missing.*
+
+### 3. Running the Apps
+We recommend using the root **`run.bat`** (Windows) or **`run.sh`** (Mac/Linux) as it manages all cross-app dependencies.
+
+*   **Option 1: Start Host App**
+    *   Launches the Electron Broadcaster UI and the Vite dev server for its React components.
+    *   *Note: Ensure your `backend/desktop/assets/firebase-config.js` is set up.*
+*   **Option 2: Start Audience App**
+    *   Launches the React web server at `localhost:5173`.
+*   **Both**: You will usually want both running to test end-to-end.
 
 ---
 
-## 🚀 Production Deployment
+## 🚀 Deployment Guide
 
-### 1. Deploy the Audience Web App (Frontend)
-Use the convenience script inside the `backend/` directory to build and deploy everything.
+### 1. Deploying the Audience Web App
+The Audience App must be hosted on Firebase to be accessible via the internet.
+1. Ensure `frontend/src/firebase/config.ts` has your production keys.
+2. Run `./run.bat` and select **Option 3 (Deploy Production)**.
+3. This process builds the frontend, moves the bundle to the backend's deployment folder, and triggers `firebase deploy`.
 
-```bash
-cd backend
-npm run deploy
-```
-*(This automatically builds the React frontend and triggers Firebase Host deployment)*
-
-### 2. Build the Windows Desktop Execution (Backend)
-To create the `.exe` for the broadcaster:
-
-```bash
-cd backend
-npm run dist:win
-```
-
-### 3. Running Background Python Automators in Production
-```bash
-cd backend
-npm run monitor
-```
+### 2. Distributing the Broadcaster App
+To create a standalone `.exe` for yourself or other broadcasters:
+1. Navigate to `backend/`.
+2. Run `npm run dist:win`.
+3. Find your installer in `backend/dist/OverlayChat Setup 1.0.9.exe`.
 
 ---
 
-## Keyboard Shortcuts (Desktop App)
-- `Ctrl+Shift+X`: toggle interaction click-through for transparent overlays
-- `Ctrl+Shift+O`: manually force-open the overlay window
+## ⚙️ How it Works (Match-Centric Model)
+- **Room ID**: A unique string (e.g., `ipl2026`) that defines a broadcaster's channel.
+- **Match ID**: Generated when you click "Start New Match" in the Control Panel. 
+- **Data Isolation**: Once a match starts, all chat and predictions are stored under that specific Match ID. This allows you to resolve results and save history without clearing the entire room's database.
+
+## ⌨️ Hotkeys
+- `Ctrl+Shift+X`: Toggle Overlay Click-Through (Interact vs. View mode).
+- `Ctrl+Shift+O`: Force Show/Focus Overlay window.
