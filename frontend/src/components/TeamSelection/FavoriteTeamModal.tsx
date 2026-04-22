@@ -1,14 +1,25 @@
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 
-export default function FavoriteTeamModal({ onSelectTeam }: { onSelectTeam: (team: string) => void }) {
+interface FavoriteTeamModalProps {
+  onSelectTeam: (team: string) => void;
+  teamChangeCount?: number;
+}
+
+export default function FavoriteTeamModal({ onSelectTeam, teamChangeCount = 0 }: FavoriteTeamModalProps) {
   const teams = ["CSK", "MI", "RCB", "KKR", "DC", "PBKS", "RR", "SRH", "LSG", "GT"];
+  const remainingChanges = 3 - teamChangeCount;
 
   return (
     <div className="modal-overlay">
       <div className="modal-content team-selector-modal">
         <div className="modal-header">
           <h2>Choose Your Favorite Team</h2>
-          <p>Select your favorite IPL team (one-time choice)</p>
+          <p>
+            {teamChangeCount === 0 
+              ? "Select your favorite IPL team (you can change it up to 3 times)"
+              : `Select your favorite IPL team (${remainingChanges} change${remainingChanges !== 1 ? 's' : ''} remaining)`
+            }
+          </p>
         </div>
         <div className="team-grid">
           {teams.map((team) => {

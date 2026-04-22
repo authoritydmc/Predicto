@@ -20,6 +20,7 @@ function App() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [passkey, setPasskey] = useState<string | null>(null);
   const [showPasskey, setShowPasskey] = useState(false);
+  const [teamChangeCount, setTeamChangeCount] = useState(0);
   const [clientId] = useState(() => {
     const existing = localStorage.getItem('ovr_client_id');
     if (existing) return existing;
@@ -57,7 +58,7 @@ function App() {
     }
   }, [matchCode]);
 
-  // Load user profile (username, passkey, and favorite team) from Firebase
+  // Load user profile (username, passkey, favorite team, and change count) from Firebase
   useEffect(() => {
     console.log('[App] Loading user profile for client:', clientId);
     const unsub = onValue(userRef(clientId), (snap) => {
@@ -75,6 +76,10 @@ function App() {
       if (data?.favoriteTeam) {
         console.log('[App] Found favorite team:', data.favoriteTeam);
         setFavoriteTeam(data.favoriteTeam);
+      }
+      if (data?.teamChangeCount !== undefined) {
+        console.log('[App] Found team change count:', data.teamChangeCount);
+        setTeamChangeCount(data.teamChangeCount);
       }
     }, (error) => {
       console.error('[App] Error fetching user profile:', error);
@@ -107,10 +112,24 @@ function App() {
 
   // Save favorite team to Firebase
   const handleSelectFavoriteTeam = async (team: string) => {
-    console.log('[App] Saving favorite team:', team);
+    console.log('[App] Saving favorite team:', team, 'Current count:', teamChangeCount);
+    
+    // Check if user has reached the limit
+    if (teamChangeCount >= 3) {
+      alert('You have reached the maximum limit of 3 favorite team changes.');
+      return;
+    }
+    
     try {
-      await saveUserGlobalProfile(clientId, { favoriteTeam: team });
+      const newCount = favoriteTeam ? teamChangeCount + 1 : 0;
+      console.log('[App] New team change count:', newCount);
+      
+      await saveUserGlobalProfile(clientId, { 
+        favoriteTeam: team,
+        teamChangeCount: newCount
+      });
       setFavoriteTeam(team);
+      setTeamChangeCount(newCount);
       console.log('[App] Favorite team saved successfully');
     } catch (error) {
       console.error('[App] Error saving favorite team:', error);
@@ -233,7 +252,7 @@ function App() {
       )}
       
       {isAuthed && !favoriteTeam && (
-        <FavoriteTeamModal onSelectTeam={handleSelectFavoriteTeam} />
+        <FavoriteTeamModal onSelectTeam={handleSelectFavoriteTeam} teamChangeCount={teamChangeCount} />
       )}
       
       <div id="audienceApp" className="audience-app-container">
@@ -269,8 +288,8 @@ function App() {
               <div className="favorite-team-info">
                 <p className="favorite-team-label">Supporting</p>
                 <h3 className="favorite-team-name">{favoriteTeam}</h3>
-                <button onClick={() => setFavoriteTeam(null)} className="ghost-link-xs">
-                  Change
+                <button onClick={() => setFavoriteTeam(null)} className="ghost-link-xs" disabled={teamChangeCount >= 3}>
+                  Change {teamChangeCount >= 3 ? '(Limit reached)' : `(${3 - teamChangeCount} left)`}
                 </button>
               </div>
             </div>
