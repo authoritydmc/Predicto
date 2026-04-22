@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { get, update, DataSnapshot, set } from 'firebase/database';
-import {
-  db, isFirebaseConfigured, onValue, query, ref, schemaRef,
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { 
+  db, isFirebaseConfigured, onValue, query, ref, schemaRef, update,
   saveRoomMeta, clearRoomNode, getOnce, setDiscovery,
   saveInningsHistory, getInningsHistory, archiveToHistory,
   getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot,
@@ -13,6 +12,24 @@ import {
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
+
+// ── LocalStorage Helpers ────────────────────────────────────────────────────────
+const STORAGE_KEY = 'controlpanel_ui_state';
+const loadUIState = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+const saveUIState = (state: any) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.error('Failed to save UI state:', err);
+  }
+};
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const normalizeRoomId = (v: string) =>
@@ -39,11 +56,35 @@ const parseCSV = (csvText: string): any[] => {
   const lines = csvText.trim().split('\n');
   if (lines.length < 2) return [];
   
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  // Parse CSV with proper handling of quoted fields
+  const parseLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    
+    // Remove quotes from values
+    return result.map(v => v.replace(/^"|"$/g, ''));
+  };
+  
+  const headers = parseLine(lines[0]).map(h => h.trim().toLowerCase());
   const matches: any[] = [];
   
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim());
+    const values = parseLine(lines[i]);
     if (values.length !== headers.length) continue;
     
     const match: any = {};
@@ -152,12 +193,15 @@ const RankPill = ({ rank }: { rank: number }) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ControlPanel: React.FC = () => {
+  // Load saved UI state from localStorage
+  const savedUIState = loadUIState();
+
   // ── Settings & Meta State
   const [settings, setSettings] = useState<any>(null);
   const [meta, setMeta] = useState<any>({});
   const [roomId, setRoomId] = useState('ipl');
-  const [tournamentId, setTournamentId] = useState('ipl');
-  const [matchId, setMatchId] = useState('ipl');
+  const [tournamentId, setTournamentId] = useState(savedUIState?.lastTournamentId || '');
+  const [matchId, setMatchId] = useState('');
   const [viewMode, setViewMode] = useState<'tournament' | 'match'>('match');
 
   // ── Tournament Form State
@@ -175,7 +219,7 @@ const ControlPanel: React.FC = () => {
   const [loadingMatches, setLoadingMatches] = useState(false);
 
   // ── UI Collapse State
-  const [collapsedSections, setCollapsedSections] = useState({
+  const [collapsedSections, setCollapsedSections] = useState(savedUIState?.collapsedSections || {
     tournament: true,
     match: false,
     resolution: false,
@@ -184,13 +228,34 @@ const ControlPanel: React.FC = () => {
     history: true
   });
 
+  // ── Tab State
+  const [tournamentTab, setTournamentTab] = useState<'details' | 'schedule'>(savedUIState?.tournamentTab || 'details');
+
+  const handleTabChange = (tab: 'details' | 'schedule') => {
+    setTournamentTab(tab);
+    saveUIState({ 
+      collapsedSections, 
+      tournamentTab: tab,
+      lastSport: fSport
+    });
+  };
+
   const toggleSection = (section: keyof typeof collapsedSections) => {
-    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    setCollapsedSections((prev: any) => {
+      const newState = { ...prev, [section]: !prev[section] };
+      saveUIState({ 
+        collapsedSections: newState, 
+        tournamentTab,
+        lastSport: fSport,
+        lastTournamentId: tournamentId
+      });
+      return newState;
+    });
   };
 
   // ── Match Form State
   const [fMatchCode, setFMatchCode] = useState('');
-  const [fSport, setFSport] = useState('');
+  const [fSport, setFSport] = useState(savedUIState?.lastSport || '');
   const [fMatchTitle, setFMatchTitle] = useState('');
   const [fTeamA, setFTeamA] = useState('');
   const [fTeamB, setFTeamB] = useState('');
@@ -359,7 +424,7 @@ const ControlPanel: React.FC = () => {
       unsubMetaRef.current = onValue(matchMetaRef(sport, tournamentId, matchId), snap => {
         const matchMeta = snap.val() || {};
         // Also get tournament meta for defaults
-        get(tournamentMetaRef(sport, tournamentId)).then((tourneySnap: any) => {
+        getOnce(tournamentMetaRef(sport, tournamentId)).then((tourneySnap: any) => {
           const tourneyMeta = tourneySnap.val() || {};
           const merged = { ...tourneyMeta, ...matchMeta };
           setMeta(merged);
@@ -582,12 +647,23 @@ const ControlPanel: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    if (!tournamentId) {
+      alert('Please select a tournament first before uploading a schedule');
+      e.target.value = '';
+      return;
+    }
+    
     setCsvFile(file);
     setUploadingSchedule(true);
     
     try {
       const text = await file.text();
       const parsedSchedule = parseCSV(text);
+      
+      if (parsedSchedule.length === 0) {
+        alert('No matches found in CSV file. Please check the format.');
+        return;
+      }
       
       // Validate and transform schedule
       const transformedSchedule = parsedSchedule.map((match: any) => ({
@@ -601,12 +677,18 @@ const ControlPanel: React.FC = () => {
       }));
       
       setSchedule(transformedSchedule);
-      alert(`Successfully parsed ${transformedSchedule.length} matches from CSV`);
+      setEditingSchedule(transformedSchedule);
+      
+      // Auto-save to Firebase
+      await saveTournamentSchedule(fSport, tournamentId, transformedSchedule);
+      
+      alert(`Successfully parsed and saved ${transformedSchedule.length} matches from CSV`);
     } catch (err) {
       console.error(err);
-      alert('Error parsing CSV file');
+      alert('Error parsing CSV file: ' + (err as Error).message);
     } finally {
       setUploadingSchedule(false);
+      e.target.value = '';
     }
   };
 
@@ -1271,87 +1353,181 @@ const ControlPanel: React.FC = () => {
 
             <div className="cp-divider" />
 
-            {/* Tournament Form */}
-            <div className="cp-form-row">
-              <label>Tournament Code</label>
-              <input value={fTournamentCode} onChange={e => setFTournamentCode(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" />
-            </div>
-            <div className="cp-form-row">
-              <label>Tournament Name</label>
-              <input value={fTournamentName} onChange={e => setFTournamentName(e.target.value)} placeholder="e.g. IPL 2024" />
+            {/* Tab Navigation */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button
+                type="button"
+                onClick={() => handleTabChange('details')}
+                className={`cp-action-btn cp-small ${tournamentTab === 'details' ? 'cp-active' : ''}`}
+                style={{ flex: 1 }}
+              >
+                Tournament Details
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('schedule')}
+                className={`cp-action-btn cp-small ${tournamentTab === 'schedule' ? 'cp-active' : ''}`}
+                style={{ flex: 1 }}
+              >
+                Schedule Management
+              </button>
             </div>
 
-            {/* Tournament Status */}
-            {tournamentId && (
-              <div className="cp-form-row">
-                <label>Tournament Status</label>
-                <div className="cp-radio-group">
-                  <div className="cp-radio-option">
-                    <input type="radio" id="statusActive" name="tournamentStatus" value="active" checked={tournamentStatus === 'active'} onChange={() => handleUpdateTournamentStatus('active')} />
-                    <label className="cp-radio-label" htmlFor="statusActive">Active</label>
-                  </div>
-                  <div className="cp-radio-option">
-                    <input type="radio" id="statusPaused" name="tournamentStatus" value="paused" checked={tournamentStatus === 'paused'} onChange={() => handleUpdateTournamentStatus('paused')} />
-                    <label className="cp-radio-label" htmlFor="statusPaused">Paused</label>
-                  </div>
-                  <div className="cp-radio-option">
-                    <input type="radio" id="statusEnded" name="tournamentStatus" value="ended" checked={tournamentStatus === 'ended'} onChange={() => handleUpdateTournamentStatus('ended')} />
-                    <label className="cp-radio-label" htmlFor="statusEnded">Ended</label>
-                  </div>
+            {/* Tournament Details Tab */}
+            {tournamentTab === 'details' && (
+              <>
+                <div className="cp-form-row">
+                  <label>Tournament Code</label>
+                  <input value={fTournamentCode} onChange={e => setFTournamentCode(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" />
                 </div>
-              </div>
+                <div className="cp-form-row">
+                  <label>Tournament Name</label>
+                  <input value={fTournamentName} onChange={e => setFTournamentName(e.target.value)} placeholder="e.g. IPL 2024" />
+                </div>
+
+                {/* Tournament Status */}
+                {tournamentId && (
+                  <div className="cp-form-row">
+                    <label>Tournament Status</label>
+                    <div className="cp-radio-group">
+                      <div className="cp-radio-option">
+                        <input type="radio" id="statusActive" name="tournamentStatus" value="active" checked={tournamentStatus === 'active'} onChange={() => handleUpdateTournamentStatus('active')} />
+                        <label className="cp-radio-label" htmlFor="statusActive">Active</label>
+                      </div>
+                      <div className="cp-radio-option">
+                        <input type="radio" id="statusPaused" name="tournamentStatus" value="paused" checked={tournamentStatus === 'paused'} onChange={() => handleUpdateTournamentStatus('paused')} />
+                        <label className="cp-radio-label" htmlFor="statusPaused">Paused</label>
+                      </div>
+                      <div className="cp-radio-option">
+                        <input type="radio" id="statusEnded" name="tournamentStatus" value="ended" checked={tournamentStatus === 'ended'} onChange={() => handleUpdateTournamentStatus('ended')} />
+                        <label className="cp-radio-label" htmlFor="statusEnded">Ended</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="cp-divider" />
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="cp-primary-btn" style={{ flex: 1 }} type="button" onClick={handleCreateTournament as any}>
+                    {tournamentId ? 'Update Tournament' : 'Create Tournament'}
+                  </button>
+                  {tournamentId && (
+                    <button 
+                      className="cp-secondary-btn cp-danger" 
+                      type="button"
+                      onClick={handleDeleteTournament}
+                      style={{ flex: '0 0 auto' }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </>
             )}
 
-            {/* Schedule Management */}
-            <div className="cp-form-row">
-              <label>Match Schedule</label>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <input 
-                  type="file" 
-                  accept=".csv" 
-                  onChange={handleCSVUpload}
-                  disabled={uploadingSchedule}
-                  style={{ fontSize: '12px', flex: 1 }}
-                />
-                {schedule.length > 0 && (
-                  <button 
-                    type="button"
-                    onClick={handleOpenScheduleEditor}
-                    className="cp-action-btn cp-small"
-                    style={{ flex: '0 0 auto' }}
-                  >
-                    Edit Schedule
-                  </button>
+            {/* Schedule Management Tab */}
+            {tournamentTab === 'schedule' && (
+              <>
+                {!tournamentId && (
+                  <div style={{ padding: '16px', background: 'rgba(255, 159, 10, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 159, 10, 0.3)', marginBottom: '16px' }}>
+                    <span style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600' }}>
+                      ⚠️ Please select a tournament first to manage its schedule
+                    </span>
+                  </div>
                 )}
-              </div>
-              {uploadingSchedule && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Parsing CSV...</span>}
-              {schedule.length > 0 && (
-                <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(52, 199, 89, 0.1)', borderRadius: '6px', border: '1px solid rgba(52, 199, 89, 0.3)' }}>
-                  <span style={{ fontSize: '12px', color: '#34C759', fontWeight: '600' }}>
-                    ✓ {schedule.length} matches loaded
-                  </span>
-                </div>
-              )}
-            </div>
 
-            <div className="cp-divider" />
+                {tournamentId && (
+                  <>
+                    <div className="cp-form-row">
+                      <label>Upload Schedule (CSV)</label>
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        onChange={handleCSVUpload}
+                        disabled={uploadingSchedule}
+                      />
+                      {uploadingSchedule && <span style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Parsing CSV...</span>}
+                    </div>
 
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="cp-primary-btn" style={{ flex: 1 }} type="button" onClick={handleCreateTournament as any}>
-                {tournamentId ? 'Update Tournament' : 'Create Tournament'}
-              </button>
-              {tournamentId && (
-                <button 
-                  className="cp-secondary-btn cp-danger" 
-                  type="button"
-                  onClick={handleDeleteTournament}
-                  style={{ flex: '0 0 auto' }}
-                >
-                  Delete
-                </button>
-              )}
-            </div>
+                    <div className="cp-divider" />
+
+                    <div className="cp-form-row">
+                      <label>Current Schedule ({schedule.length} matches)</label>
+                      <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {schedule.length === 0 ? (
+                          <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', textAlign: 'center', color: 'var(--muted)' }}>
+                            No matches in schedule. Upload CSV or click Edit to add matches manually.
+                          </div>
+                        ) : (
+                          schedule.map((match, idx) => (
+                            <div 
+                              key={idx}
+                              style={{ 
+                                padding: '10px', 
+                                background: 'rgba(255,255,255,0.05)', 
+                                borderRadius: '6px',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                fontSize: '12px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.teamA} vs {match.teamB}</div>
+                                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleLoadMatchFromSchedule(match)}
+                                className="cp-action-btn cp-small"
+                                style={{ fontSize: '10px', padding: '4px 8px' }}
+                              >
+                                Load
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="cp-divider" />
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          const loadedSchedule = await getTournamentSchedule(fSport, tournamentId);
+                          setEditingSchedule(loadedSchedule);
+                          setShowScheduleEditor(true);
+                        }}
+                        className="cp-primary-btn"
+                        style={{ flex: 1 }}
+                      >
+                        Edit Schedule
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm('Clear all matches from schedule?')) return;
+                          await saveTournamentSchedule(fSport, tournamentId, []);
+                          setSchedule([]);
+                          setEditingSchedule([]);
+                          alert('Schedule cleared');
+                        }}
+                        className="cp-secondary-btn cp-danger"
+                        style={{ flex: '0 0 auto' }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </section>
 
