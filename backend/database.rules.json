@@ -1,7 +1,7 @@
 {
   "rules": {
-    ".read": true,
-    ".write": true,
+    ".read": false,
+    ".write": false,
     "local": {
       ".read": true,
       ".write": true,
@@ -61,40 +61,39 @@
       }
     },
     "prod": {
-      ".read": true,
-      ".write": true,
+      ".read": false,
+      ".write": false,
       "tournaments": {
         "$sport": {
           "$tournamentId": {
             ".read": true,
-            ".write": true,
             "meta": {
               ".read": true,
-              ".write": true
+              ".write": "auth != null && auth.token.admin === true"
             },
             "predictions": {
               ".read": true,
-              ".write": true
+              ".write": "auth != null"
             },
             "chat": {
               ".read": true,
-              ".write": true
+              ".write": "auth != null"
             },
             "reactions": {
               ".read": true,
-              ".write": true
+              ".write": "auth != null"
             },
             "history": {
               ".read": true,
-              ".write": true
+              ".write": "auth != null && auth.token.admin === true"
             },
             "innings_history": {
               ".read": true,
-              ".write": true
+              ".write": "auth != null && auth.token.admin === true"
             },
             "season_leaderboard": {
               ".read": true,
-              ".write": true
+              ".write": "auth != null && auth.token.admin === true"
             }
           }
         }
@@ -102,19 +101,19 @@
       "discovery": {
         "$roomId": {
           ".read": true,
-          ".write": true
+          ".write": "auth != null && auth.token.admin === true"
         }
       },
       "users": {
         "$clientId": {
-          ".read": true,
-          ".write": true
+          ".read": "auth != null && auth.uid === $clientId || auth.token.admin === true",
+          ".write": "auth != null && auth.uid === $clientId || auth.token.admin === true"
         }
       },
       "active_sessions": {
         "$roomId": {
           ".read": true,
-          ".write": true
+          ".write": "auth != null && auth.token.admin === true"
         }
       }
     }

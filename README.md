@@ -35,6 +35,81 @@ We recommend using the root **`run.bat`** (Windows) or **`run.sh`** (Mac/Linux) 
 
 ---
 
+## ⚙️ Configuration
+
+### Environment Modes
+The app supports two environment modes:
+- **Local** (`appMode=local`): Development mode with open Firebase permissions
+- **Production** (`appMode=prod`): Production mode with Firebase authentication
+
+Set the mode via:
+- URL parameter: `?appMode=local` or `?appMode=prod`
+- Environment variable: `APP_MODE=local` or `APP_MODE=prod`
+
+### Production URL Configuration
+The audience URL for production can be configured in three ways (priority order):
+1. **Window global**: `window.OVERLAY_PROD_URL` (set in Electron preload)
+2. **Environment variable**: `VITE_OVERLAY_PROD_URL`
+3. **Default**: `https://vrccim.com`
+
+Example:
+```bash
+# Set via environment variable
+VITE_OVERLAY_PROD_URL=https://yourdomain.com npm run dev
+```
+
+### Firebase Configuration
+Update Firebase config in `backend/src/firebase/db.ts`:
+```typescript
+export const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID",
+};
+```
+
+### Firebase Database Schema
+The database is organized by environment and sport:
+```
+/
+├── local/              # Development environment
+│   ├── tournaments/
+│   │   └── [sport]/
+│   │       └── [tournamentId]/
+│   │           ├── meta
+│   │           ├── predictions
+│   │           ├── chat
+│   │           ├── reactions
+│   │           ├── history
+│   │           ├── innings_history
+│   │           └── season_leaderboard
+│   ├── discovery/
+│   ├── users/
+│   └── active_sessions/
+└── prod/               # Production environment
+    └── (same structure)
+```
+
+### Firebase Security Rules
+- **Local**: Open read/write for development
+- **Production**: 
+  - Public read for predictions, chat, reactions
+  - Authenticated write for predictions, chat, reactions
+  - Admin-only write for meta, history, innings_history, season_leaderboard, discovery
+  - Users can only read/write their own user profiles
+
+To deploy updated rules:
+```bash
+cd backend
+npx firebase-tools deploy --only database:rules
+```
+
+---
+
 ## 🚀 Deployment Guide
 
 ### 1. Deploying the Audience Web App
