@@ -1,20 +1,34 @@
 import { ref, push, set, update, serverTimestamp, get } from 'firebase/database';
 import { rtdb } from './config';
 
-const dbRoot = import.meta.env.DEV ? 'local' : 'prod';
+// Get Firebase mode from localStorage, default to local
+const getDbRoot = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('firebase_mode') === 'prod' ? 'prod' : 'local';
+  }
+  return 'local';
+};
+
+export const setFirebaseMode = (mode: 'local' | 'prod') => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('firebase_mode', mode);
+  }
+};
+
+export const getFirebaseMode = () => getDbRoot();
 
 // ── Tournament-Level Refs ───────────────────────────────────────────────────────
 export const tournamentMetaRef = (sport: string, tournamentId: string) =>
-  ref(rtdb, `${dbRoot}/tournaments/${sport}/${tournamentId}/meta`);
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/meta`);
 
 export const tournamentLeaderboardRef = (sport: string, tournamentId: string) =>
-  ref(rtdb, `${dbRoot}/tournaments/${sport}/${tournamentId}/leaderboard`);
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/leaderboard`);
 
 // ── Match-Level Refs ───────────────────────────────────────────────────────────
 export const matchRef = (sport: string, tournamentId: string, matchId: string, schema: string, child = "") => {
   const path = child 
-    ? `${dbRoot}/tournaments/${sport}/${tournamentId}/matches/${matchId}/${schema}/${child}`
-    : `${dbRoot}/tournaments/${sport}/${tournamentId}/matches/${matchId}/${schema}`;
+    ? `${getDbRoot()}/tournaments/${sport}/${tournamentId}/matches/${matchId}/${schema}/${child}`
+    : `${getDbRoot()}/tournaments/${sport}/${tournamentId}/matches/${matchId}/${schema}`;
   return ref(rtdb, path);
 };
 
@@ -32,40 +46,40 @@ export const matchHistoryRef = (sport: string, tournamentId: string, matchId: st
 
 // ── Legacy Refs (for backward compatibility) ───────────────────────────────────
 export const discoveryRef = (roomId: string) => 
-  ref(rtdb, `${dbRoot}/discovery/${roomId.toLowerCase()}`);
+  ref(rtdb, `${getDbRoot()}/discovery/${roomId.toLowerCase()}`);
 
 export const metaRef = (sport: string, id: string) => 
-  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/meta`);
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${id}/meta`);
 
 export const chatRef = (sport: string, id: string) => 
-  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/chat`);
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${id}/chat`);
 
 export const predictionsRef = (sport: string, id: string, clientId: string) => 
-  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/predictions/${clientId}`);
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${id}/predictions/${clientId}`);
 
 export const allPredictionsRef = (sport: string, id: string) => 
-  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/predictions`);
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${id}/predictions`);
 
 export const seasonLeaderboardRef = (sport: string, id: string) => 
-  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/season_leaderboard`);
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${id}/season_leaderboard`);
 
 // ── Discovery Layer ─────────────────────────────────────────────────────────────
 export const matchDiscoveryRef = (matchCode: string) =>
-  ref(rtdb, `${dbRoot}/discovery/matches/${matchCode.toLowerCase()}`);
+  ref(rtdb, `${getDbRoot()}/discovery/matches/${matchCode.toLowerCase()}`);
 
 export const tournamentDiscoveryRef = (tournamentCode: string) =>
-  ref(rtdb, `${dbRoot}/discovery/tournaments/${tournamentCode.toLowerCase()}`);
+  ref(rtdb, `${getDbRoot()}/discovery/tournaments/${tournamentCode.toLowerCase()}`);
 
 // ── Global User Profiles ───────────────────────────────────────────────────────
 export const userRef = (clientId: string) => 
-  ref(rtdb, `${dbRoot}/users/${clientId}`);
+  ref(rtdb, `${getDbRoot()}/users/${clientId}`);
 
 // ── User Authentication (Username/Passkey) ─────────────────────────────────────
 export const usernameRef = (username: string) =>
-  ref(rtdb, `${dbRoot}/usernames/${username.toLowerCase()}`);
+  ref(rtdb, `${getDbRoot()}/usernames/${username.toLowerCase()}`);
 
 export const usernameIndexRef = () =>
-  ref(rtdb, `${dbRoot}/usernames`);
+  ref(rtdb, `${getDbRoot()}/usernames`);
 
 // ── Meta Merge Helper ───────────────────────────────────────────────────────────
 export const getMergedMeta = async (sport: string, tournamentId: string, matchId: string) => {

@@ -2312,6 +2312,25 @@ body.desktop-embed .join-card {
   opacity: 1;
 }
 
+.firebase-mode-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.firebase-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
 .favorite-team-badge {
   display: inline-flex;
   align-items: center;

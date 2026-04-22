@@ -74,7 +74,7 @@ set /p confirm="Type 'YES' to proceed into PROD mode: "
 if /i "%confirm%"=="YES" (
     echo Launching FULL STACK in PROD mode...
     start cmd /k "echo Broadcaster (PROD) && cd backend && npm start -- --mode=prod"
-    start cmd /k "echo Audience (PROD) && cd frontend && npm run dev"
+    start cmd /k "echo Audience (PROD) && cd frontend && npm run dev:prod"
 ) else (
     echo Launch cancelled.
 )

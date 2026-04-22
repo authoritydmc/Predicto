@@ -1286,13 +1286,26 @@ const ControlPanel: React.FC = () => {
               }}>
                 {fSport ? fSport.toUpperCase() : 'NO SPORT'}
               </span>
-              <span className={`cp-badge ${getDbRoot() === 'local' ? 'cp-badge-local' : 'cp-badge-prod'}`} style={{ 
-                background: getDbRoot() === 'local' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                color: getDbRoot() === 'local' ? '#818cf8' : '#34d399',
-                border: getDbRoot() === 'local' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)'
-              }}>
+              <button 
+                className={`cp-badge ${getDbRoot() === 'local' ? 'cp-badge-local' : 'cp-badge-prod'}`}
+                onClick={() => {
+                  const newMode = getDbRoot() === 'local' ? 'prod' : 'local';
+                  // @ts-ignore
+                  window.overlayDesktop.setFirebaseMode(newMode);
+                  alert(`Switched to ${newMode.toUpperCase()} mode. Reloading...`);
+                  window.location.reload();
+                }}
+                style={{ 
+                  background: getDbRoot() === 'local' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                  color: getDbRoot() === 'local' ? '#818cf8' : '#34d399',
+                  border: getDbRoot() === 'local' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                title={`Switch to ${getDbRoot() === 'local' ? 'PROD' : 'LOCAL'} mode`}
+              >
                 {getDbRoot().toUpperCase()}
-              </span>
+              </button>
             </div>
             <h1>Control Panel</h1>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onValue, get } from 'firebase/database';
-import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey } from './firebase/services';
+import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
@@ -21,6 +21,9 @@ function App() {
   const [passkey, setPasskey] = useState<string | null>(null);
   const [showPasskey, setShowPasskey] = useState(false);
   const [teamChangeCount, setTeamChangeCount] = useState(0);
+  const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
+    return (localStorage.getItem('firebase_mode') as 'local' | 'prod') || 'local';
+  });
   const [clientId] = useState(() => {
     const existing = localStorage.getItem('ovr_client_id');
     if (existing) return existing;
@@ -40,23 +43,16 @@ function App() {
     }
   }, []);
 
-  // Load match code from localStorage on mount
+  // Load match code from URL on mount (for direct links)
   useEffect(() => {
-    const storedMatchCode = localStorage.getItem('ovr_match_code');
-    if (storedMatchCode) {
-      console.log('[App] Found match code in localStorage:', storedMatchCode);
-      setMatchCode(storedMatchCode);
+    const urlParams = new URLSearchParams(window.location.search);
+    const matchCodeFromUrl = urlParams.get('match');
+    
+    if (matchCodeFromUrl) {
+      console.log('[App] Found match code in URL:', matchCodeFromUrl);
+      setMatchCode(matchCodeFromUrl);
     }
   }, []);
-
-  // Save match code to localStorage when it changes
-  useEffect(() => {
-    if (matchCode) {
-      localStorage.setItem('ovr_match_code', matchCode);
-    } else {
-      localStorage.removeItem('ovr_match_code');
-    }
-  }, [matchCode]);
 
   // Load user profile (username, passkey, favorite team, and change count) from Firebase
   useEffect(() => {
@@ -108,6 +104,14 @@ function App() {
       console.error('[App] Error rotating passkey:', error);
       alert('Error generating new passkey. Please try again.');
     }
+  };
+
+  const handleToggleFirebaseMode = () => {
+    const newMode = firebaseMode === 'local' ? 'prod' : 'local';
+    setFirebaseMode(newMode);
+    setFirebaseModeState(newMode);
+    alert(`Switched to ${newMode.toUpperCase()} mode. Reloading...`);
+    window.location.reload();
   };
 
   // Save favorite team to Firebase
@@ -341,6 +345,17 @@ function App() {
               title="Generate new passkey"
             >
               🔄
+            </button>
+            <button 
+              className="firebase-mode-btn"
+              onClick={handleToggleFirebaseMode}
+              title={`Switch to ${firebaseMode === 'local' ? 'PROD' : 'LOCAL'} mode`}
+              style={{
+                background: firebaseMode === 'prod' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                color: firebaseMode === 'prod' ? '#ef4444' : '#10b981',
+              }}
+            >
+              {firebaseMode.toUpperCase()}
             </button>
           </div>
         </div>
