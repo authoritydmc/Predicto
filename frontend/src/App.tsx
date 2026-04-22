@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onValue, get } from 'firebase/database';
-import { matchDiscoveryRef, metaRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey } from './firebase/services';
+import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
@@ -190,14 +190,17 @@ function App() {
     checkMatchStatus();
   }, [tournamentContext]);
 
-  // 3. Subscribe to Tournament Meta
+  // 3. Subscribe to Match Meta (not Tournament Meta)
   useEffect(() => {
     if (!tournamentContext) return;
-    const { sport, id } = tournamentContext;
-    const unsubMatch = onValue(metaRef(sport, id), (snap) => {
-      setMeta(snap.val());
+    const { sport, id, matchId } = tournamentContext;
+    console.log('[App] Subscribing to match meta for:', { sport, id, matchId });
+    const unsubMatch = onValue(matchMetaRef(sport, id, matchId), (snap) => {
+      const data = snap.val();
+      console.log('[App] Match meta received:', data);
+      setMeta(data);
     }, (error) => {
-      console.error('[App] Error fetching tournament meta:', { sport, id }, error);
+      console.error('[App] Error fetching match meta:', { sport, id, matchId }, error);
     });
     return () => unsubMatch();
   }, [tournamentContext]);
