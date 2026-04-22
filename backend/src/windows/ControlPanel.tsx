@@ -412,6 +412,37 @@ const ControlPanel: React.FC = () => {
     loadMatches();
   }, [tournamentId, fSport]);
 
+  // Load schedule when tournament is selected
+  useEffect(() => {
+    const loadSchedule = async () => {
+      if (!tournamentId || !isFirebaseConfigured || !db) return;
+      try {
+        const loadedSchedule = await getTournamentSchedule(fSport, tournamentId);
+        setSchedule(loadedSchedule);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadSchedule();
+  }, [tournamentId, fSport]);
+
+  // Auto-select next upcoming match from schedule
+  useEffect(() => {
+    if (schedule.length > 0 && !matchId) {
+      const now = new Date();
+      const upcomingMatches = schedule
+        .filter((m: any) => m.date && new Date(m.date) >= now)
+        .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      if (upcomingMatches.length > 0) {
+        const nextMatch = upcomingMatches[0];
+        setFMatchTitle(nextMatch.matchTitle);
+        setFTeamA(nextMatch.teamA);
+        setFTeamB(nextMatch.teamB);
+      }
+    }
+  }, [schedule, matchId]);
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Firebase Meta Subscription
   // ─────────────────────────────────────────────────────────────────────────────
@@ -587,7 +618,10 @@ const ControlPanel: React.FC = () => {
     setFTeamA(match.teamA);
     setFTeamB(match.teamB);
     setFMatchTitle(match.matchTitle);
-    setFMatchCode(match.matchId);
+    // Always generate match code to ensure it exists
+    const generatedMatchId = match.matchId || generateMatchId(match.teamA, match.teamB, match.date ? new Date(match.date) : undefined);
+    setFMatchCode(generatedMatchId);
+    setMatchId(generatedMatchId);
     setViewMode('match');
   };
 
@@ -1543,35 +1577,80 @@ const ControlPanel: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {schedule.map((match, idx) => (
-                        <div 
-                          key={idx}
-                          style={{ 
-                            padding: '8px', 
-                            background: 'rgba(255,255,255,0.05)', 
-                            borderRadius: '6px',
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            fontSize: '12px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleLoadMatchFromSchedule(match)}
-                            className="cp-action-btn cp-small"
-                            style={{ fontSize: '10px', padding: '4px 8px' }}
-                          >
-                            Load
-                          </button>
-                        </div>
-                      ))}
+                    <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {schedule
+                        .sort((a: any, b: any) => {
+                          if (!a.date) return 1;
+                          if (!b.date) return -1;
+                          return new Date(a.date).getTime() - new Date(b.date).getTime();
+                        })
+                        .filter((match: any) => {
+                          // Show only today and tomorrow
+                          const now = new Date();
+                          const matchDate = match.date ? new Date(match.date) : null;
+                          if (!matchDate) return false;
+                          
+                          const diffTime = matchDate.getTime() - now.getTime();
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          
+                          // Show if today or tomorrow (0 or 1 days)
+                          return diffDays >= 0 && diffDays <= 1;
+                        })
+                        .map((match, idx) => {
+                          const now = new Date();
+                          const matchDate = match.date ? new Date(match.date) : null;
+                          const isUpcoming = matchDate && matchDate >= now;
+                          const isSelected = fMatchTitle === match.matchTitle && fTeamA === match.teamA && fTeamB === match.teamB;
+                          
+                          // Calculate days until match
+                          let statusText = '';
+                          let statusColor = '';
+                          if (matchDate) {
+                            const diffTime = matchDate.getTime() - now.getTime();
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            
+                            if (diffDays === 0) {
+                              statusText = 'TODAY';
+                              statusColor = 'rgba(255, 159, 10, 0.2)';
+                            } else if (diffDays === 1) {
+                              statusText = 'TOMORROW';
+                              statusColor = 'rgba(52, 199, 89, 0.2)';
+                            }
+                          }
+                          
+                          return (
+                            <div 
+                              key={idx}
+                              style={{ 
+                                padding: '10px', 
+                                background: isSelected ? 'rgba(0, 122, 255, 0.15)' : (isUpcoming ? 'rgba(52, 199, 89, 0.05)' : 'rgba(255,255,255,0.05)'), 
+                                borderRadius: '6px',
+                                border: isSelected ? '1px solid var(--accent-blue)' : (isUpcoming ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(255,255,255,0.08)'),
+                                fontSize: '12px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontWeight: '600', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {match.matchTitle}
+                                  {statusText && <span style={{ fontSize: '9px', background: statusColor, color: statusText === 'TODAY' ? '#ff9f0a' : '#34c759', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{statusText}</span>}
+                                  {isSelected && <span style={{ fontSize: '9px', background: 'rgba(0, 122, 255, 0.2)', color: '#007aff', padding: '2px 6px', borderRadius: '4px' }}>SELECTED</span>}
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleLoadMatchFromSchedule(match)}
+                                className="cp-action-btn cp-small"
+                                style={{ fontSize: '10px', padding: '4px 8px' }}
+                              >
+                                {isSelected ? 'Selected' : 'Load'}
+                              </button>
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 )}
