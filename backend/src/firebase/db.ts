@@ -56,6 +56,43 @@ export const tournamentUsersRef = (sport: string, tournamentId: string) =>
 export const tournamentScheduleRef = (sport: string, tournamentId: string) =>
   ref(db, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/schedule`);
 
+// ── Schedule Management ─────────────────────────────────────────────────────────────
+export const saveTournamentSchedule = async (sport: string, tournamentId: string, schedule: any[]) => {
+  const scheduleRef = tournamentScheduleRef(sport, tournamentId);
+  await set(scheduleRef, schedule);
+};
+
+export const getTournamentSchedule = async (sport: string, tournamentId: string) => {
+  const scheduleRef = tournamentScheduleRef(sport, tournamentId);
+  const snapshot = await get(scheduleRef);
+  return snapshot.val() || [];
+};
+
+export const addMatchToSchedule = async (sport: string, tournamentId: string, matchData: any) => {
+  const scheduleRef = tournamentScheduleRef(sport, tournamentId);
+  const snapshot = await get(scheduleRef);
+  const schedule = snapshot.val() || [];
+  schedule.push(matchData);
+  await set(scheduleRef, schedule);
+};
+
+// ── Tournament Discovery ─────────────────────────────────────────────────────────────
+export const getTournamentsBySport = async (sport: string) => {
+  const tournamentsRef = ref(db, `${getDbRoot()}/tournaments/${sport}`);
+  const snapshot = await get(tournamentsRef);
+  const tournaments = snapshot.val() || {};
+  
+  return Object.entries(tournaments).map(([tournamentId, data]: [string, any]) => ({
+    tournamentId,
+    ...data.meta,
+    status: data.meta?.status || 'active'
+  }));
+};
+
+export const updateTournamentStatus = async (sport: string, tournamentId: string, status: 'active' | 'paused' | 'ended') => {
+  await update(tournamentMetaRef(sport, tournamentId), { status, updatedAt: Date.now() });
+};
+
 // ── Match-Level Refs ───────────────────────────────────────────────────────────
 export const matchRef = (sport: string, tournamentId: string, matchId: string, schema: string, child = "") => {
   const root = getDbRoot();
