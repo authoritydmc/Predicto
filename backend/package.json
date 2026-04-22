@@ -7,7 +7,9 @@
   "main": "desktop/main.cjs",
   "scripts": {
     "dev": "concurrently \"vite --port 5174\" \"cross-env NODE_ENV=development APP_MODE=local electron desktop/main.cjs\"",
+    "dev:prod": "concurrently \"vite --port 5174\" \"cross-env NODE_ENV=development APP_MODE=prod electron desktop/main.cjs\"",
     "start": "npm run dev",
+    "start:prod": "npm run dev:prod",
     "build": "vite build",
     "dist:win": "npm run build && electron-builder --win",
     "deploy": "cd ../frontend && npm run build && cd ../backend && firebase deploy",

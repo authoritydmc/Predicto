@@ -21,6 +21,14 @@ export { ref, onValue, query, limitToLast, set, update, push, serverTimestamp };
 
 // ── DB Root ────────────────────────────────────────────────────────────────────
 export const getDbRoot = () => {
+  // Check window global (set by cross-env in package.json via preload script)
+  // @ts-ignore
+  const envMode = window.APP_MODE;
+  if (envMode) {
+    return envMode === "local" ? "local" : "prod";
+  }
+  
+  // Fallback to URL params (for backwards compatibility)
   const urlParams = new URLSearchParams(window.location.search);
   const mode = urlParams.get("appMode") || "prod";
   return mode === "local" ? "local" : "prod";
@@ -91,6 +99,34 @@ export const getTournamentsBySport = async (sport: string) => {
 
 export const updateTournamentStatus = async (sport: string, tournamentId: string, status: 'active' | 'paused' | 'ended') => {
   await update(tournamentMetaRef(sport, tournamentId), { status, updatedAt: Date.now() });
+};
+
+export const deleteTournament = async (sport: string, tournamentId: string) => {
+  const tournamentRef = ref(db, `${getDbRoot()}/tournaments/${sport}/${tournamentId}`);
+  await set(tournamentRef, null);
+  // Also remove from discovery
+  const discoveryRef = ref(db, `${getDbRoot()}/discovery/tournaments/${tournamentId}`);
+  await set(discoveryRef, null);
+};
+
+export const deleteMatch = async (sport: string, tournamentId: string, matchId: string) => {
+  const matchRef = ref(db, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/matches/${matchId}`);
+  await set(matchRef, null);
+  // Also remove from match discovery
+  const discoveryRef = ref(db, `${getDbRoot()}/discovery/matches/${matchId}`);
+  await set(discoveryRef, null);
+};
+
+export const getMatchesByTournament = async (sport: string, tournamentId: string) => {
+  const matchesRef = ref(db, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/matches`);
+  const snapshot = await get(matchesRef);
+  const matches = snapshot.val() || {};
+  
+  return Object.entries(matches).map(([matchId, data]: [string, any]) => ({
+    matchId,
+    ...data.meta,
+    status: data.meta?.status || 'scheduled'
+  }));
 };
 
 // ── Match-Level Refs ───────────────────────────────────────────────────────────

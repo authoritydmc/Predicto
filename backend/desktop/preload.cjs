@@ -1,5 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+// Expose APP_MODE to renderer process
+const APP_MODE = process.env.APP_MODE || (process.argv.find(arg => arg.startsWith('--mode='))?.split('=')[1]?.toLowerCase()) || "prod";
+
 contextBridge.exposeInMainWorld("overlayDesktop", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   updateSettings: (partial) => ipcRenderer.invoke("settings:update", partial),
@@ -31,3 +34,6 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   getScheduleCsv: () => ipcRenderer.invoke("csv:get-schedule"),
   showDebug: () => ipcRenderer.invoke("debug:show"),
 });
+
+// Expose APP_MODE directly on window
+contextBridge.exposeInMainWorld("APP_MODE", APP_MODE);

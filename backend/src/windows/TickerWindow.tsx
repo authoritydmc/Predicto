@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, legacyMatchMetaRef, legacyMatchPredictionsRef, legacyMatchChatRef, onValue, isFirebaseConfigured, query, limitToLast } from '../firebase/db';
+import { db, matchMetaRef, matchPredictionsRef, matchChatRef, onValue, isFirebaseConfigured, query, limitToLast } from '../firebase/db';
 import { getTeamTheme } from '../utils/shared';
 import '../styles/overlay-ticker.css';
 
 const MESSAGE_EXPIRY = 60000;
 
 const TickerWindow: React.FC = () => {
-  const [roomId, setRoomId] = useState('ipl');
-  const [sport, setSport] = useState('cricket');
+  const [matchId, setMatchId] = useState('');
+  const [tournamentId, setTournamentId] = useState('');
+  const [sport, setSport] = useState('');
   const [meta, setMeta] = useState<any>({});
   const [predictions, setPredictions] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
@@ -16,13 +17,15 @@ const TickerWindow: React.FC = () => {
   useEffect(() => {
     // @ts-ignore
     window.overlayDesktop.getSettings().then((s: any) => {
-      if (s.roomId) setRoomId(s.roomId);
+      if (s.matchId) setMatchId(s.matchId);
+      if (s.tournamentId) setTournamentId(s.tournamentId);
       if (s.sport) setSport(s.sport);
     });
 
     // @ts-ignore
     window.overlayDesktop.onSettingsChanged((s: any) => {
-      if (s.roomId) setRoomId(s.roomId);
+      if (s.matchId) setMatchId(s.matchId);
+      if (s.tournamentId) setTournamentId(s.tournamentId);
       if (s.sport) setSport(s.sport);
     });
 
@@ -31,15 +34,15 @@ const TickerWindow: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isFirebaseConfigured || !db || !roomId) return;
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId || !sport) return;
 
-    const unsubMeta = onValue(legacyMatchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
-    const unsubPreds = onValue(legacyMatchPredictionsRef(sport, roomId), snap => {
+    const unsubMeta = onValue(matchMetaRef(sport, tournamentId, matchId), snap => setMeta(snap.val() || {}));
+    const unsubPreds = onValue(matchPredictionsRef(sport, tournamentId, matchId), snap => {
       const data = snap.val() || {};
       setPredictions(Object.entries(data).map(([id, p]: [string, any]) => ({ id, ...p })));
     });
 
-    const chatQuery = query(legacyMatchChatRef(sport, roomId), limitToLast(15));
+    const chatQuery = query(matchChatRef(sport, tournamentId, matchId), limitToLast(15));
     const unsubChat = onValue(chatQuery, snap => {
       const data = snap.val() || {};
       setMessages(Object.entries(data).map(([id, m]: [string, any]) => ({ id, ...m })));
@@ -50,7 +53,7 @@ const TickerWindow: React.FC = () => {
       unsubPreds();
       unsubChat();
     };
-  }, [roomId, sport]);
+  }, [matchId, tournamentId, sport]);
 
   const theme = useMemo(() => getTeamTheme(meta.teamA), [meta.teamA]);
 

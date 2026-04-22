@@ -1,40 +1,43 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, legacyMatchMetaRef, legacyMatchPredictionsRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
+import { db, matchMetaRef, matchPredictionsRef, onValue, isFirebaseConfigured, update } from '../firebase/db';
 import { getTeamTheme } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
 import '../styles/overlay-ticker.css';
 
 const OverlayWindow: React.FC = () => {
-  const [roomId, setRoomId] = useState('ipl');
-  const [sport, setSport] = useState('cricket');
+  const [matchId, setMatchId] = useState('');
+  const [tournamentId, setTournamentId] = useState('');
+  const [sport, setSport] = useState('');
   const [meta, setMeta] = useState<any>({});
   const [predictions, setPredictions] = useState<any>({});
 
   useEffect(() => {
     // @ts-ignore
     window.overlayDesktop.getSettings().then((s: any) => {
-      if (s.roomId) setRoomId(s.roomId);
+      if (s.matchId) setMatchId(s.matchId);
+      if (s.tournamentId) setTournamentId(s.tournamentId);
       if (s.sport) setSport(s.sport);
     });
 
     // @ts-ignore
     window.overlayDesktop.onSettingsChanged((s: any) => {
-      if (s.roomId) setRoomId(s.roomId);
+      if (s.matchId) setMatchId(s.matchId);
+      if (s.tournamentId) setTournamentId(s.tournamentId);
       if (s.sport) setSport(s.sport);
     });
   }, []);
 
   useEffect(() => {
-    if (!isFirebaseConfigured || !db || !roomId) return;
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId || !sport) return;
 
-    const unsubMeta = onValue(legacyMatchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
-    const unsubPreds = onValue(legacyMatchPredictionsRef(sport, roomId), snap => setPredictions(snap.val() || {}));
+    const unsubMeta = onValue(matchMetaRef(sport, tournamentId, matchId), snap => setMeta(snap.val() || {}));
+    const unsubPreds = onValue(matchPredictionsRef(sport, tournamentId, matchId), snap => setPredictions(snap.val() || {}));
 
     return () => {
       unsubMeta();
       unsubPreds();
     };
-  }, [roomId, sport]);
+  }, [matchId, tournamentId, sport]);
 
   const teamA = meta.teamA || 'Team A';
   const teamB = meta.teamB || 'Team B';
@@ -56,7 +59,7 @@ const OverlayWindow: React.FC = () => {
 
   const removePrediction = (cid: string) => {
     if (!confirm('Remove this prediction?')) return;
-    clearRoomNode(sport, roomId, `predictions/${cid}`).catch(console.error);
+    update(matchPredictionsRef(sport, tournamentId, matchId), { [cid]: null }).catch(console.error);
   };
 
   if (meta.hideOverlay) return null;

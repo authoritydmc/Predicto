@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { get, update, DataSnapshot } from 'firebase/database';
+import { get, update, DataSnapshot, set } from 'firebase/database';
 import {
   db, isFirebaseConfigured, onValue, query, ref, schemaRef,
   saveRoomMeta, clearRoomNode, getOnce, setDiscovery,
@@ -9,7 +9,7 @@ import {
   matchChatRef, matchHistoryRef, matchInningsHistoryRef, tournamentLeaderboardRef,
   setTournamentDiscovery, setMatchDiscovery, generateMatchId, getMergedMeta,
   saveTournamentSchedule, getTournamentSchedule, addMatchToSchedule,
-  getTournamentsBySport, updateTournamentStatus
+  getTournamentsBySport, updateTournamentStatus, deleteTournament, deleteMatch, getMatchesByTournament
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
@@ -161,18 +161,36 @@ const ControlPanel: React.FC = () => {
   const [viewMode, setViewMode] = useState<'tournament' | 'match'>('match');
 
   // ── Tournament Form State
-  const [fTournamentCode, setFTournamentCode] = useState('ipl-2024');
-  const [fTournamentName, setFTournamentName] = useState('IPL 2024');
+  const [fTournamentCode, setFTournamentCode] = useState('');
+  const [fTournamentName, setFTournamentName] = useState('');
   const [schedule, setSchedule] = useState<any[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadingSchedule, setUploadingSchedule] = useState(false);
   const [availableTournaments, setAvailableTournaments] = useState<any[]>([]);
   const [loadingTournaments, setLoadingTournaments] = useState(false);
   const [tournamentStatus, setTournamentStatus] = useState<'active' | 'paused' | 'ended'>('active');
+  const [showScheduleEditor, setShowScheduleEditor] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<any[]>([]);
+  const [availableMatches, setAvailableMatches] = useState<any[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+
+  // ── UI Collapse State
+  const [collapsedSections, setCollapsedSections] = useState({
+    tournament: true,
+    match: false,
+    resolution: false,
+    winProb: false,
+    windowEngine: false,
+    history: true
+  });
+
+  const toggleSection = (section: keyof typeof collapsedSections) => {
+    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   // ── Match Form State
-  const [fMatchCode, setFMatchCode] = useState('csk-vs-mi');
-  const [fSport, setFSport] = useState('cricket');
+  const [fMatchCode, setFMatchCode] = useState('');
+  const [fSport, setFSport] = useState('');
   const [fMatchTitle, setFMatchTitle] = useState('');
   const [fTeamA, setFTeamA] = useState('');
   const [fTeamB, setFTeamB] = useState('');
@@ -306,6 +324,23 @@ const ControlPanel: React.FC = () => {
     loadTournaments();
   }, [fSport]);
 
+  // Load matches when tournament is selected
+  useEffect(() => {
+    const loadMatches = async () => {
+      if (!tournamentId || !isFirebaseConfigured || !db) return;
+      setLoadingMatches(true);
+      try {
+        const matches = await getMatchesByTournament(fSport, tournamentId);
+        setAvailableMatches(matches);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingMatches(false);
+      }
+    };
+    loadMatches();
+  }, [tournamentId, fSport]);
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Firebase Meta Subscription
   // ─────────────────────────────────────────────────────────────────────────────
@@ -376,38 +411,42 @@ const ControlPanel: React.FC = () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Create Tournament
+  // Create Tournament (Legacy - for backward compatibility)
   // ─────────────────────────────────────────────────────────────────────────────
   const handleCreateTournament = async (e: React.FormEvent) => {
     e.preventDefault();
     const tCode = normalizeRoomId(fTournamentCode);
+    const tId = tCode;
+    
+    if (!tId) {
+      alert('Please enter a tournament code');
+      return;
+    }
+    
     try {
       // 1. Set tournament discovery
-      await setTournamentDiscovery(tCode, fSport, tCode);
+      await setTournamentDiscovery(tId, fSport, tId);
       
       // 2. Save tournament meta
       if (isFirebaseConfigured && db) {
-        await update(tournamentMetaRef(fSport, tCode), {
+        await update(tournamentMetaRef(fSport, tId), {
           tournamentName: fTournamentName,
-          defaultPredictionSort: 'newest',
-          defaultHideChat: false,
-          defaultHideJoin: false,
           status: tournamentStatus,
+          createdAt: Date.now(),
           updatedAt: Date.now()
         });
       }
       
       // 3. Save schedule if provided
-      if (schedule.length > 0 && isFirebaseConfigured && db) {
-        await saveTournamentSchedule(fSport, tCode, schedule);
+      if (schedule.length > 0) {
+        await saveTournamentSchedule(fSport, tId, schedule);
       }
       
-      setTournamentId(tCode);
-      setViewMode('match');
-      // Reload tournaments list
+      setTournamentId(tId);
+      // Reload tournaments
       const tournaments = await getTournamentsBySport(fSport);
       setAvailableTournaments(tournaments);
-      alert(`Tournament [${fTournamentName}] created with code: ${tCode}${schedule.length > 0 ? ` and ${schedule.length} matches scheduled` : ''}`);
+      alert(`Tournament [${fTournamentName}] created with code: ${tId}`);
     } catch (err) { console.error(err); }
   };
 
@@ -442,7 +481,98 @@ const ControlPanel: React.FC = () => {
     if (isFirebaseConfigured && db) {
       const loadedSchedule = await getTournamentSchedule(fSport, selectedTournament.tournamentId);
       setSchedule(loadedSchedule);
+      setEditingSchedule(loadedSchedule);
     }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Open Schedule Editor
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleOpenScheduleEditor = () => {
+    setEditingSchedule([...schedule]);
+    setShowScheduleEditor(true);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Save Schedule
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleSaveSchedule = async () => {
+    if (!tournamentId || !isFirebaseConfigured || !db) return;
+    try {
+      await saveTournamentSchedule(fSport, tournamentId, editingSchedule);
+      setSchedule(editingSchedule);
+      setShowScheduleEditor(false);
+      alert('Schedule updated successfully');
+    } catch (err) {
+      console.error(err);
+      alert('Error saving schedule');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Load Match from Schedule
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleLoadMatchFromSchedule = (match: any) => {
+    setFTeamA(match.teamA);
+    setFTeamB(match.teamB);
+    setFMatchTitle(match.matchTitle);
+    setFMatchCode(match.matchId);
+    setViewMode('match');
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Delete Tournament
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleDeleteTournament = async () => {
+    if (!tournamentId) return;
+    if (!confirm(`Are you sure you want to delete tournament "${fTournamentName}"? This will delete all matches and data.`)) return;
+    
+    try {
+      await deleteTournament(fSport, tournamentId);
+      setTournamentId('');
+      setFTournamentCode('');
+      setFTournamentName('');
+      setSchedule([]);
+      setAvailableMatches([]);
+      // Reload tournaments
+      const tournaments = await getTournamentsBySport(fSport);
+      setAvailableTournaments(tournaments);
+      alert('Tournament deleted successfully');
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting tournament');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Delete Match
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleDeleteMatch = async (matchIdToDelete: string) => {
+    if (!tournamentId) return;
+    if (!confirm('Are you sure you want to delete this match? This will delete all predictions and data.')) return;
+    
+    try {
+      await deleteMatch(fSport, tournamentId, matchIdToDelete);
+      // Reload matches
+      const matches = await getMatchesByTournament(fSport, tournamentId);
+      setAvailableMatches(matches);
+      alert('Match deleted successfully');
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting match');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Select Match
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleSelectMatch = async (selectedMatch: any) => {
+    setMatchId(selectedMatch.matchId);
+    setFMatchCode(selectedMatch.matchId);
+    setFMatchTitle(selectedMatch.matchTitle);
+    setFTeamA(selectedMatch.teamA);
+    setFTeamB(selectedMatch.teamB);
+    setViewMode('match');
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -485,34 +615,38 @@ const ControlPanel: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const mCode = normalizeRoomId(fMatchCode);
-    const tId = tournamentId || normalizeRoomId(fTournamentCode);
     
-    // Generate match ID from team names if not provided
-    const generatedMatchId = generateMatchId(fTeamA, fTeamB);
-    const mId = mCode || generatedMatchId;
+    // Validate tournament selection
+    if (!tournamentId) {
+      alert('Please select a valid tournament first before creating a match');
+      return;
+    }
+    
+    // Validate tournament exists in available tournaments
+    const tournamentExists = availableTournaments.some(t => t.tournamentId === tournamentId);
+    if (!tournamentExists) {
+      alert('Invalid tournament selected. Please select a valid tournament from the list.');
+      return;
+    }
+    
+    const mCode = normalizeRoomId(fMatchCode);
+    const mId = mCode;
+    const tId = tournamentId;
     
     try {
       // 1. Set match discovery
-      await setMatchDiscovery(mId, fSport, tId, mId);
+      await setMatchDiscovery(mCode, fSport, tournamentId, mCode);
       
       // 2. Save match meta
       if (isFirebaseConfigured && db) {
-        await update(matchMetaRef(fSport, tId, mId), {
-          matchTitle: fMatchTitle || `${fTeamA} vs ${fTeamB}`,
+        await update(matchMetaRef(fSport, tournamentId, mCode), {
+          matchTitle: fMatchTitle,
           teamA: fTeamA,
           teamB: fTeamB,
-          secondInnings: fInnings === '2',
-          disableScoreA: false,
-          disableScoreB: false,
-          predictionsPaused: false,
+          battingTeam: fBattingTeam,
+          innings: fInnings,
           allowReprediction: fAllowReprediction,
-          predictionSort: 'newest',
-          hideChat: false,
-          hideJoin: false,
           automationPaused: fAutomationPaused,
-          showWinProb: false,
-          googleMatchUrl: '',
           updatedAt: Date.now()
         });
       }
@@ -520,14 +654,12 @@ const ControlPanel: React.FC = () => {
       // 3. Update local settings
       // @ts-ignore
       const nextS = await window.overlayDesktop.updateSettings({ 
-        roomId: mId, 
         sport: fSport, 
         tournamentId: tId,
         matchId: mId,
         opacity 
       });
       setSettings(nextS);
-      setRoomId(mId);
       setMatchId(mId);
       
       subscribeToMeta(fSport, tId, mId);
@@ -1008,12 +1140,12 @@ const ControlPanel: React.FC = () => {
           <div className="cp-header-content">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="cp-badge">Executive</span>
-              <span className={`cp-badge ${fSport === 'cricket' ? 'cp-badge-local' : 'cp-badge-prod'}`} style={{ 
-                background: fSport === 'cricket' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(236, 72, 153, 0.2)',
-                color: fSport === 'cricket' ? '#818cf8' : '#f472b6',
-                border: fSport === 'cricket' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(236, 72, 153, 0.3)'
+              <span className="cp-badge" style={{ 
+                background: 'rgba(99, 102, 241, 0.2)',
+                color: '#818cf8',
+                border: '1px solid rgba(99, 102, 241, 0.3)'
               }}>
-                {fSport.toUpperCase()}
+                {fSport ? fSport.toUpperCase() : 'NO SPORT'}
               </span>
               <span className={`cp-badge ${getDbRoot() === 'local' ? 'cp-badge-local' : 'cp-badge-prod'}`} style={{ 
                 background: getDbRoot() === 'local' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
@@ -1059,260 +1191,408 @@ const ControlPanel: React.FC = () => {
 
       <div className="cp-content-grid">
 
-        {/* ── Match Configuration ── */}
+        {/* ── Tournament Management ── */}
         <section className="cp-panel-group">
-          <h2 className="cp-group-title">Match Configuration</h2>
-          <div className="cp-glass-card">
-            {/* Schedule View */}
-            {tournamentId && schedule.length > 0 && (
-              <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Tournament Schedule ({schedule.length} matches)</span>
-                  <button 
-                    type="button"
-                    onClick={async () => {
-                      const loadedSchedule = await getTournamentSchedule(fSport, tournamentId);
-                      setSchedule(loadedSchedule);
-                    }}
-                    className="cp-action-btn cp-small"
-                    style={{ fontSize: '10px' }}
-                  >
-                    Refresh
-                  </button>
-                </div>
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('tournament')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Tournament Management</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.tournament ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card" style={{ display: collapsedSections.tournament ? 'none' : 'block' }}>
+            {/* Sport Selection */}
+            <div className="cp-form-row">
+              <label>Sport Type *</label>
+              <select value={fSport} onChange={e => setFSport(e.target.value)} required>
+                <option value="">-- Select Sport --</option>
+                <option value="cricket">Cricket</option>
+                <option value="football">Football</option>
+                <option value="basketball">Basketball</option>
+                <option value="hockey">Hockey</option>
+                <option value="tennis">Tennis</option>
+              </select>
+            </div>
+
+            {/* Tournament List with Active Indicator */}
+            {availableTournaments.length > 0 && (
+              <div className="cp-form-row">
+                <label>Available Tournaments</label>
                 <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {schedule.map((match, idx) => (
-                    <div 
-                      key={idx}
-                      style={{ 
-                        padding: '8px', 
-                        background: 'rgba(255,255,255,0.05)', 
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        fontSize: '12px',
+                  {availableTournaments.map((t) => (
+                    <div
+                      key={t.tournamentId}
+                      onClick={() => handleSelectTournament(t)}
+                      style={{
+                        padding: '12px',
+                        background: tournamentId === t.tournamentId ? 'rgba(0, 122, 255, 0.15)' : 'rgba(255,255,255,0.05)',
+                        borderRadius: '8px',
+                        border: tournamentId === t.tournamentId ? '1px solid var(--accent-blue)' : '1px solid rgba(255,255,255,0.08)',
+                        cursor: 'pointer',
+                        fontSize: '13px',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center'
                       }}
                     >
-                      <div>
-                        <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {/* Active Indicator Green Dot */}
+                        <div style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: t.status === 'active' ? '#34C759' : t.status === 'paused' ? '#ff9f0a' : '#FF3B30',
+                          boxShadow: t.status === 'active' ? '0 0 8px rgba(52, 199, 89, 0.6)' : 'none'
+                        }} />
+                        <div>
+                          <div style={{ fontWeight: '600', color: 'var(--text)' }}>{t.tournamentName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{t.tournamentId}</div>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFTeamA(match.teamA);
-                          setFTeamB(match.teamB);
-                          setFMatchTitle(match.matchTitle);
-                          setFMatchCode(match.matchId);
-                          setViewMode('match');
-                        }}
-                        className="cp-action-btn cp-small"
-                        style={{ fontSize: '10px', padding: '4px 8px' }}
-                      >
-                        Start
-                      </button>
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        background: t.status === 'active' ? 'rgba(52, 199, 89, 0.2)' : t.status === 'paused' ? 'rgba(255, 159, 10, 0.2)' : 'rgba(255, 59, 48, 0.2)',
+                        color: t.status === 'active' ? '#34C759' : t.status === 'paused' ? '#ff9f0a' : '#FF3B30',
+                        textTransform: 'uppercase',
+                        fontWeight: '600'
+                      }}>
+                        {t.status || 'active'}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            {/* View Mode Toggle */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16, padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-              <button
-                type="button"
-                onClick={() => setViewMode('tournament')}
-                className={`cp-action-btn cp-small ${viewMode === 'tournament' ? 'cp-active' : ''}`}
-                style={{ 
-                  flex: 1,
-                  background: viewMode === 'tournament' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.05)',
-                  borderColor: viewMode === 'tournament' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.1)'
-                }}
-              >
-                🏆 Create Tournament
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('match')}
-                className={`cp-action-btn cp-small ${viewMode === 'match' ? 'cp-active' : ''}`}
-                style={{ 
-                  flex: 1,
-                  background: viewMode === 'match' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.05)',
-                  borderColor: viewMode === 'match' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.1)'
-                }}
-              >
-                ⚽ Create Match
-              </button>
+
+            <div className="cp-divider" />
+
+            {/* Tournament Form */}
+            <div className="cp-form-row">
+              <label>Tournament Code</label>
+              <input value={fTournamentCode} onChange={e => setFTournamentCode(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" />
+            </div>
+            <div className="cp-form-row">
+              <label>Tournament Name</label>
+              <input value={fTournamentName} onChange={e => setFTournamentName(e.target.value)} placeholder="e.g. IPL 2024" />
             </div>
 
-            {/* Tournament Creation Form */}
-            {viewMode === 'tournament' && (
-              <form onSubmit={handleCreateTournament}>
-                <div className="cp-form-row">
-                  <label>Sport Type</label>
-                  <select value={fSport} onChange={e => setFSport(e.target.value)}>
-                    <option value="cricket">Cricket</option>
-                    <option value="football">Football</option>
-                    <option value="basketball">Basketball</option>
-                  </select>
+            {/* Tournament Status */}
+            {tournamentId && (
+              <div className="cp-form-row">
+                <label>Tournament Status</label>
+                <div className="cp-radio-group">
+                  <div className="cp-radio-option">
+                    <input type="radio" id="statusActive" name="tournamentStatus" value="active" checked={tournamentStatus === 'active'} onChange={() => handleUpdateTournamentStatus('active')} />
+                    <label className="cp-radio-label" htmlFor="statusActive">Active</label>
+                  </div>
+                  <div className="cp-radio-option">
+                    <input type="radio" id="statusPaused" name="tournamentStatus" value="paused" checked={tournamentStatus === 'paused'} onChange={() => handleUpdateTournamentStatus('paused')} />
+                    <label className="cp-radio-label" htmlFor="statusPaused">Paused</label>
+                  </div>
+                  <div className="cp-radio-option">
+                    <input type="radio" id="statusEnded" name="tournamentStatus" value="ended" checked={tournamentStatus === 'ended'} onChange={() => handleUpdateTournamentStatus('ended')} />
+                    <label className="cp-radio-label" htmlFor="statusEnded">Ended</label>
+                  </div>
                 </div>
-                
-                {/* Available Tournaments */}
-                {availableTournaments.length > 0 && (
-                  <div className="cp-form-row">
-                    <label>Available Tournaments (Click to Select)</label>
-                    <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {availableTournaments.map((t) => (
-                        <div
-                          key={t.tournamentId}
-                          onClick={() => handleSelectTournament(t)}
-                          style={{
-                            padding: '10px',
-                            background: tournamentId === t.tournamentId ? 'rgba(0, 122, 255, 0.2)' : 'rgba(255,255,255,0.05)',
+              </div>
+            )}
+
+            {/* Schedule Management */}
+            <div className="cp-form-row">
+              <label>Match Schedule</label>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={handleCSVUpload}
+                  disabled={uploadingSchedule}
+                  style={{ fontSize: '12px', flex: 1 }}
+                />
+                {schedule.length > 0 && (
+                  <button 
+                    type="button"
+                    onClick={handleOpenScheduleEditor}
+                    className="cp-action-btn cp-small"
+                    style={{ flex: '0 0 auto' }}
+                  >
+                    Edit Schedule
+                  </button>
+                )}
+              </div>
+              {uploadingSchedule && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Parsing CSV...</span>}
+              {schedule.length > 0 && (
+                <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(52, 199, 89, 0.1)', borderRadius: '6px', border: '1px solid rgba(52, 199, 89, 0.3)' }}>
+                  <span style={{ fontSize: '12px', color: '#34C759', fontWeight: '600' }}>
+                    ✓ {schedule.length} matches loaded
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="cp-divider" />
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="cp-primary-btn" style={{ flex: 1 }} type="button" onClick={handleCreateTournament as any}>
+                {tournamentId ? 'Update Tournament' : 'Create Tournament'}
+              </button>
+              {tournamentId && (
+                <button 
+                  className="cp-secondary-btn cp-danger" 
+                  type="button"
+                  onClick={handleDeleteTournament}
+                  style={{ flex: '0 0 auto' }}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Match Management ── */}
+        <section className="cp-panel-group">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('match')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Match Management</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.match ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card" style={{ display: collapsedSections.match ? 'none' : 'block' }}>
+            {/* Tournament Selection Warning */}
+            {!tournamentId && (
+              <div style={{ padding: '16px', background: 'rgba(255, 159, 10, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 159, 10, 0.3)', marginBottom: '16px' }}>
+                <span style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600' }}>
+                  ⚠️ Please select a tournament first to manage matches
+                </span>
+              </div>
+            )}
+
+            {tournamentId && (
+              <>
+                {/* Schedule View */}
+                {schedule.length > 0 && (
+                  <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Tournament Schedule ({schedule.length} matches)</span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          type="button"
+                          onClick={async () => {
+                            const loadedSchedule = await getTournamentSchedule(fSport, tournamentId);
+                            setSchedule(loadedSchedule);
+                          }}
+                          className="cp-action-btn cp-small"
+                          style={{ fontSize: '10px' }}
+                        >
+                          Refresh
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={handleOpenScheduleEditor}
+                          className="cp-action-btn cp-small"
+                          style={{ fontSize: '10px' }}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {schedule.map((match, idx) => (
+                        <div 
+                          key={idx}
+                          style={{ 
+                            padding: '8px', 
+                            background: 'rgba(255,255,255,0.05)', 
                             borderRadius: '6px',
-                            border: tournamentId === t.tournamentId ? '1px solid var(--accent-blue)' : '1px solid rgba(255,255,255,0.08)',
-                            cursor: 'pointer',
-                            fontSize: '13px',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            fontSize: '12px',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center'
                           }}
                         >
                           <div>
-                            <div style={{ fontWeight: '600', color: 'var(--text)' }}>{t.tournamentName}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{t.tournamentId}</div>
+                            <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
                           </div>
-                          <span style={{
-                            fontSize: '10px',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            background: t.status === 'active' ? 'rgba(52, 199, 89, 0.2)' : t.status === 'paused' ? 'rgba(255, 159, 10, 0.2)' : 'rgba(255, 59, 48, 0.2)',
-                            color: t.status === 'active' ? '#34C759' : t.status === 'paused' ? '#ff9f0a' : '#FF3B30'
-                          }}>
-                            {t.status || 'active'}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleLoadMatchFromSchedule(match)}
+                            className="cp-action-btn cp-small"
+                            style={{ fontSize: '10px', padding: '4px 8px' }}
+                          >
+                            Load
+                          </button>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-                
-                <div className="cp-divider" />
-                
-                <div className="cp-form-row">
-                  <label>Tournament Code</label>
-                  <input value={fTournamentCode} onChange={e => setFTournamentCode(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" required />
-                </div>
-                <div className="cp-form-row">
-                  <label>Tournament Name</label>
-                  <input value={fTournamentName} onChange={e => setFTournamentName(e.target.value)} placeholder="e.g. IPL 2024" required />
-                </div>
-                
-                {/* Tournament Status */}
-                {tournamentId && (
-                  <div className="cp-form-row">
-                    <label>Tournament Status</label>
-                    <div className="cp-radio-group">
-                      <div className="cp-radio-option">
-                        <input type="radio" id="statusActive" name="tournamentStatus" value="active" checked={tournamentStatus === 'active'} onChange={() => handleUpdateTournamentStatus('active')} />
-                        <label className="cp-radio-label" htmlFor="statusActive">Active</label>
-                      </div>
-                      <div className="cp-radio-option">
-                        <input type="radio" id="statusPaused" name="tournamentStatus" value="paused" checked={tournamentStatus === 'paused'} onChange={() => handleUpdateTournamentStatus('paused')} />
-                        <label className="cp-radio-label" htmlFor="statusPaused">Paused</label>
-                      </div>
-                      <div className="cp-radio-option">
-                        <input type="radio" id="statusEnded" name="tournamentStatus" value="ended" checked={tournamentStatus === 'ended'} onChange={() => handleUpdateTournamentStatus('ended')} />
-                        <label className="cp-radio-label" htmlFor="statusEnded">Ended</label>
-                      </div>
+
+                {/* Existing Matches */}
+                {availableMatches.length > 0 && (
+                  <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Existing Matches ({availableMatches.length})</span>
+                    </div>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {availableMatches.map((match) => (
+                        <div 
+                          key={match.matchId}
+                          style={{ 
+                            padding: '10px', 
+                            background: matchId === match.matchId ? 'rgba(0, 122, 255, 0.15)' : 'rgba(255,255,255,0.05)', 
+                            borderRadius: '6px',
+                            border: matchId === match.matchId ? '1px solid var(--accent-blue)' : '1px solid rgba(255,255,255,0.08)',
+                            fontSize: '12px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.teamA} vs {match.teamB}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectMatch(match)}
+                              className="cp-action-btn cp-small"
+                              style={{ fontSize: '10px', padding: '4px 8px' }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMatch(match.matchId)}
+                              className="cp-action-btn cp-small cp-danger"
+                              style={{ fontSize: '10px', padding: '4px 8px' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
-                
-                <div className="cp-divider" />
-                
-                {/* CSV Upload Section */}
-                <div className="cp-form-row">
-                  <label>Match Schedule (CSV Upload)</label>
-                  <input 
-                    type="file" 
-                    accept=".csv" 
-                    onChange={handleCSVUpload}
-                    disabled={uploadingSchedule}
-                    style={{ fontSize: '12px' }}
-                  />
-                  {uploadingSchedule && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Parsing CSV...</span>}
-                  {schedule.length > 0 && (
-                    <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(52, 199, 89, 0.1)', borderRadius: '6px', border: '1px solid rgba(52, 199, 89, 0.3)' }}>
-                      <span style={{ fontSize: '12px', color: '#34C759', fontWeight: '600' }}>
-                        ✓ {schedule.length} matches loaded
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="cp-divider" />
-                <button className="cp-primary-btn cp-wide-btn" type="submit">{tournamentId ? 'Update Tournament' : 'Create Tournament'}</button>
-              </form>
-            )}
 
-            {/* Match Creation Form */}
-            {viewMode === 'match' && (
-              <form onSubmit={handleCreateMatch}>
-                <div className="cp-dual-row">
-                  <div className="cp-form-row">
-                    <label>Sport Type</label>
-                    <select value={fSport} onChange={e => setFSport(e.target.value)}>
-                      <option value="cricket">Cricket</option>
-                      <option value="football">Football</option>
-                      <option value="basketball">Basketball</option>
-                    </select>
-                  </div>
-                  <div className="cp-form-row">
-                    <label>Tournament ID</label>
-                    <input value={tournamentId} onChange={e => setTournamentId(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" required />
-                  </div>
-                </div>
-                <div className="cp-form-row">
-                  <label>Match Code (auto-generated from teams)</label>
-                  <input value={fMatchCode} onChange={e => setFMatchCode(e.target.value)} maxLength={40} placeholder="e.g. csk-vs-mi" />
-                </div>
-                <div className="cp-dual-row">
-                  <div className="cp-form-row">
-                    <label>Team A</label>
-                    <input value={fTeamA} onChange={e => setFTeamA(e.target.value)} placeholder="e.g. Chennai Super Kings" required />
-                  </div>
-                  <div className="cp-form-row">
-                    <label>Team B</label>
-                    <input value={fTeamB} onChange={e => setFTeamB(e.target.value)} placeholder="e.g. Mumbai Indians" required />
-                  </div>
-                </div>
-                <div className="cp-form-row">
-                  <label>Match Title</label>
-                  <input value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} placeholder="e.g. CSK vs MI - Match 15" />
-                </div>
-                <div className="cp-dual-row">
-                  <div className="cp-form-row">
-                    <label>Allow Reprediction</label>
-                    <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
-                  </div>
-                  <div className="cp-form-row">
-                    <label>Pause Automation</label>
-                    <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
-                  </div>
-                </div>
                 <div className="cp-divider" />
-                <button className="cp-primary-btn cp-wide-btn" type="submit">Create Match & Connect</button>
-              </form>
+
+                {/* Match Form */}
+                <form onSubmit={handleCreateMatch}>
+                  <div className="cp-form-row">
+                    <label>Tournament</label>
+                    <input value={tournamentId} readOnly style={{ background: 'rgba(255,255,255,0.02)', cursor: 'not-allowed' }} />
+                  </div>
+                  <div className="cp-dual-row">
+                    <div className="cp-form-row">
+                      <label>Match Code</label>
+                      <input value={fMatchCode} onChange={e => setFMatchCode(e.target.value)} maxLength={40} placeholder="e.g. csk-vs-mi" required />
+                    </div>
+                    <div className="cp-form-row">
+                      <label>Match Title</label>
+                      <input value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} placeholder="e.g. CSK vs MI - Match 1" required />
+                    </div>
+                  </div>
+                  <div className="cp-dual-row">
+                    <div className="cp-form-row">
+                      <label>Home Team</label>
+                      <div className="cp-input-action-group">
+                        <input value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
+                        {getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos') && (
+                          <img 
+                            src={getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos')!} 
+                            alt={fTeamA}
+                            style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="cp-form-row">
+                      <label>Away Team</label>
+                      <div className="cp-input-action-group">
+                        <input value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
+                        {getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos') && (
+                          <img 
+                            src={getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos')!} 
+                            alt={fTeamB}
+                            style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row">
+                      <span>Allow re-prediction</span>
+                      <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
+                    </label>
+                  </div>
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
+                      <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
+                      <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
+                    </label>
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Batting Team (Active Predictions)</label>
+                    <div className="cp-radio-group">
+                      <div className="cp-radio-option">
+                        <input type="radio" id="battingA" name="battingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
+                        <label className="cp-radio-label" htmlFor="battingA">{fTeamA || 'Home Team'}</label>
+                      </div>
+                      <div className="cp-radio-option">
+                        <input type="radio" id="battingB" name="battingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
+                        <label className="cp-radio-label" htmlFor="battingB">{fTeamB || 'Away Team'}</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Current Innings</label>
+                    <div className="cp-radio-group">
+                      <div className="cp-radio-option">
+                        <input type="radio" id="innings1st" name="innings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
+                        <label className="cp-radio-label" htmlFor="innings1st">1st Innings</label>
+                      </div>
+                      <div className="cp-radio-option">
+                        <input type="radio" id="innings2nd" name="innings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
+                        <label className="cp-radio-label" htmlFor="innings2nd">2nd Innings</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cp-divider" />
+                  <button className="cp-primary-btn cp-wide-btn" type="submit">{matchId ? 'Update Match' : 'Create Match & Connect'}</button>
+                </form>
+              </>
             )}
           </div>
         </section>
 
         {/* ── Match Resolution ── */}
         <section className="cp-panel-group">
-          <h2 className="cp-group-title">Match Resolution</h2>
-          <div className="cp-glass-card cp-stack">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('resolution')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Match Resolution</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.resolution ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.resolution ? 'none' : 'block' }}>
             {!is2nd ? (
               <div className="cp-form-row">
                 <label>Actual 1st Innings Score</label>
@@ -1351,8 +1631,17 @@ const ControlPanel: React.FC = () => {
 
         {/* ── Live Win Probability ── */}
         <section className="cp-panel-group">
-          <h2 className="cp-group-title">Live Win Probability (Google)</h2>
-          <div className="cp-glass-card cp-stack">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('winProb')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Live Win Probability (Google)</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.winProb ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.winProb ? 'none' : 'block' }}>
             <div className="cp-form-row">
               <label>Google Match URL</label>
               <div className="cp-input-action-group">
@@ -1391,8 +1680,17 @@ const ControlPanel: React.FC = () => {
 
         {/* ── Window & Engine ── */}
         <section className="cp-panel-group">
-          <h2 className="cp-group-title">Window &amp; Engine</h2>
-          <div className="cp-glass-card cp-stack">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('windowEngine')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Window &amp; Engine</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.windowEngine ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.windowEngine ? 'none' : 'block' }}>
             <div className="cp-control-row">
               <label>Master Opacity</label>
               <div className="cp-slider-group">
@@ -1637,134 +1935,134 @@ const ControlPanel: React.FC = () => {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          MANUAL ENTRY
+          SCHEDULE EDITOR
       ══════════════════════════════════════════════════════════════════════ */}
-      {manualOpen && (
+      {showScheduleEditor && (
         <div className="cp-overlay">
-          <div className="cp-history-content cp-glass-card cp-manual-entry-content">
+          <div className="cp-manual-entry-content cp-glass-card">
             <header className="cp-results-header">
               <div>
-                <span className="cp-badge cp-badge-warning">Admin Tool</span>
-                <h2>Manual Match Resolve</h2>
+                <span className="cp-badge">Schedule Editor</span>
+                <h2>Edit Tournament Schedule</h2>
               </div>
-              <button className="cp-close-btn" onClick={() => setManualOpen(false)}>&times;</button>
+              <button className="cp-close-btn" onClick={() => setShowScheduleEditor(false)}>&times;</button>
             </header>
-            <div className="cp-manual-layout cp-stack">
-              <div className="cp-manual-section cp-glass-card">
-                <div className="cp-section-hint">Match Setup &amp; Actual Results</div>
+            <div className="cp-manual-layout">
+              <div className="cp-manual-section">
+                <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--muted)' }}>Add New Match</h3>
                 <div className="cp-dual-row">
-                  <div className="cp-form-row"><label>Date</label><input type="date" value={manDate} onChange={e => setManDate(e.target.value)} /></div>
-                  <div className="cp-form-row"><label>Match Title</label><input type="text" value={manTitle} onChange={e => setManTitle(e.target.value)} placeholder="#RCBvsSRH" /></div>
-                </div>
-                <div className="cp-dual-row" style={{ marginTop: 12 }}>
-                  <div className="cp-form-row"><label>Team A (Home)</label><input type="text" value={manTeamA} onChange={e => setManTeamA(e.target.value)} placeholder="RCB" /></div>
-                  <div className="cp-form-row"><label>Team B (Away)</label><input type="text" value={manTeamB} onChange={e => setManTeamB(e.target.value)} placeholder="SRH" /></div>
-                </div>
-                <div className="cp-divider" style={{ margin: '20px 0' }} />
-                <div className="cp-dual-row">
-                  <div className="cp-form-row"><label>Actual 1st Inn Score</label><input type="number" value={manActual1st} onChange={e => setManActual1st(e.target.value)} placeholder="e.g. 201" /></div>
                   <div className="cp-form-row">
-                    <label>Actual Winner</label>
-                    <div className="cp-radio-group">
-                      <div className="cp-radio-option">
-                        <input type="radio" id="manWinA" name="manualWinner" value="a" checked={manWinner === 'a'} onChange={() => setManWinner('a')} />
-                        <label className="cp-radio-label" htmlFor="manWinA">{manTeamA || 'Team A'}</label>
-                      </div>
-                      <div className="cp-radio-option">
-                        <input type="radio" id="manWinB" name="manualWinner" value="b" checked={manWinner === 'b'} onChange={() => setManWinner('b')} />
-                        <label className="cp-radio-label" htmlFor="manWinB">{manTeamB || 'Team B'}</label>
-                      </div>
-                    </div>
+                    <label>Team A</label>
+                    <input 
+                      value={editingSchedule.length > 0 ? editingSchedule[editingSchedule.length - 1]?.teamA || '' : ''} 
+                      onChange={e => {
+                        const newSchedule = [...editingSchedule];
+                        if (newSchedule.length === 0) {
+                          newSchedule.push({ teamA: e.target.value, teamB: '', date: '', venue: '', matchTitle: '', matchId: '', status: 'scheduled' });
+                        } else {
+                          newSchedule[newSchedule.length - 1].teamA = e.target.value;
+                        }
+                        setEditingSchedule(newSchedule);
+                      }}
+                      placeholder="e.g. CSK"
+                    />
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Team B</label>
+                    <input 
+                      value={editingSchedule.length > 0 ? editingSchedule[editingSchedule.length - 1]?.teamB || '' : ''} 
+                      onChange={e => {
+                        const newSchedule = [...editingSchedule];
+                        if (newSchedule.length === 0) {
+                          newSchedule.push({ teamA: '', teamB: e.target.value, date: '', venue: '', matchTitle: '', matchId: '', status: 'scheduled' });
+                        } else {
+                          newSchedule[newSchedule.length - 1].teamB = e.target.value;
+                        }
+                        setEditingSchedule(newSchedule);
+                      }}
+                      placeholder="e.g. MI"
+                    />
                   </div>
                 </div>
-                <div className="cp-form-row" style={{ marginTop: 12 }}>
-                  <label>Actual 2nd Inn Result (Score or Overs)</label>
-                  <input type="text" value={manActual2nd} onChange={e => setManActual2nd(e.target.value)} placeholder="e.g. 15.4 or 145" />
+                <div className="cp-dual-row">
+                  <div className="cp-form-row">
+                    <label>Date</label>
+                    <input 
+                      type="date"
+                      value={editingSchedule.length > 0 ? editingSchedule[editingSchedule.length - 1]?.date || '' : ''} 
+                      onChange={e => {
+                        const newSchedule = [...editingSchedule];
+                        if (newSchedule.length === 0) {
+                          newSchedule.push({ teamA: '', teamB: '', date: e.target.value, venue: '', matchTitle: '', matchId: '', status: 'scheduled' });
+                        } else {
+                          newSchedule[newSchedule.length - 1].date = e.target.value;
+                        }
+                        setEditingSchedule(newSchedule);
+                      }}
+                    />
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Venue</label>
+                    <input 
+                      value={editingSchedule.length > 0 ? editingSchedule[editingSchedule.length - 1]?.venue || '' : ''} 
+                      onChange={e => {
+                        const newSchedule = [...editingSchedule];
+                        if (newSchedule.length === 0) {
+                          newSchedule.push({ teamA: '', teamB: '', date: '', venue: e.target.value, matchTitle: '', matchId: '', status: 'scheduled' });
+                        } else {
+                          newSchedule[newSchedule.length - 1].venue = e.target.value;
+                        }
+                        setEditingSchedule(newSchedule);
+                      }}
+                      placeholder="e.g. Chennai"
+                    />
+                  </div>
                 </div>
+                <button 
+                  className="cp-primary-btn cp-wide-btn" 
+                  onClick={() => {
+                    const newSchedule = [...editingSchedule];
+                    const lastMatch = newSchedule[newSchedule.length - 1];
+                    if (lastMatch && lastMatch.teamA && lastMatch.teamB) {
+                      lastMatch.matchTitle = `${lastMatch.teamA} vs ${lastMatch.teamB}`;
+                      lastMatch.matchId = generateMatchId(lastMatch.teamA, lastMatch.teamB, lastMatch.date ? new Date(lastMatch.date) : undefined);
+                      newSchedule.push({ teamA: '', teamB: '', date: '', venue: '', matchTitle: '', matchId: '', status: 'scheduled' });
+                      setEditingSchedule(newSchedule);
+                    }
+                  }}
+                >
+                  Add Match
+                </button>
               </div>
-              <div className="cp-manual-section cp-glass-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div className="cp-section-hint">Player Predictions</div>
-                  <button className="cp-action-btn cp-small" onClick={addManualRow}>Add Player Row</button>
-                </div>
-                <div className="cp-results-table-container" style={{ flex: 1 }}>
-                  <table className="cp-results-table" id="manualPlayersTable">
-                    <thead><tr><th>Name</th><th>1st Inn Guess</th><th>1st Winner</th><th>2nd Inn Guess</th><th>2nd Winner</th><th></th></tr></thead>
-                    <tbody>
-                      {manRows.map((row, i) => (
-                        <tr key={i}>
-                          <td><input type="text" value={row.name} onChange={e => updateManRow(i, 'name', e.target.value)} placeholder="Name" /></td>
-                          <td><input type="number" value={row.p1Guess} onChange={e => updateManRow(i, 'p1Guess', e.target.value)} placeholder="Guess" /></td>
-                          <td>
-                            <select value={row.win1} onChange={e => updateManRow(i, 'win1', e.target.value)}>
-                              <option value="a">{manTeamA || 'Team A'}</option>
-                              <option value="b">{manTeamB || 'Team B'}</option>
-                            </select>
-                          </td>
-                          <td><input type="text" value={row.p2Guess} onChange={e => updateManRow(i, 'p2Guess', e.target.value)} placeholder="Score/Ov" /></td>
-                          <td>
-                            <select value={row.win2} onChange={e => updateManRow(i, 'win2', e.target.value)}>
-                              <option value="a">{manTeamA || 'Team A'}</option>
-                              <option value="b">{manTeamB || 'Team B'}</option>
-                            </select>
-                          </td>
-                          <td><button className="cp-remove-row-btn" onClick={() => removeManRow(i)}>&times;</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <div className="cp-manual-section">
+                <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: 'var(--muted)' }}>Schedule ({editingSchedule.filter(m => m.teamA && m.teamB).length} matches)</h3>
+                <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {editingSchedule.filter(m => m.teamA && m.teamB).map((match, idx) => (
+                    <div key={idx} style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: '600' }}>{match.matchTitle}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
+                      </div>
+                      <button 
+                        className="cp-glass-btn cp-danger cp-small" 
+                        onClick={() => {
+                          const newSchedule = editingSchedule.filter((_, i) => i !== idx);
+                          setEditingSchedule(newSchedule);
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
             <footer className="cp-results-footer">
               <div className="cp-footer-actions">
-                <button className="cp-secondary-btn" onClick={() => setManualOpen(false)}>Cancel</button>
-                <button className="cp-primary-btn" onClick={saveManualMatch}>Calculate &amp; Archive Match</button>
+                <button className="cp-secondary-btn" onClick={() => setShowScheduleEditor(false)}>Cancel</button>
+                <button className="cp-primary-btn" onClick={handleSaveSchedule}>Save Schedule</button>
               </div>
             </footer>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          EDIT MATCH MODAL
-      ══════════════════════════════════════════════════════════════════════ */}
-      {editOpen && (
-        <div className="cp-overlay" style={{ zIndex: 3000 }}>
-          <div className="cp-glass-card" style={{ maxWidth: 600, width: '100%' }}>
-            <div style={{ marginBottom: 20 }}>
-              <h2 style={{ margin: 0 }}>Edit Match Results</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '5px 0 0' }}>Updating results will recalculate all player points.</p>
-            </div>
-            <div className="cp-dual-row">
-              <div className="cp-form-row" style={{ gridColumn: 'span 2' }}><label>Match Title</label><input type="text" value={editMatchTitle} onChange={e => setEditMatchTitle(e.target.value)} /></div>
-            </div>
-            <div className="cp-dual-row" style={{ marginTop: 12 }}>
-              <div className="cp-form-row"><label>Date</label><input type="date" value={editMatchDate} onChange={e => setEditMatchDate(e.target.value)} /></div>
-              <div className="cp-form-row"><label>Actual 1st Innings Score</label><input type="number" value={editActual1st} onChange={e => setEditActual1st(e.target.value)} /></div>
-            </div>
-            <div className="cp-dual-row" style={{ marginTop: 12 }}>
-              <div className="cp-form-row"><label>Team A Name</label><input type="text" value={editTeamA} onChange={e => setEditTeamA(e.target.value)} /></div>
-              <div className="cp-form-row"><label>Team B Name</label><input type="text" value={editTeamB} onChange={e => setEditTeamB(e.target.value)} /></div>
-            </div>
-            <div className="cp-dual-row" style={{ marginTop: 12 }}>
-              <div className="cp-form-row"><label>Actual 2nd Innings Result</label><input type="text" value={editActual2nd} onChange={e => setEditActual2nd(e.target.value)} placeholder="e.g. 18.2 or 165" /></div>
-              <div className="cp-form-row">
-                <label>Actual Winner</label>
-                <div style={{ display: 'flex', gap: 15, marginTop: 5 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                    <input type="radio" name="editWinner" value="a" checked={editWinner === 'a'} onChange={() => setEditWinner('a')} /> {editTeamA || 'Team A'}
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                    <input type="radio" name="editWinner" value="b" checked={editWinner === 'b'} onChange={() => setEditWinner('b')} /> {editTeamB || 'Team B'}
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: 25, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button className="cp-secondary-btn" onClick={() => setEditOpen(false)}>Cancel</button>
-              <button className="cp-primary-btn" onClick={saveEditedMatch}>Save &amp; Recalculate</button>
-            </div>
           </div>
         </div>
       )}
