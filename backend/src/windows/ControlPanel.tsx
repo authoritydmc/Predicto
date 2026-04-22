@@ -5,7 +5,7 @@ import {
   saveInningsHistory, getInningsHistory, archiveToHistory,
   getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot,
   matchPredictionsRef, tournamentMetaRef, matchMetaRef, matchPredictionsRef as newMatchPredictionsRef,
-  matchChatRef, matchHistoryRef, matchInningsHistoryRef, tournamentLeaderboardRef,
+  matchChatRef, matchHistoryRef, matchInningsHistoryRef, tournamentLeaderboardRef, matchRef,
   setTournamentDiscovery, setMatchDiscovery, generateMatchId, getMergedMeta,
   saveTournamentSchedule, getTournamentSchedule, addMatchToSchedule,
   getTournamentsBySport, updateTournamentStatus, deleteTournament, deleteMatch, getMatchesByTournament
@@ -38,8 +38,6 @@ const normalizeRoomId = (v: string) =>
 const escapeHtml = (v = '') =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-// Dynamic Audience URL is handled via getAudienceUrl(roomId)
 
 const oversToBalls = (val: string | number) => {
   const num = Number(val || 0);
@@ -333,12 +331,16 @@ const ControlPanel: React.FC = () => {
       setSettings(s);
       setOpacity(s.opacity ?? 1);
       setReactionOpacity(s.reactionOpacity ?? 1);
-      const rid = normalizeRoomId(s.roomId || 'ipl');
-      setRoomId(rid);
-      setFRoomId(rid);
       const sport = s.sport || 'cricket';
       setFSport(sport);
-      subscribeToMeta(sport, rid);
+      if (s.matchId && s.tournamentId) {
+        setMatchId(s.matchId);
+        setTournamentId(s.tournamentId);
+        subscribeToMeta(sport, s.tournamentId, s.matchId);
+      } else if (s.tournamentId) {
+        setTournamentId(s.tournamentId);
+        subscribeToMeta(sport, s.tournamentId);
+      }
     };
     init();
 
@@ -346,12 +348,16 @@ const ControlPanel: React.FC = () => {
     window.overlayDesktop.onSettingsChanged((s: any) => {
       setSettings(s);
       setOpacity(s.opacity ?? 1);
-      const rid = normalizeRoomId(s.roomId || 'ipl');
-      setRoomId(rid);
-      setFRoomId(rid);
       const sport = s.sport || 'cricket';
       setFSport(sport);
-      subscribeToMeta(sport, rid);
+      if (s.matchId && s.tournamentId) {
+        setMatchId(s.matchId);
+        setTournamentId(s.tournamentId);
+        subscribeToMeta(sport, s.tournamentId, s.matchId);
+      } else if (s.tournamentId) {
+        setTournamentId(s.tournamentId);
+        subscribeToMeta(sport, s.tournamentId);
+      }
     });
 
     return () => {
@@ -653,28 +659,48 @@ const ControlPanel: React.FC = () => {
       return;
     }
     
+    if (!fSport) {
+      alert('Please select a sport first before uploading a schedule');
+      e.target.value = '';
+      return;
+    }
+    
     setCsvFile(file);
     setUploadingSchedule(true);
     
     try {
       const text = await file.text();
+      console.log('CSV Content:', text.substring(0, 500));
+      
       const parsedSchedule = parseCSV(text);
+      console.log('Parsed Schedule:', parsedSchedule);
       
       if (parsedSchedule.length === 0) {
-        alert('No matches found in CSV file. Please check the format.');
+        alert('No matches found in CSV file. Please check the format.\n\nExpected CSV format:\nteamA,teamB,date,venue,matchTitle\nCSK,MI,2024-03-15,Mumbai,CSK vs MI');
         return;
       }
       
       // Validate and transform schedule
-      const transformedSchedule = parsedSchedule.map((match: any) => ({
-        matchId: generateMatchId(match.teama || match.team_a, match.teamb || match.team_b, match.date ? new Date(match.date) : undefined),
-        teamA: match.teama || match.team_a,
-        teamB: match.teamb || match.team_b,
-        date: match.date,
-        venue: match.venue || '',
-        matchTitle: match.matchtitle || match.match_title || `${match.teama || match.team_a} vs ${match.teamb || match.team_b}`,
-        status: 'scheduled'
-      }));
+      const transformedSchedule = parsedSchedule.map((match: any) => {
+        // Handle different CSV formats
+        const teamA = match.teama || match.team_a || match['home team'] || match['Home Team'];
+        const teamB = match.teamb || match.team_b || match['away team'] || match['Away Team'];
+        const date = match.date || match['Date'];
+        const venue = match.venue || match['Venue'] || match['Start Time'] || '';
+        const matchTitle = match.matchtitle || match.match_title || match['room name'] || match['Room Name'] || `${teamA} vs ${teamB}`;
+        
+        return {
+          matchId: generateMatchId(teamA, teamB, date ? new Date(date) : undefined),
+          teamA,
+          teamB,
+          date,
+          venue,
+          matchTitle,
+          status: 'scheduled'
+        };
+      });
+      
+      console.log('Transformed Schedule:', transformedSchedule);
       
       setSchedule(transformedSchedule);
       setEditingSchedule(transformedSchedule);
@@ -684,7 +710,7 @@ const ControlPanel: React.FC = () => {
       
       alert(`Successfully parsed and saved ${transformedSchedule.length} matches from CSV`);
     } catch (err) {
-      console.error(err);
+      console.error('CSV Upload Error:', err);
       alert('Error parsing CSV file: ' + (err as Error).message);
     } finally {
       setUploadingSchedule(false);
@@ -752,34 +778,6 @@ const ControlPanel: React.FC = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Legacy Deploy (for backward compatibility)
-  // ─────────────────────────────────────────────────────────────────────────────
-  const handleDeploy = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const rid = normalizeRoomId(fRoomId);
-    try {
-      // 1. Establish Discovery
-      await setDiscovery(rid, fSport, rid);
-      
-      // 2. Update Local Settings
-      // @ts-ignore
-      const nextS = await window.overlayDesktop.updateSettings({ roomId: rid, sport: fSport, opacity });
-      setSettings(nextS);
-      setRoomId(rid);
-      
-      // 3. Save Tournament Meta (legacy)
-      if (isFirebaseConfigured && db) {
-        await saveRoomMeta(fSport, rid, getFormMeta());
-      }
-      
-      subscribeToMeta(fSport, rid);
-      // @ts-ignore
-      await window.overlayDesktop.reloadOverlay();
-      alert(`Tournament context [${fSport}/${rid}] deployed!`);
-    } catch (err) { console.error(err); }
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────────
   // Win Probability
   // ─────────────────────────────────────────────────────────────────────────────
   const performWinProbFetch = async () => {
@@ -790,9 +788,11 @@ const ControlPanel: React.FC = () => {
       const result = await window.overlayDesktop.fetchWinProbability(googleUrl);
       if (result?.probA && result?.probB) {
         setFetchStatus(`Status: Success (${result.probA} / ${result.probB})`);
-        if (isFirebaseConfigured && db) {
-          const rid = normalizeRoomId(fRoomId);
-          await saveRoomMeta(fSport, rid, { winProbabilityA: parseInt(result.probA), winProbabilityB: parseInt(result.probB) });
+        if (isFirebaseConfigured && db && matchId && tournamentId) {
+          await update(matchMetaRef(fSport, tournamentId, matchId), { 
+            winProbabilityA: parseInt(result.probA), 
+            winProbabilityB: parseInt(result.probB) 
+          });
         }
       } else {
         setFetchStatus('Status: Failed (Widget not found)');
@@ -804,11 +804,15 @@ const ControlPanel: React.FC = () => {
 
   const handleShowWinProbToggle = async (v: boolean) => {
     setShowWinProb(v);
-    if (isFirebaseConfigured && db) await saveRoomMeta(fSport, normalizeRoomId(fRoomId), { showWinProb: v });
+    if (isFirebaseConfigured && db && matchId && tournamentId) {
+      await update(matchMetaRef(fSport, tournamentId, matchId), { showWinProb: v });
+    }
   };
 
   const handleGoogleUrlSave = async () => {
-    if (isFirebaseConfigured && db) await saveRoomMeta(fSport, normalizeRoomId(fRoomId), { googleMatchUrl: googleUrl.trim() });
+    if (isFirebaseConfigured && db && matchId && tournamentId) {
+      await update(matchMetaRef(fSport, tournamentId, matchId), { googleMatchUrl: googleUrl.trim() });
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -824,35 +828,36 @@ const ControlPanel: React.FC = () => {
   };
 
   const handleClear = async (node: string) => {
-    if (!isFirebaseConfigured || !db) return;
-    const rid = normalizeRoomId(fRoomId || roomId);
-    if (!confirm(`Clear ALL ${node} for room ${rid}?`)) return;
-    try { await clearRoomNode(fSport, rid, node); } catch (err) { console.error(err); }
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
+    if (!confirm(`Clear ALL ${node} for match ${matchId}?`)) return;
+    try { 
+      const nodeRef = matchRef(fSport, tournamentId, matchId, node);
+      await update(nodeRef, {}); 
+    } catch (err) { console.error(err); }
   };
 
   const togglePredictionPause = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     const next = !Boolean(meta.predictionsPaused);
-    const m = { ...getFormMeta(), predictionsPaused: next };
-    await saveRoomMeta(fSport, rid, m);
+    await update(matchMetaRef(fSport, tournamentId, matchId), { predictionsPaused: next });
     // @ts-ignore
     await window.overlayDesktop.reloadOverlay();
   };
 
   const toggleHideChat = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
-    await saveRoomMeta(fSport, rid, { ...getFormMeta(), hideChat: !Boolean(meta.hideChat) });
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
+    await update(matchMetaRef(fSport, tournamentId, matchId), { hideChat: !Boolean(meta.hideChat) });
   };
 
   const toggleHideJoin = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
-    await saveRoomMeta(fSport, rid, { ...getFormMeta(), hideJoin: !Boolean(meta.hideJoin) });
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
+    await update(matchMetaRef(fSport, tournamentId, matchId), { hideJoin: !Boolean(meta.hideJoin) });
   };
 
   const toggleSortMode = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     const next = (meta.predictionSort || 'newest') === 'newest' ? 'score' : 'newest';
-    await saveRoomMeta(fSport, rid, { ...getFormMeta(), predictionSort: next });
+    await update(matchMetaRef(fSport, tournamentId, matchId), { predictionSort: next });
     // @ts-ignore
     await window.overlayDesktop.reloadOverlay();
   };
@@ -901,63 +906,39 @@ const ControlPanel: React.FC = () => {
 
     try {
       // @ts-ignore
-      const snap = await getOnce(matchPredictionsRef(fSport, rid));
-      const predData = snap.val() || {};
-      const preds = Object.entries(predData);
-      if (!preds.length) { alert('No predictions found.'); return; }
-
-      const results = preds.map(([cid, p]: [string, any]) => {
-        const res = is2nd
-          ? calcInnings2Points(p, actualWinner, actualVal, { teamA: fTeamA, teamB: fTeamB, disableScoreA: meta.disableScoreA, disableScoreB: meta.disableScoreB }, fActualResult.includes('.'))
-          : calcInnings1Points(p, actualVal, { teamA: fTeamA, teamB: fTeamB, disableScoreA: meta.disableScoreA, disableScoreB: meta.disableScoreB });
-        return { clientId: cid, name: p.name || 'Anonymous', ...res, originalPrediction: p };
-      });
-
-      const sorted = [...results].sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        if (a.points === 0 && b.points === 0) return (a.rawDiff ?? Infinity) - (b.rawDiff ?? Infinity);
-        return 0;
-      });
-      setLastResults(sorted);
-
-      const winLabel = is2nd ? `${actualWinner.toUpperCase()} WIN (${actualVal})` : String(actualVal);
-      setResActualScore(winLabel);
-      setResolveTitle(is2nd ? '2nd Innings Results' : '1st Innings Leaderboard');
       setResultsOpen(true);
     } catch (err) { console.error(err); alert('Error resolving match.'); }
   };
 
   const handlePrepNext = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     const label = is2nd ? '2nd' : '1st';
     if (!confirm(`Finalize ${label} innings and archive results?`)) return;
     try {
       if (lastResults.length > 0) {
         const payload: Record<string, any> = {};
         lastResults.forEach(r => { payload[r.clientId || `legacy-${r.name}`] = { name: r.name, points: r.points, guess: r.guess, predictedWinner: r.originalPrediction?.predictedWinner || '' }; });
-        await saveInningsHistory(fSport, rid, label, payload);
+        await update(matchRef(fSport, tournamentId, matchId, `innings_history/${label}`), payload);
       }
-      await clearRoomNode(fSport, rid, 'predictions');
+      await update(matchPredictionsRef(fSport, tournamentId, matchId), {});
       if (!is2nd) {
-        const nextMeta = { ...getFormMeta(), secondInnings: true };
-        const battingHome = !meta.disableScoreA;
-        nextMeta.disableScoreA = battingHome;
-        nextMeta.disableScoreB = !battingHome;
-        await saveRoomMeta(fSport, rid, nextMeta);
-        alert('Results Archived! Stages switched and Batting Team swapped.');
+        await update(matchMetaRef(fSport, tournamentId, matchId), { secondInnings: true, disableScoreA: true, disableScoreB: false });
+        setFInnings('2');
       } else {
-        alert('Match Finalized! View Final standings for full results.');
+        await update(matchMetaRef(fSport, tournamentId, matchId), { secondInnings: false, disableScoreA: false, disableScoreB: true });
+        setFInnings('1');
       }
-      setResultsOpen(false);
+      setLastResults([]);
       setFActualScore(''); setFActualResult('');
     } catch (err) { console.error(err); alert('Error finalizing stage.'); }
   };
 
   const viewFinalStandings = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     try {
-      const history = await getInningsHistory(fSport, rid);
-      const h1 = history['1st'] || {}; const h2 = history['2nd'] || {};
+      const h1Snap = await getOnce(matchRef(fSport, tournamentId, matchId, 'innings_history/1st'));
+      const h2Snap = await getOnce(matchRef(fSport, tournamentId, matchId, 'innings_history/2nd'));
+      const h1 = h1Snap.val() || {}; const h2 = h2Snap.val() || {};
       if (!Object.keys(h1).length && !Object.keys(h2).length) { alert('No innings data found yet.'); return; }
       const overall = calcMatchFinals(h1, h2).sort((a, b) => b.total - a.total);
       setLastOverall(overall);
@@ -966,19 +947,22 @@ const ControlPanel: React.FC = () => {
   };
 
   const handleEndMatch = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     if (!confirm('End match? Standings archived and live room cleared.')) return;
     try {
-      const history = await getInningsHistory(fSport, rid);
-      const h1 = history['1st'] || {}; const h2 = history['2nd'] || {};
+      const h1Snap = await getOnce(matchRef(fSport, tournamentId, matchId, 'innings_history/1st'));
+      const h2Snap = await getOnce(matchRef(fSport, tournamentId, matchId, 'innings_history/2nd'));
+      const h1 = h1Snap.val() || {}; const h2 = h2Snap.val() || {};
       const finalStandings = calcMatchFinals(h1, h2);
       const dateKey = `${new Date().toISOString().split('T')[0]}_${Date.now()}`;
-      await archiveToHistory(fSport, rid, dateKey, { matchTitle: fMatchTitle || 'Unnamed Match', teamA: fTeamA, teamB: fTeamB, innings1: h1, innings2: h2, finalStandings });
-      await updateSeasonLeaderboard(rid);
-      await wipeMatchData(fSport, rid);
+      await update(matchRef(fSport, tournamentId, matchId, `history/${dateKey}`), { matchTitle: fMatchTitle || 'Unnamed Match', teamA: fTeamA, teamB: fTeamB, innings1: h1, innings2: h2, finalStandings });
+      await update(matchPredictionsRef(fSport, tournamentId, matchId), {});
+      await update(matchMetaRef(fSport, tournamentId, matchId), { resolved: true });
       setOverallOpen(false);
-      alert('Match Archived and Live Room Reset.');
-    } catch (err) { console.error(err); alert('Error archiving match.'); }
+      setResultsOpen(false);
+      setFActualScore(''); setFActualResult('');
+      alert('Match ended and archived.');
+    } catch (err) { console.error(err); alert('Error ending match.'); }
   };
 
   const updateSeasonLeaderboard = async (rid: string) => {
@@ -999,50 +983,27 @@ const ControlPanel: React.FC = () => {
   // History
   // ─────────────────────────────────────────────────────────────────────────────
   const openHistory = async () => {
-    const rid = normalizeRoomId(fRoomId || roomId);
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     setHistoryOpen(true);
     try {
-      const h = await getHistory(fSport, rid);
-      setFullHistory(h || {});
-      showSeasonStats(h || {}, rid);
+      const hSnap = await getOnce(matchRef(fSport, tournamentId, matchId, 'history'));
+      const h = hSnap.val() || {};
+      setFullHistory(h);
+      showSeasonStats(h);
     } catch (err) { console.error(err); }
   };
 
-  const showSeasonStats = async (h?: Record<string, any>, rid?: string) => {
+  const showSeasonStats = (h?: Record<string, any>) => {
     const history = h || fullHistory;
-    const seasonMap = new Map<string, any>();
+    if (!history || !Object.keys(history).length) { return; }
+    const totals = new Map<string, any>();
     Object.values(history).forEach((match: any) => {
       (match.finalStandings || []).forEach((r: any) => {
         const key = r.name.trim().toLowerCase();
-        if (!seasonMap.has(key)) seasonMap.set(key, { name: r.name, total: 0, matchCount: 0 });
-        const p = seasonMap.get(key); p.total += r.total || 0; p.matchCount += 1;
+        if (!totals.has(key)) totals.set(key, { name: r.name, total: 0, matches: 0 });
+        const p = totals.get(key); p.total += r.total || 0; p.matches += 1;
       });
     });
-    const players = Array.from(seasonMap.values()).map(p => ({ ...p, ppg: +(p.total / (p.matchCount || 1)).toFixed(2) }));
-    const sorted = players.sort((a, b) => seasonSortMode === 'ppg' ? b.ppg - a.ppg : b.total - a.total);
-    setActiveHistoryKey('season');
-    setHistoryDetail(
-      <div className="history-section">
-        <div className="history-section-title">Season Standings</div>
-        <div className="season-sort-toggle">
-          <span className={`sort-item${seasonSortMode === 'total' ? ' active' : ''}`} onClick={() => setSeasonSortMode('total')}>Total Points</span>
-          <span className={`sort-item${seasonSortMode === 'ppg' ? ' active' : ''}`} onClick={() => setSeasonSortMode('ppg')}>Points Per Match</span>
-        </div>
-        <table className="results-table">
-          <thead><tr><th>Rank</th><th>Name</th><th style={{ textAlign: 'center' }}>Games</th><th style={{ textAlign: 'right' }}>Points</th></tr></thead>
-          <tbody>
-            {sorted.map((s, i) => (
-              <tr key={s.name}>
-                <td><RankPill rank={i + 1} /></td>
-                <td><div style={{ fontWeight: 700 }}>{s.name}</div><div className="ppg-label">{s.ppg} pts/game</div></td>
-                <td style={{ textAlign: 'center' }}><span className="match-badge">{s.matchCount}</span></td>
-                <td style={{ fontWeight: 800, fontSize: 18, color: 'var(--accent-blue)', textAlign: 'right' }}>{seasonSortMode === 'ppg' ? s.ppg : s.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
   };
 
   const selectMatch = (key: string) => {
