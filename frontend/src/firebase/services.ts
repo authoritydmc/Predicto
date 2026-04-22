@@ -60,6 +60,13 @@ export const tournamentDiscoveryRef = (tournamentCode: string) =>
 export const userRef = (clientId: string) => 
   ref(rtdb, `${dbRoot}/users/${clientId}`);
 
+// ── User Authentication (Username/Passkey) ─────────────────────────────────────
+export const usernameRef = (username: string) =>
+  ref(rtdb, `${dbRoot}/usernames/${username.toLowerCase()}`);
+
+export const usernameIndexRef = () =>
+  ref(rtdb, `${dbRoot}/usernames`);
+
 // ── Meta Merge Helper ───────────────────────────────────────────────────────────
 export const getMergedMeta = async (sport: string, tournamentId: string, matchId: string) => {
   const [tourneyMetaSnap, matchMetaSnap] = await Promise.all([
@@ -72,12 +79,14 @@ export const getMergedMeta = async (sport: string, tournamentId: string, matchId
 // ── Operations ─────────────────────────────────────────────────────────────────
 export const sendChatMessage = async (sport: string, id: string, payload: any, matchId?: string) => {
   try {
+    console.log('[Firebase] Sending chat message:', { sport, id, matchId, payload });
     const cRef = matchId ? matchChatRef(sport, id, matchId) : chatRef(sport, id);
     const nextRef = push(cRef);
     await set(nextRef, {
       ...payload,
       createdAt: serverTimestamp(),
     });
+    console.log('[Firebase] Chat message sent successfully');
   } catch (error) {
     console.error('[Firebase] Error sending chat message:', error);
     throw error;
@@ -86,6 +95,7 @@ export const sendChatMessage = async (sport: string, id: string, payload: any, m
 
 export const savePrediction = async (sport: string, id: string, clientId: string, payload: any, matchId?: string) => {
   try {
+    console.log('[Firebase] Saving prediction:', { sport, id, clientId, matchId, payload });
     const pRef = matchId 
       ? matchRef(sport, id, matchId, "predictions", clientId)
       : predictionsRef(sport, id, clientId);
@@ -93,6 +103,7 @@ export const savePrediction = async (sport: string, id: string, clientId: string
       ...payload,
       updatedAt: serverTimestamp(),
     });
+    console.log('[Firebase] Prediction saved successfully');
   } catch (error) {
     console.error('[Firebase] Error saving prediction:', error);
     throw error;
@@ -101,10 +112,12 @@ export const savePrediction = async (sport: string, id: string, clientId: string
 
 export const saveUserGlobalProfile = async (clientId: string, data: any) => {
   try {
+    console.log('[Firebase] Saving user profile:', { clientId, data });
     await set(userRef(clientId), {
       ...data,
       updatedAt: serverTimestamp(),
     });
+    console.log('[Firebase] User profile saved successfully');
   } catch (error) {
     console.error('[Firebase] Error saving user profile:', error);
     throw error;

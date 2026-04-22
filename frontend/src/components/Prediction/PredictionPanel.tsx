@@ -6,10 +6,11 @@ import { onValue } from 'firebase/database';
 interface PredictionPanelProps {
   sport: string;
   id: string;
+  matchId?: string;
   clientId: string;
 }
 
-export default function PredictionPanel({ sport, id, clientId }: PredictionPanelProps) {
+export default function PredictionPanel({ sport, id, matchId, clientId }: PredictionPanelProps) {
   const [name, setName] = useState('');
   const [winner, setWinner] = useState('');
   const [scoreA, setScoreA] = useState('');
@@ -40,7 +41,7 @@ export default function PredictionPanel({ sport, id, clientId }: PredictionPanel
           scoreA: scoreA,
           scoreB: scoreB,
           sportType: sport
-        });
+        }, matchId);
         alert('Prediction submitted!');
       } catch (error) {
         console.error('[PredictionPanel] Error submitting prediction:', error);

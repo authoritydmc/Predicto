@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { chatRef, sendChatMessage, userRef } from '../../firebase/services';
+import { chatRef, matchChatRef, sendChatMessage, userRef } from '../../firebase/services';
 import { onValue, query, limitToLast } from 'firebase/database';
 
 interface ChatPanelProps {
   sport: string;
   id: string;
+  matchId?: string;
   clientId: string;
 }
 
-export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
+export default function ChatPanel({ sport, id, matchId, clientId }: ChatPanelProps) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
   const [userName, setUserName] = useState('Audience Member');
@@ -26,7 +27,8 @@ export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
 
   // Subscribe to Chat
   useEffect(() => {
-    const q = query(chatRef(sport, id), limitToLast(30));
+    const chatRefToUse = matchId ? matchChatRef(sport, id, matchId) : chatRef(sport, id);
+    const q = query(chatRefToUse, limitToLast(30));
     const unsubscribe = onValue(q, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -39,7 +41,7 @@ export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
     });
 
     return () => unsubscribe();
-  }, [sport, id]);
+  }, [sport, id, matchId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -49,7 +51,7 @@ export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
           name: userName,
           message: message,
           clientId: clientId,
-        });
+        }, matchId);
         setMessage('');
       } catch (error) {
         console.error('[ChatPanel] Error sending chat message:', error);

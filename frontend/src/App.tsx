@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react';
-import { onValue } from 'firebase/database';
-import { discoveryRef, metaRef } from './firebase/services';
+import { onValue, get } from 'firebase/database';
+import { matchDiscoveryRef, metaRef, matchMetaRef, userRef, saveUserGlobalProfile } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
-import { getTeamLogoUrl } from './utils/teamLogos';
+import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
 import './styles/App.css';
 
 function App() {
   const [matchCode, setMatchCode] = useState<string | null>(null);
-  const [tournamentContext, setTournamentContext] = useState<{sport: string, id: string} | null>(null);
+  const [tournamentContext, setTournamentContext] = useState<{sport: string, id: string, matchId: string} | null>(null);
   const [meta, setMeta] = useState<any>(null);
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [matchStatus, setMatchStatus] = useState<string | null>(null);
   const [clientId] = useState(() => {
     const existing = localStorage.getItem('ovr_client_id');
     if (existing) return existing;
@@ -22,28 +23,87 @@ function App() {
     return next;
   });
 
-  // 1. Resolve Tournament Context from Room Code
+  // Load favorite team from Firebase
+  useEffect(() => {
+    console.log('[App] Loading favorite team for client:', clientId);
+    const unsub = onValue(userRef(clientId), (snap) => {
+      const data = snap.val();
+      console.log('[App] User profile data:', data);
+      if (data?.favoriteTeam) {
+        console.log('[App] Found favorite team:', data.favoriteTeam);
+        setFavoriteTeam(data.favoriteTeam);
+      }
+    }, (error) => {
+      console.error('[App] Error fetching user profile:', error);
+    });
+    return () => unsub();
+  }, [clientId]);
+
+  // Save favorite team to Firebase
+  const handleSelectFavoriteTeam = async (team: string) => {
+    console.log('[App] Saving favorite team:', team);
+    try {
+      await saveUserGlobalProfile(clientId, { favoriteTeam: team });
+      setFavoriteTeam(team);
+      console.log('[App] Favorite team saved successfully');
+    } catch (error) {
+      console.error('[App] Error saving favorite team:', error);
+    }
+  };
+
+  // 1. Resolve Tournament Context from Match Code
   useEffect(() => {
     if (!matchCode) return;
     setLoading(true);
-    const unsub = onValue(discoveryRef(matchCode), (snap) => {
+    const unsub = onValue(matchDiscoveryRef(matchCode), (snap) => {
       const data = snap.val();
       if (data && data.sport && data.tournamentId) {
-        setTournamentContext({ sport: data.sport, id: data.tournamentId });
+        setTournamentContext({ sport: data.sport, id: data.tournamentId, matchId: matchCode });
       } else {
-        console.error('[App] Tournament not found or not active for room:', matchCode);
-        alert('Tournament not found or not active. Check the code.');
+        console.error('[App] Match not found or not active for match:', matchCode);
+        alert('Match not found or not active. Check the code.');
         setMatchCode(null);
       }
       setLoading(false);
     }, (error) => {
-      console.error('[App] Error fetching discovery for room:', matchCode, error);
+      console.error('[App] Error fetching discovery for match:', matchCode, error);
       setLoading(false);
     });
     return () => unsub();
   }, [matchCode]);
 
-  // 2. Subscribe to Tournament Meta
+  // 2. Check match status
+  useEffect(() => {
+    if (!tournamentContext) return;
+    const { sport, id, matchId } = tournamentContext;
+    
+    const checkMatchStatus = async () => {
+      try {
+        const matchMetaSnap = await get(matchMetaRef(sport, id, matchId));
+        const matchMeta = matchMetaSnap.val();
+        if (matchMeta && matchMeta.status) {
+          setMatchStatus(matchMeta.status);
+          // Only block if match is done, allow live and scheduled matches
+          if (matchMeta.status === 'done') {
+            alert('This match has ended. You cannot join completed matches.');
+            setMatchCode(null);
+            setTournamentContext(null);
+          }
+        } else {
+          // If no status set, assume it's live (backward compatibility)
+          setMatchStatus('live');
+        }
+      } catch (error) {
+        console.error('[App] Error fetching match status:', error);
+        // If error fetching, allow entry (backward compatibility)
+        setMatchStatus('live');
+      }
+    };
+    
+    checkMatchStatus();
+  }, [tournamentContext]);
+
+  // 3. Subscribe to Tournament Meta
   useEffect(() => {
     if (!tournamentContext) return;
     const { sport, id } = tournamentContext;
@@ -71,11 +131,37 @@ function App() {
   }
 
   const activeMatch = meta?.matchTitle;
+  const teamColors = favoriteTeam ? getTeamColor(favoriteTeam) : { primary: '#6366f1', secondary: '#8b5cf6' };
+
+  // Convert hex to RGB for rgba usage
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 99, g: 102, b: 241 };
+  };
+
+  const primaryRgb = hexToRgb(teamColors.primary);
+  const secondaryRgb = hexToRgb(teamColors.secondary);
 
   return (
-    <main className="page page-audience">
+    <main 
+      className="page page-audience" 
+      style={{
+        '--team-primary-r': primaryRgb.r,
+        '--team-primary-g': primaryRgb.g,
+        '--team-primary-b': primaryRgb.b,
+        '--team-secondary-r': secondaryRgb.r,
+        '--team-secondary-g': secondaryRgb.g,
+        '--team-secondary-b': secondaryRgb.b,
+        '--team-primary': teamColors.primary,
+        '--team-secondary': teamColors.secondary,
+      } as React.CSSProperties}
+    >
       {!favoriteTeam && (
-        <FavoriteTeamModal onSelectTeam={(team) => setFavoriteTeam(team)} />
+        <FavoriteTeamModal onSelectTeam={handleSelectFavoriteTeam} />
       )}
       
       <div id="audienceApp" className="audience-app-container">
@@ -95,17 +181,19 @@ function App() {
           <section className="panel favorite-team-panel">
             <div className="favorite-team-display">
               {getTeamLogoUrl(favoriteTeam) && (
-                <img 
-                  src={getTeamLogoUrl(favoriteTeam)!} 
-                  alt={favoriteTeam}
-                  className="favorite-team-logo"
-                />
+                <div className="favorite-team-logo-wrapper">
+                  <img 
+                    src={getTeamLogoUrl(favoriteTeam)!} 
+                    alt={favoriteTeam}
+                    className="favorite-team-logo"
+                  />
+                </div>
               )}
               <div className="favorite-team-info">
-                <p className="favorite-team-label">Your Favorite Team</p>
+                <p className="favorite-team-label">Supporting</p>
                 <h3 className="favorite-team-name">{favoriteTeam}</h3>
                 <button onClick={() => setFavoriteTeam(null)} className="ghost-link-xs">
-                  Change Team
+                  Change
                 </button>
               </div>
             </div>
@@ -118,11 +206,13 @@ function App() {
                <PredictionPanel 
                  sport={tournamentContext.sport} 
                  id={tournamentContext.id} 
+                 matchId={tournamentContext.matchId}
                  clientId={clientId}
                />
                <ChatPanel 
                  sport={tournamentContext.sport} 
                  id={tournamentContext.id} 
+                 matchId={tournamentContext.matchId}
                  clientId={clientId}
                />
             </>

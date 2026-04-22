@@ -206,6 +206,7 @@ const ControlPanel: React.FC = () => {
   const [fTournamentCode, setFTournamentCode] = useState('');
   const [fTournamentName, setFTournamentName] = useState('');
   const [schedule, setSchedule] = useState<any[]>([]);
+  const [matchStatuses, setMatchStatuses] = useState<Record<string, string>>({});
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadingSchedule, setUploadingSchedule] = useState(false);
   const [availableTournaments, setAvailableTournaments] = useState<any[]>([]);
@@ -419,12 +420,67 @@ const ControlPanel: React.FC = () => {
       try {
         const loadedSchedule = await getTournamentSchedule(fSport, tournamentId);
         setSchedule(loadedSchedule);
+        
+        // Load match statuses
+        const statuses: Record<string, string> = {};
+        for (const match of loadedSchedule) {
+          if (match.matchId) {
+            try {
+              const metaSnap = await getOnce(matchMetaRef(fSport, tournamentId, match.matchId));
+              const meta = metaSnap.val();
+              if (meta && meta.status) {
+                statuses[match.matchId] = meta.status;
+              } else {
+                statuses[match.matchId] = 'scheduled';
+              }
+            } catch (err) {
+              statuses[match.matchId] = 'scheduled';
+            }
+          }
+        }
+        setMatchStatuses(statuses);
       } catch (err) {
         console.error(err);
       }
     };
     loadSchedule();
   }, [tournamentId, fSport]);
+
+  // Auto-mark matches as done after 6 hours from match date
+  useEffect(() => {
+    if (!tournamentId || !isFirebaseConfigured || !db || schedule.length === 0) return;
+    
+    const checkAndMarkDoneMatches = async () => {
+      const now = Date.now();
+      const sixHours = 6 * 60 * 60 * 1000;
+      
+      for (const match of schedule) {
+        if (!match.date || !match.matchId) continue;
+        
+        const matchDate = new Date(match.date).getTime();
+        // If match date + 6 hours has passed and match is still live, mark as done
+        if (now > matchDate + sixHours) {
+          try {
+            const metaSnap = await getOnce(matchMetaRef(fSport, tournamentId, match.matchId));
+            const meta = metaSnap.val();
+            
+            if (meta && meta.status === 'live') {
+              await update(matchMetaRef(fSport, tournamentId, match.matchId), {
+                status: 'done',
+                endedAt: now,
+                autoMarked: true
+              });
+              console.log(`Auto-marked match ${match.matchId} as done`);
+            }
+          } catch (err) {
+            console.error(`Error auto-marking match ${match.matchId}:`, err);
+          }
+        }
+      }
+    };
+    
+    checkAndMarkDoneMatches();
+  }, [tournamentId, fSport, schedule]);
 
   // Auto-select next upcoming match from schedule
   useEffect(() => {
@@ -793,6 +849,8 @@ const ControlPanel: React.FC = () => {
           innings: fInnings,
           allowReprediction: fAllowReprediction,
           automationPaused: fAutomationPaused,
+          status: 'live',
+          createdAt: Date.now(),
           updatedAt: Date.now()
         });
       }
@@ -995,7 +1053,7 @@ const ControlPanel: React.FC = () => {
       const dateKey = `${new Date().toISOString().split('T')[0]}_${Date.now()}`;
       await update(matchRef(fSport, tournamentId, matchId, `history/${dateKey}`), { matchTitle: fMatchTitle || 'Unnamed Match', teamA: fTeamA, teamB: fTeamB, innings1: h1, innings2: h2, finalStandings });
       await update(matchPredictionsRef(fSport, tournamentId, matchId), {});
-      await update(matchMetaRef(fSport, tournamentId, matchId), { resolved: true });
+      await update(matchMetaRef(fSport, tournamentId, matchId), { resolved: true, status: 'done', endedAt: Date.now() });
       setOverallOpen(false);
       setResultsOpen(false);
       setFActualScore(''); setFActualResult('');
@@ -1604,38 +1662,48 @@ const ControlPanel: React.FC = () => {
                           if (!b.date) return -1;
                           return new Date(a.date).getTime() - new Date(b.date).getTime();
                         })
-                        .filter((match: any) => {
-                          // Show only today and tomorrow
-                          const now = new Date();
-                          const matchDate = match.date ? new Date(match.date) : null;
-                          if (!matchDate) return false;
-                          
-                          const diffTime = matchDate.getTime() - now.getTime();
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          
-                          // Show if today or tomorrow (0 or 1 days)
-                          return diffDays >= 0 && diffDays <= 1;
-                        })
                         .map((match, idx) => {
                           const now = new Date();
                           const matchDate = match.date ? new Date(match.date) : null;
                           const isUpcoming = matchDate && matchDate >= now;
                           const isSelected = fMatchTitle === match.matchTitle && fTeamA === match.teamA && fTeamB === match.teamB;
+                          const matchStatus = matchStatuses[match.matchId] || 'scheduled';
                           
                           // Calculate days until match
                           let statusText = '';
                           let statusColor = '';
-                          if (matchDate) {
+                          let statusBg = '';
+                          
+                          // Priority: match status > date-based status
+                          if (matchStatus === 'live') {
+                            statusText = 'LIVE';
+                            statusColor = '#ef4444';
+                            statusBg = 'rgba(239, 68, 68, 0.2)';
+                          } else if (matchStatus === 'done') {
+                            statusText = 'DONE';
+                            statusColor = '#8e8e93';
+                            statusBg = 'rgba(142, 142, 147, 0.2)';
+                          } else if (matchDate) {
                             const diffTime = matchDate.getTime() - now.getTime();
                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                             
                             if (diffDays === 0) {
                               statusText = 'TODAY';
-                              statusColor = 'rgba(255, 159, 10, 0.2)';
+                              statusColor = '#ff9f0a';
+                              statusBg = 'rgba(255, 159, 10, 0.2)';
                             } else if (diffDays === 1) {
                               statusText = 'TOMORROW';
-                              statusColor = 'rgba(52, 199, 89, 0.2)';
+                              statusColor = '#34c759';
+                              statusBg = 'rgba(52, 199, 89, 0.2)';
+                            } else {
+                              statusText = `IN ${diffDays} DAYS`;
+                              statusColor = '#34c759';
+                              statusBg = 'rgba(52, 199, 89, 0.15)';
                             }
+                          } else {
+                            statusText = 'SCHEDULED';
+                            statusColor = '#8e8e93';
+                            statusBg = 'rgba(142, 142, 147, 0.15)';
                           }
                           
                           return (
@@ -1643,9 +1711,9 @@ const ControlPanel: React.FC = () => {
                               key={idx}
                               style={{ 
                                 padding: '10px', 
-                                background: isSelected ? 'rgba(0, 122, 255, 0.15)' : (isUpcoming ? 'rgba(52, 199, 89, 0.05)' : 'rgba(255,255,255,0.05)'), 
+                                background: isSelected ? 'rgba(0, 122, 255, 0.15)' : (matchStatus === 'live' ? 'rgba(239, 68, 68, 0.05)' : (matchStatus === 'done' ? 'rgba(142, 142, 147, 0.05)' : (isUpcoming ? 'rgba(52, 199, 89, 0.05)' : 'rgba(255,255,255,0.05)'))), 
                                 borderRadius: '6px',
-                                border: isSelected ? '1px solid var(--accent-blue)' : (isUpcoming ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(255,255,255,0.08)'),
+                                border: isSelected ? '1px solid var(--accent-blue)' : (matchStatus === 'live' ? '1px solid rgba(239, 68, 68, 0.3)' : (matchStatus === 'done' ? '1px solid rgba(142, 142, 147, 0.2)' : (isUpcoming ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(255,255,255,0.08)'))),
                                 fontSize: '12px',
                                 display: 'flex',
                                 justifyContent: 'space-between',
@@ -1655,7 +1723,7 @@ const ControlPanel: React.FC = () => {
                               <div>
                                 <div style={{ fontWeight: '600', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   {match.matchTitle}
-                                  {statusText && <span style={{ fontSize: '9px', background: statusColor, color: statusText === 'TODAY' ? '#ff9f0a' : '#34c759', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{statusText}</span>}
+                                  <span style={{ fontSize: '9px', background: statusBg, color: statusColor, padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{statusText}</span>
                                   {isSelected && <span style={{ fontSize: '9px', background: 'rgba(0, 122, 255, 0.2)', color: '#007aff', padding: '2px 6px', borderRadius: '4px' }}>SELECTED</span>}
                                 </div>
                                 <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
