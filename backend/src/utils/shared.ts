@@ -7,14 +7,19 @@ export const getAppMode = () => {
     return params.get('appMode') || 'prod';
 };
 
+export const getLocalBaseUrl = () => {
+    // @ts-ignore
+    return window.OVERLAY_LOCAL_URL || 'http://localhost:5173';
+};
+
 export const getProdBaseUrl = () => {
     // @ts-ignore
-    return window.OVERLAY_PROD_URL || process.env.VITE_OVERLAY_PROD_URL || 'https://vrccim.com';
+    return window.OVERLAY_PROD_URL || 'https://vrccim.com';
 };
 
 export const getAudienceUrl = (roomId: string) => {
     const mode = getAppMode();
-    const base = mode === 'local' ? 'http://localhost:5173' : getProdBaseUrl();
+    const base = mode === 'local' ? getLocalBaseUrl() : getProdBaseUrl();
     return `${base}/room/${roomId.toLowerCase()}`;
 };
 

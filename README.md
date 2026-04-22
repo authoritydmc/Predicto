@@ -46,16 +46,24 @@ Set the mode via:
 - URL parameter: `?appMode=local` or `?appMode=prod`
 - Environment variable: `APP_MODE=local` or `APP_MODE=prod`
 
-### Production URL Configuration
-The audience URL for production can be configured in three ways (priority order):
-1. **Window global**: `window.OVERLAY_PROD_URL` (set in Electron preload)
-2. **Environment variable**: `VITE_OVERLAY_PROD_URL`
-3. **Default**: `https://vrccim.com`
+### URL Configuration
+Both local and production URLs can be configured via the Electron preload script.
 
-Example:
-```bash
-# Set via environment variable
-VITE_OVERLAY_PROD_URL=https://yourdomain.com npm run dev
+**Local URL** (for development):
+- Default: `http://localhost:5173`
+- Configure via: `window.OVERLAY_LOCAL_URL`
+
+**Production URL** (for production):
+- Default: `https://vrccim.com`
+- Configure via: `window.OVERLAY_PROD_URL`
+
+To set custom URLs, modify the preload script in `backend/desktop/preload.cjs`:
+```javascript
+contextBridge.exposeInMainWorld('overlayDesktop', {
+  // ... other properties
+  OVERLAY_LOCAL_URL: 'http://localhost:3000',  // if your frontend runs on port 3000
+  OVERLAY_PROD_URL: 'https://yourdomain.com'
+});
 ```
 
 ### Firebase Configuration
