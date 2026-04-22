@@ -1,4 +1,5 @@
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { savePrediction, saveUserGlobalProfile, userRef } from '../../firebase/services';
 import { onValue } from 'firebase/database';
 
@@ -19,25 +20,31 @@ export default function PredictionPanel({ sport, id, clientId }: PredictionPanel
     return onValue(userRef(clientId), (snap) => {
       const data = snap.val();
       if (data?.name) setName(data.name);
+    }, (error) => {
+      console.error('[PredictionPanel] Error fetching user profile:', error);
     });
   }, [clientId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (clientId && name.trim()) {
-      // 1. Save global profile (to remember name for chat/other matches)
-      await saveUserGlobalProfile(clientId, { name });
+      try {
+        // 1. Save global profile (to remember name for chat/other matches)
+        await saveUserGlobalProfile(clientId, { name });
 
-      // 2. Save prediction for this specific match
-      await savePrediction(sport, id, clientId, {
-        userId: clientId,
-        name: name,
-        predictedWinner: winner,
-        scoreA: scoreA,
-        scoreB: scoreB,
-        sportType: sport
-      });
-      alert('Prediction submitted!');
+        // 2. Save prediction for this specific match
+        await savePrediction(sport, id, clientId, {
+          userId: clientId,
+          name: name,
+          predictedWinner: winner,
+          scoreA: scoreA,
+          scoreB: scoreB,
+          sportType: sport
+        });
+        alert('Prediction submitted!');
+      } catch (error) {
+        console.error('[PredictionPanel] Error submitting prediction:', error);
+      }
     }
   };
 

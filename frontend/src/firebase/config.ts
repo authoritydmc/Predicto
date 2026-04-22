@@ -5,6 +5,7 @@ import { getFirestore } from "firebase/firestore";
 export const firebaseConfig = {
   apiKey: "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
   authDomain: "scorepredictor-9dd45.firebaseapp.com",
+  databaseURL: "https://scorepredictor-9dd45-default-rtdb.firebaseio.com",
   projectId: "scorepredictor-9dd45",
   storageBucket: "scorepredictor-9dd45.firebasestorage.app",
   messagingSenderId: "555373343943",

@@ -1,4 +1,5 @@
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { chatRef, sendChatMessage, userRef } from '../../firebase/services';
 import { onValue, query, limitToLast } from 'firebase/database';
 
@@ -18,6 +19,8 @@ export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
     return onValue(userRef(clientId), (snap) => {
       const data = snap.val();
       if (data?.name) setUserName(data.name);
+    }, (error) => {
+      console.error('[ChatPanel] Error fetching user profile:', error);
     });
   }, [clientId]);
 
@@ -31,6 +34,8 @@ export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
       } else {
         setMessages([]);
       }
+    }, (error) => {
+      console.error('[ChatPanel] Error fetching chat:', error);
     });
 
     return () => unsubscribe();
@@ -39,12 +44,16 @@ export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (message.trim()) {
-      await sendChatMessage(sport, id, {
-        name: userName,
-        message: message,
-        clientId: clientId,
-      });
-      setMessage('');
+      try {
+        await sendChatMessage(sport, id, {
+          name: userName,
+          message: message,
+          clientId: clientId,
+        });
+        setMessage('');
+      } catch (error) {
+        console.error('[ChatPanel] Error sending chat message:', error);
+      }
     }
   };
 

@@ -31,9 +31,13 @@ function App() {
       if (data && data.sport && data.tournamentId) {
         setTournamentContext({ sport: data.sport, id: data.tournamentId });
       } else {
+        console.error('[App] Tournament not found or not active for room:', matchCode);
         alert('Tournament not found or not active. Check the code.');
         setMatchCode(null);
       }
+      setLoading(false);
+    }, (error) => {
+      console.error('[App] Error fetching discovery for room:', matchCode, error);
       setLoading(false);
     });
     return () => unsub();
@@ -45,6 +49,8 @@ function App() {
     const { sport, id } = tournamentContext;
     const unsubMatch = onValue(metaRef(sport, id), (snap) => {
       setMeta(snap.val());
+    }, (error) => {
+      console.error('[App] Error fetching tournament meta:', { sport, id }, error);
     });
     return () => unsubMatch();
   }, [tournamentContext]);

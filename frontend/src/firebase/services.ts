@@ -1,4 +1,4 @@
-import { ref, onValue, push, set, serverTimestamp, limitToLast, query, get } from 'firebase/database';
+import { ref, push, set, serverTimestamp } from 'firebase/database';
 import { rtdb } from './config';
 
 const dbRoot = import.meta.env.DEV ? 'local' : 'prod';
@@ -28,24 +28,39 @@ export const userRef = (clientId: string) =>
   ref(rtdb, `${dbRoot}/users/${clientId}`);
 
 export const sendChatMessage = async (sport: string, id: string, payload: any) => {
-  const cRef = chatRef(sport, id);
-  const nextRef = push(cRef);
-  await set(nextRef, {
-    ...payload,
-    createdAt: serverTimestamp(),
-  });
+  try {
+    const cRef = chatRef(sport, id);
+    const nextRef = push(cRef);
+    await set(nextRef, {
+      ...payload,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('[Firebase] Error sending chat message:', error);
+    throw error;
+  }
 };
 
 export const savePrediction = async (sport: string, id: string, clientId: string, payload: any) => {
-  await set(predictionsRef(sport, id, clientId), {
-    ...payload,
-    updatedAt: serverTimestamp(),
-  });
+  try {
+    await set(predictionsRef(sport, id, clientId), {
+      ...payload,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('[Firebase] Error saving prediction:', error);
+    throw error;
+  }
 };
 
 export const saveUserGlobalProfile = async (clientId: string, data: any) => {
-  await set(userRef(clientId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  try {
+    await set(userRef(clientId), {
+      ...data,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('[Firebase] Error saving user profile:', error);
+    throw error;
+  }
 };
