@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, matchMetaRef, matchPredictionsRef, matchChatRef, onValue, isFirebaseConfigured, query, limitToLast } from '../firebase/db';
+import { db, legacyMatchMetaRef, legacyMatchPredictionsRef, legacyMatchChatRef, onValue, isFirebaseConfigured, query, limitToLast } from '../firebase/db';
 import { getTeamTheme } from '../utils/shared';
 import '../styles/overlay-ticker.css';
 
@@ -33,13 +33,13 @@ const TickerWindow: React.FC = () => {
   useEffect(() => {
     if (!isFirebaseConfigured || !db || !roomId) return;
 
-    const unsubMeta = onValue(matchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
-    const unsubPreds = onValue(matchPredictionsRef(sport, roomId), snap => {
+    const unsubMeta = onValue(legacyMatchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
+    const unsubPreds = onValue(legacyMatchPredictionsRef(sport, roomId), snap => {
       const data = snap.val() || {};
       setPredictions(Object.entries(data).map(([id, p]: [string, any]) => ({ id, ...p })));
     });
 
-    const chatQuery = query(matchChatRef(sport, roomId), limitToLast(15));
+    const chatQuery = query(legacyMatchChatRef(sport, roomId), limitToLast(15));
     const unsubChat = onValue(chatQuery, snap => {
       const data = snap.val() || {};
       setMessages(Object.entries(data).map(([id, m]: [string, any]) => ({ id, ...m })));

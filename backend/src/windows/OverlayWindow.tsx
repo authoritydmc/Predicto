@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, matchMetaRef, matchPredictionsRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
+import { db, legacyMatchMetaRef, legacyMatchPredictionsRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
 import { getTeamTheme } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
 import '../styles/overlay-ticker.css';
@@ -27,8 +27,8 @@ const OverlayWindow: React.FC = () => {
   useEffect(() => {
     if (!isFirebaseConfigured || !db || !roomId) return;
 
-    const unsubMeta = onValue(matchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
-    const unsubPreds = onValue(matchPredictionsRef(sport, roomId), snap => setPredictions(snap.val() || {}));
+    const unsubMeta = onValue(legacyMatchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
+    const unsubPreds = onValue(legacyMatchPredictionsRef(sport, roomId), snap => setPredictions(snap.val() || {}));
 
     return () => {
       unsubMeta();

@@ -1,4 +1,7 @@
 {
+  "projects": {
+    "default": "scorepredictor-9dd45"
+  },
   "hosting": {
     "public": "../frontend/dist",
     "ignore": [

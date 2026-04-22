@@ -14,6 +14,44 @@
               ".read": true,
               ".write": true
             },
+            "matches": {
+              "$matchId": {
+                ".read": true,
+                ".write": true,
+                "meta": {
+                  ".read": true,
+                  ".write": true
+                },
+                "predictions": {
+                  ".read": true,
+                  ".write": true
+                },
+                "chat": {
+                  ".read": true,
+                  ".write": true
+                },
+                "reactions": {
+                  ".read": true,
+                  ".write": true
+                },
+                "history": {
+                  ".read": true,
+                  ".write": true
+                },
+                "innings_history": {
+                  ".read": true,
+                  ".write": true
+                }
+              }
+            },
+            "leaderboard": {
+              ".read": true,
+              ".write": true
+            },
+            "users": {
+              ".read": true,
+              ".write": true
+            },
             "predictions": {
               ".read": true,
               ".write": true
@@ -42,6 +80,18 @@
         }
       },
       "discovery": {
+        "matches": {
+          "$matchCode": {
+            ".read": true,
+            ".write": true
+          }
+        },
+        "tournaments": {
+          "$tournamentCode": {
+            ".read": true,
+            ".write": true
+          }
+        },
         "$roomId": {
           ".read": true,
           ".write": true
@@ -61,59 +111,112 @@
       }
     },
     "prod": {
-      ".read": false,
-      ".write": false,
+      ".read": true,
+      ".write": true,
       "tournaments": {
         "$sport": {
           "$tournamentId": {
             ".read": true,
+            ".write": true,
             "meta": {
               ".read": true,
-              ".write": "auth != null && auth.token.admin === true"
+              ".write": true
+            },
+            "matches": {
+              "$matchId": {
+                ".read": true,
+                ".write": true,
+                "meta": {
+                  ".read": true,
+                  ".write": true
+                },
+                "predictions": {
+                  ".read": true,
+                  ".write": true
+                },
+                "chat": {
+                  ".read": true,
+                  ".write": true
+                },
+                "reactions": {
+                  ".read": true,
+                  ".write": true
+                },
+                "history": {
+                  ".read": true,
+                  ".write": true
+                },
+                "innings_history": {
+                  ".read": true,
+                  ".write": true
+                }
+              }
+            },
+            "leaderboard": {
+              ".read": true,
+              ".write": true
+            },
+            "users": {
+              "$clientId": {
+                ".read": true,
+                ".write": true
+              }
             },
             "predictions": {
               ".read": true,
-              ".write": "auth != null"
+              ".write": true
             },
             "chat": {
               ".read": true,
-              ".write": "auth != null"
+              ".write": true
             },
             "reactions": {
               ".read": true,
-              ".write": "auth != null"
+              ".write": true
             },
             "history": {
               ".read": true,
-              ".write": "auth != null && auth.token.admin === true"
+              ".write": true
             },
             "innings_history": {
               ".read": true,
-              ".write": "auth != null && auth.token.admin === true"
+              ".write": true
             },
             "season_leaderboard": {
               ".read": true,
-              ".write": "auth != null && auth.token.admin === true"
+              ".write": true
             }
           }
         }
       },
       "discovery": {
+        "matches": {
+          "$matchCode": {
+            ".read": true,
+            ".write": true
+          }
+        },
+        "tournaments": {
+          "$tournamentCode": {
+            ".read": true,
+            ".write": true
+          }
+        },
         "$roomId": {
           ".read": true,
-          ".write": "auth != null && auth.token.admin === true"
+          ".write": true
         }
       },
       "users": {
         "$clientId": {
-          ".read": "auth != null && auth.uid === $clientId || auth.token.admin === true",
-          ".write": "auth != null && auth.uid === $clientId || auth.token.admin === true"
+          ".read": true,
+          ".write": true
         }
       },
       "active_sessions": {
         "$roomId": {
           ".read": true,
-          ".write": "auth != null && auth.token.admin === true"
+          ".write": true
         }
       }
     }

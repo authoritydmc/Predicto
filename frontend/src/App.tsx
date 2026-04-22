@@ -56,7 +56,14 @@ function App() {
   }, [tournamentContext]);
 
   if (!matchCode) {
-    return <AudienceGate onJoin={(code) => setMatchCode(code)} />;
+    return <AudienceGate 
+      onJoinMatch={(code) => setMatchCode(code)}
+      onJoinTournament={(code) => {
+        // For tournament, we'll need to implement tournament browsing
+        // For now, treat it as a match code for backward compatibility
+        setMatchCode(code);
+      }}
+    />;
   }
 
   if (loading || !tournamentContext) {
