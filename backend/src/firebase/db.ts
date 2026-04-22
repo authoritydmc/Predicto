@@ -21,7 +21,14 @@ export { ref, onValue, query, limitToLast, set, update, push, serverTimestamp };
 
 // ── DB Root ────────────────────────────────────────────────────────────────────
 export const getDbRoot = () => {
-  // Check window global (set by cross-env in package.json via preload script)
+  // First check localStorage (for dynamic mode switching)
+  // @ts-ignore
+  const storedMode = localStorage.getItem('firebase_mode');
+  if (storedMode) {
+    return storedMode === 'prod' ? 'prod' : 'local';
+  }
+  
+  // Fall back to window global (set by cross-env in package.json via preload script)
   // @ts-ignore
   const envMode = window.APP_MODE;
   if (envMode) {

@@ -1290,10 +1290,11 @@ const ControlPanel: React.FC = () => {
                 className={`cp-badge ${getDbRoot() === 'local' ? 'cp-badge-local' : 'cp-badge-prod'}`}
                 onClick={() => {
                   const newMode = getDbRoot() === 'local' ? 'prod' : 'local';
+                  // Set localStorage for immediate effect
+                  localStorage.setItem('firebase_mode', newMode);
+                  // Call IPC to update backend and reload all windows
                   // @ts-ignore
                   window.overlayDesktop.setFirebaseMode(newMode);
-                  alert(`Switched to ${newMode.toUpperCase()} mode. Reloading...`);
-                  window.location.reload();
                 }}
                 style={{ 
                   background: getDbRoot() === 'local' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',

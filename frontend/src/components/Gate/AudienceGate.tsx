@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onValue, ref } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
-import { tournamentDiscoveryRef } from '../../firebase/services';
 
 interface AudienceGateProps {
   onJoinMatch: (matchCode: string) => void;
@@ -16,25 +15,33 @@ interface ActiveMatch {
   updatedAt: any;
 }
 
-interface TournamentMatch {
-  matchId: string;
-  matchCode: string;
+interface ActiveTournament {
+  tournamentCode: string;
   sport: string;
   tournamentId: string;
-  meta?: any;
+  tournamentName?: string;
+  status?: string;
+  updatedAt: any;
 }
+
+const getDbRoot = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('firebase_mode') === 'prod' ? 'prod' : 'local';
+  }
+  return 'local';
+};
 
 export default function AudienceGate({ onJoinMatch, onJoinTournament }: AudienceGateProps) {
   const [code, setCode] = useState('');
   const [inputType, setInputType] = useState<'match' | 'tournament'>('match');
   const [activeMatches, setActiveMatches] = useState<ActiveMatch[]>([]);
-  const [tournamentMatches, setTournamentMatches] = useState<TournamentMatch[]>([]);
+  const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
-  const [loadingTournament, setLoadingTournament] = useState(false);
+  const [loadingTournaments, setLoadingTournaments] = useState(true);
 
   // Fetch active matches from discovery
   useEffect(() => {
-    const dbRoot = import.meta.env.DEV ? 'local' : 'prod';
+    const dbRoot = getDbRoot();
     const discoveryRef = ref(rtdb, `${dbRoot}/discovery/matches`);
     
     const unsub = onValue(discoveryRef, (snap) => {
@@ -60,50 +67,34 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
     return () => unsub();
   }, []);
 
-  // Fetch tournament matches when tournament code is entered
+  // Fetch active tournaments from discovery
   useEffect(() => {
-    if (inputType === 'tournament' && code.trim()) {
-      setLoadingTournament(true);
-      const tournamentCode = code.trim().toLowerCase();
-      const unsub = onValue(tournamentDiscoveryRef(tournamentCode), (snap) => {
-        const data = snap.val();
-        if (data) {
-          const { sport, tournamentId } = data;
-          // Fetch all matches in this tournament
-          const dbRoot = import.meta.env.DEV ? 'local' : 'prod';
-          const matchesRef = ref(rtdb, `${dbRoot}/tournaments/${sport}/${tournamentId}/matches`);
-          const unsubMatches = onValue(matchesRef, (matchSnap) => {
-            const matchesData = matchSnap.val();
-            if (matchesData) {
-              const matches = Object.entries(matchesData).map(([matchId, meta]: [string, any]) => ({
-                matchId,
-                matchCode: matchId,
-                sport,
-                tournamentId,
-                meta: meta.meta
-              }));
-              setTournamentMatches(matches);
-            } else {
-              setTournamentMatches([]);
-            }
-            setLoadingTournament(false);
-          });
-          return () => unsubMatches();
-        } else {
-          console.error('[AudienceGate] Tournament not found:', tournamentCode);
-          setTournamentMatches([]);
-          setLoadingTournament(false);
-        }
-      }, (error) => {
-        console.error('[AudienceGate] Error fetching tournament:', error);
-        setTournamentMatches([]);
-        setLoadingTournament(false);
-      });
-      return () => unsub();
-    } else {
-      setTournamentMatches([]);
-    }
-  }, [code, inputType]);
+    const dbRoot = getDbRoot();
+    const tournamentsRef = ref(rtdb, `${dbRoot}/discovery/tournaments`);
+    
+    const unsub = onValue(tournamentsRef, (snap) => {
+      const data = snap.val();
+      if (data) {
+        const tournaments = Object.entries(data).map(([tournamentCode, info]: [string, any]) => ({
+          tournamentCode,
+          sport: info.sport,
+          tournamentId: info.tournamentId,
+          tournamentName: info.tournamentName,
+          status: info.status,
+          updatedAt: info.updatedAt
+        }));
+        setActiveTournaments(tournaments);
+      } else {
+        setActiveTournaments([]);
+      }
+      setLoadingTournaments(false);
+    }, (error) => {
+      console.error('[AudienceGate] Error fetching tournament discovery:', error);
+      setLoadingTournaments(false);
+    });
+
+    return () => unsub();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,68 +111,82 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
     onJoinMatch(matchCode.toLowerCase());
   };
 
+  const handleQuickJoinTournament = (tournamentCode: string) => {
+    onJoinTournament(tournamentCode.toLowerCase());
+  };
+
+  const getSportIcon = (sport: string) => {
+    const icons: Record<string, string> = {
+      cricket: '🏏',
+      football: '⚽',
+      basketball: '🏀',
+      hockey: '🏒',
+      tennis: '🎾',
+      baseball: '⚾',
+      volleyball: '🏐',
+    };
+    return icons[sport.toLowerCase()] || '🏆';
+  };
+
   return (
     <section className="panel audience-gate">
       <div className="panel-header">
         <div>
-          <p className="panel-kicker">Join Match</p>
-          <h2>Enter the code</h2>
+          <p className="panel-kicker">Welcome</p>
+          <h1>Join a Live Match</h1>
+          <p style={{ color: 'var(--muted)', marginTop: 8, fontSize: '0.9rem', lineHeight: 1.5 }}>
+            Enter a match code to join predictions and chat with other fans
+          </p>
         </div>
       </div>
       
       {/* Input Type Toggle */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div className="gate-toggle-group">
         <button
           type="button"
           onClick={() => setInputType('match')}
-          className={`ghost-link-xs ${inputType === 'match' ? 'active' : ''}`}
-          style={{ 
-            padding: '8px 16px',
-            borderRadius: 4,
-            background: inputType === 'match' ? 'var(--accent-blue)' : 'transparent',
-            color: inputType === 'match' ? 'white' : 'var(--text)'
-          }}
+          className={`gate-toggle-btn ${inputType === 'match' ? 'active' : ''}`}
         >
           Match Code
         </button>
         <button
           type="button"
           onClick={() => setInputType('tournament')}
-          className={`ghost-link-xs ${inputType === 'tournament' ? 'active' : ''}`}
-          style={{ 
-            padding: '8px 16px',
-            borderRadius: 4,
-            background: inputType === 'tournament' ? 'var(--accent-blue)' : 'transparent',
-            color: inputType === 'tournament' ? 'white' : 'var(--text)'
-          }}
+          className={`gate-toggle-btn ${inputType === 'tournament' ? 'active' : ''}`}
         >
           Tournament Code
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="stack-form">
-        <label>
-          {inputType === 'match' ? 'Match code' : 'Tournament code'}
+      <form onSubmit={handleSubmit} className="stack-form gate-form">
+        <label className="gate-label">
+          <span className="gate-label-text">
+            {inputType === 'match' ? 'Match Code' : 'Tournament Code'}
+          </span>
           <input
             value={code}
             onChange={(e) => setCode(e.target.value)}
             maxLength={40}
-            placeholder={inputType === 'match' ? 'e.g. csk-vs-mi' : 'e.g. ipl-2024'}
+            placeholder={inputType === 'match' ? 'e.g. mi-vs-csk' : 'e.g. ipl-2026'}
             required
+            className="gate-input"
           />
         </label>
-        <button type="submit" className="primary-btn">
-          {inputType === 'match' ? 'Join Match' : 'Browse Tournament'}
+        <button type="submit" className="primary-btn gate-submit-btn">
+          {inputType === 'match' ? 'Join Match →' : 'Browse Tournament →'}
         </button>
       </form>
 
       {/* Active Matches List */}
       <div className="active-discovery">
-        <p className="discovery-kicker">Active Matches</p>
+        <div className="discovery-header">
+          <p className="discovery-kicker">Live Matches</p>
+          <span className="discovery-count">{activeMatches.length}</span>
+        </div>
         {loadingMatches ? (
-          <p style={{ color: 'var(--muted)' }}>Loading active matches...</p>
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading live matches...</p>
         ) : activeMatches.length === 0 ? (
-          <p style={{ color: 'var(--muted)' }}>No active matches currently</p>
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>No live matches at the moment</p>
         ) : (
           <div className="active-sessions-grid">
             {activeMatches.map((match) => (
@@ -191,47 +196,40 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
                 className="discovery-chip"
               >
                 <span className="pulse-dot"></span>
-                <span>{match.matchCode}</span>
-                <span className="badge-mini" style={{ 
-                  background: 'rgba(99, 102, 241, 0.2)', 
-                  color: '#818cf8', 
-                  padding: '2px 6px', 
-                  borderRadius: 4, 
-                  fontSize: 10, 
-                  fontWeight: 800 
-                }}>
-                  {match.sport.toUpperCase()}
-                </span>
+                <span className="discovery-sport-icon">{getSportIcon(match.sport)}</span>
+                <span className="discovery-chip-text">{match.matchCode}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Tournament Matches List */}
-      {inputType === 'tournament' && tournamentMatches.length > 0 && (
-        <div className="active-discovery" style={{ marginTop: 16 }}>
-          <p className="discovery-kicker">Tournament Matches</p>
-          {loadingTournament ? (
-            <p style={{ color: 'var(--muted)' }}>Loading tournament matches...</p>
-          ) : tournamentMatches.length === 0 ? (
-            <p style={{ color: 'var(--muted)' }}>No matches in this tournament</p>
-          ) : (
-            <div className="active-sessions-grid">
-              {tournamentMatches.map((match) => (
-                <button
-                  key={match.matchId}
-                  onClick={() => handleQuickJoinMatch(match.matchId)}
-                  className="discovery-chip"
-                >
-                  <span className="pulse-dot"></span>
-                  <span>{match.meta?.matchTitle || match.matchId}</span>
-                </button>
-              ))}
-            </div>
-          )}
+      {/* Active Tournaments List */}
+      <div className="active-discovery">
+        <div className="discovery-header">
+          <p className="discovery-kicker">Live Tournaments</p>
+          <span className="discovery-count">{activeTournaments.length}</span>
         </div>
-      )}
+        {loadingTournaments ? (
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading tournaments...</p>
+        ) : activeTournaments.length === 0 ? (
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>No active tournaments</p>
+        ) : (
+          <div className="active-sessions-grid">
+            {activeTournaments.map((tournament) => (
+              <button
+                key={tournament.tournamentCode}
+                onClick={() => handleQuickJoinTournament(tournament.tournamentCode)}
+                className="discovery-chip"
+              >
+                <span className="pulse-dot"></span>
+                <span className="discovery-sport-icon">{getSportIcon(tournament.sport)}</span>
+                <span className="discovery-chip-text">{tournament.tournamentName || tournament.tournamentCode}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

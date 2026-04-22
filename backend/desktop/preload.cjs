@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   openScraperSolver: (url) => ipcRenderer.invoke("scraper:open-solver", url),
   getScheduleCsv: () => ipcRenderer.invoke("csv:get-schedule"),
   showDebug: () => ipcRenderer.invoke("debug:show"),
+  setFirebaseMode: (mode) => ipcRenderer.invoke("firebase:set-mode", mode),
 });
 
 // Expose APP_MODE directly on window

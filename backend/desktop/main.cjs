@@ -88,7 +88,8 @@ const saveSettings = () => {
 };
 
 const getWindowUrl = (winName) => {
-  const baseParams = `appMode=${APP_MODE}&room=${settings.roomId}&sport=${settings.sport || 'cricket'}`;
+  const currentMode = global.APP_MODE || settings.firebaseMode || APP_MODE;
+  const baseParams = `appMode=${currentMode}&room=${settings.roomId}&sport=${settings.sport || 'cricket'}`;
   if (isDev) return `${VITE_DEV_SERVER_URL}/#/${winName}?${baseParams}`;
   return `file://${path.join(__dirname, "../dist/index.html")}#/${winName}?${baseParams}`;
 };
@@ -466,4 +467,35 @@ ipcMain.handle("scraper:open-solver", (_event, url) => {
 ipcMain.handle("csv:get-schedule", () => {
   try { return fs.readFileSync(path.join(__dirname, "..", "schedule_2026_ipl.csv"), "utf8"); }
   catch { return null; }
+});
+
+ipcMain.handle("firebase:set-mode", (_event, mode) => {
+  const newMode = mode === 'local' ? 'local' : 'prod';
+  console.log(`[System] Switching Firebase mode to: ${newMode.toUpperCase()}`);
+  
+  // Update APP_MODE globally
+  global.APP_MODE = newMode;
+  
+  // Save to settings
+  settings.firebaseMode = newMode;
+  saveSettings();
+  
+  // Reload all windows with new mode
+  const reloadAllWindows = () => {
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      controlWindow.loadURL(getWindowUrl("control"));
+    }
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.loadURL(getWindowUrl("overlay"));
+    }
+    if (tickerWindow && !tickerWindow.isDestroyed()) {
+      tickerWindow.loadURL(getWindowUrl("ticker"));
+    }
+    if (reactionWindow && !reactionWindow.isDestroyed()) {
+      reactionWindow.loadURL(getWindowUrl("reaction"));
+    }
+  };
+  
+  reloadAllWindows();
+  return true;
 });

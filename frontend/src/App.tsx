@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { onValue, get } from 'firebase/database';
 import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
+import TournamentBrowser from './components/Tournament/TournamentBrowser';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
@@ -11,7 +12,8 @@ import './styles/App.css';
 
 function App() {
   const [matchCode, setMatchCode] = useState<string | null>(null);
-  const [tournamentContext, setTournamentContext] = useState<{sport: string, id: string, matchId: string} | null>(null);
+  const [tournamentCode, setTournamentCode] = useState<string | null>(null);
+  const [tournamentContext, setTournamentContext] = useState<{ sport: string; id: string; matchId: string } | null>(null);
   const [meta, setMeta] = useState<any>(null);
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -212,12 +214,24 @@ function App() {
   if (!matchCode) {
     return <AudienceGate 
       onJoinMatch={(code) => setMatchCode(code)}
-      onJoinTournament={(code) => {
-        // For tournament, we'll need to implement tournament browsing
-        // For now, treat it as a match code for backward compatibility
-        setMatchCode(code);
-      }}
+      onJoinTournament={(code) => setTournamentCode(code)}
     />;
+  }
+
+  // Tournament browsing mode
+  if (tournamentCode && !matchCode) {
+    return (
+      <main className="page">
+        <TournamentBrowser 
+          tournamentCode={tournamentCode}
+          onJoinMatch={(matchId) => {
+            setTournamentCode(null);
+            setMatchCode(matchId);
+          }}
+          onBack={() => setTournamentCode(null)}
+        />
+      </main>
+    );
   }
 
   if (loading || !tournamentContext) {
@@ -263,6 +277,21 @@ function App() {
       )}
       
       <div id="audienceApp" className="audience-app-container">
+        {/* Header with back button */}
+        <header className="audience-header">
+          <button 
+            onClick={() => setMatchCode(null)}
+            className="back-btn"
+            title="Return to home"
+          >
+            ← Back
+          </button>
+          <div className="audience-header-title">
+            <span className="audience-header-kicker">Live Match</span>
+            <span className="audience-header-code">{matchCode.toUpperCase()}</span>
+          </div>
+        </header>
+
         <section className="hero audience-hero audience-hero-compact">
           <div className="hero-meta">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
