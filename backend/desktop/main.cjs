@@ -22,7 +22,7 @@ const initLogServer = () => {
 initLogServer();
 
 const isDev = process.env.NODE_ENV === "development";
-const VITE_DEV_SERVER_URL = "http://localhost:5174";
+const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:5174";
 
 // ── Environment Detection ───────────────────────────────────────────────────
 const getAppModeFromArgs = () => {

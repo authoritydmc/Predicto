@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  db, isFirebaseConfigured, onValue, query, ref, roomRef,
+  db, isFirebaseConfigured, onValue, query, ref, schemaRef,
   saveRoomMeta, clearRoomNode, getOnce, setDiscovery,
   saveInningsHistory, getInningsHistory, archiveToHistory,
-  getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot
+  getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot,
+  matchPredictionsRef
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
 
@@ -253,10 +254,7 @@ const ControlPanel: React.FC = () => {
     tick();
     heartbeatRef.current = setInterval(tick, 20000);
 
-    const metaRef = roomRef(rid, 'meta'); // In db.ts now simplified or need to handle sport locally
-    // Since roomRef was changed or removed, let's use the new schemaRef logic if accessible
-    // @ts-ignore (need to confirm what db.ts exports, but matchMetaRef is safe)
-    unsubMetaRef.current = onValue(matchMetaRef(fSport, rid), snap => {
+    unsubMetaRef.current = onValue(schemaRef('meta', fSport, rid), snap => {
       const m = snap.val() || {};
       setMeta(m);
       setFMatchTitle(m.matchTitle || '');
@@ -825,6 +823,7 @@ const ControlPanel: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
               <button className="cp-action-btn cp-pill cp-small" onClick={loadTodayMatch}>🤖 Load Today's Match</button>
             </div>
+            <form onSubmit={handleDeploy}>
               <div className="cp-dual-row">
                 <div className="cp-form-row">
                   <label>Room Identity / Tournament ID</label>
@@ -893,7 +892,6 @@ const ControlPanel: React.FC = () => {
               </div>
               <div className="cp-divider" />
               <button className="cp-primary-btn cp-wide-btn" type="submit">Deploy Changes & Connect Room</button>
-            </form>
             </form>
           </div>
         </section>

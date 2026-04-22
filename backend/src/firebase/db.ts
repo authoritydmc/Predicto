@@ -54,12 +54,16 @@ export const schemaRef = (schema: string, sport: string, tournamentId: string, c
 export const getOnce = async (r: ReturnType<typeof ref>) => await get(r);
 
 // ── Discovery Layer (Room Code -> Sport Context) ───────────────────────────────
-export const discoveryRef = (roomId: string) => 
+export const discoveryRef = (roomId: string) =>
   ref(db, `${getDbRoot()}/discovery/${roomId.toLowerCase()}`);
 
 export const setDiscovery = async (roomId: string, sport: string, tournamentId: string) => {
   await set(discoveryRef(roomId), { sport, tournamentId, updatedAt: serverTimestamp() });
 };
+
+// ── Legacy roomRef for backward compatibility ───────────────────────────────────
+export const roomRef = (roomId: string, child: string) =>
+  ref(db, `${getDbRoot()}/rooms/${roomId}/${child}`);
 
 // ── Global User Profiles ───────────────────────────────────────────────────────
 export const globalUserRef = (clientId: string) => 
