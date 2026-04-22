@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { get, update, DataSnapshot } from 'firebase/database';
 import {
   db, isFirebaseConfigured, onValue, query, ref, schemaRef,
   saveRoomMeta, clearRoomNode, getOnce, setDiscovery,
   saveInningsHistory, getInningsHistory, archiveToHistory,
   getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot,
-  matchPredictionsRef
+  matchPredictionsRef, tournamentMetaRef, matchMetaRef, matchPredictionsRef as newMatchPredictionsRef,
+  matchChatRef, matchHistoryRef, matchInningsHistoryRef, tournamentLeaderboardRef,
+  setTournamentDiscovery, setMatchDiscovery, generateMatchId, getMergedMeta
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
@@ -129,9 +132,16 @@ const ControlPanel: React.FC = () => {
   const [settings, setSettings] = useState<any>(null);
   const [meta, setMeta] = useState<any>({});
   const [roomId, setRoomId] = useState('ipl');
+  const [tournamentId, setTournamentId] = useState('ipl');
+  const [matchId, setMatchId] = useState('ipl');
+  const [viewMode, setViewMode] = useState<'tournament' | 'match'>('match');
 
-  // ── Form State
-  const [fRoomId, setFRoomId] = useState('ipl');
+  // ── Tournament Form State
+  const [fTournamentCode, setFTournamentCode] = useState('ipl-2024');
+  const [fTournamentName, setFTournamentName] = useState('IPL 2024');
+
+  // ── Match Form State
+  const [fMatchCode, setFMatchCode] = useState('csk-vs-mi');
   const [fSport, setFSport] = useState('cricket');
   const [fMatchTitle, setFMatchTitle] = useState('');
   const [fTeamA, setFTeamA] = useState('');
@@ -140,6 +150,9 @@ const ControlPanel: React.FC = () => {
   const [fInnings, setFInnings] = useState<'1' | '2'>('1');
   const [fAllowReprediction, setFAllowReprediction] = useState(false);
   const [fAutomationPaused, setFAutomationPaused] = useState(false);
+
+  // ── Legacy Form State (for backward compatibility)
+  const [fRoomId, setFRoomId] = useState('ipl');
 
   // ── Resolution
   const [fActualScore, setFActualScore] = useState('');
@@ -210,7 +223,9 @@ const ControlPanel: React.FC = () => {
       const rid = normalizeRoomId(s.roomId || 'ipl');
       setRoomId(rid);
       setFRoomId(rid);
-      subscribeToMeta(rid);
+      const sport = s.sport || 'cricket';
+      setFSport(sport);
+      subscribeToMeta(sport, rid);
     };
     init();
 
@@ -221,7 +236,9 @@ const ControlPanel: React.FC = () => {
       const rid = normalizeRoomId(s.roomId || 'ipl');
       setRoomId(rid);
       setFRoomId(rid);
-      subscribeToMeta(rid);
+      const sport = s.sport || 'cricket';
+      setFSport(sport);
+      subscribeToMeta(sport, rid);
     });
 
     return () => {
@@ -245,30 +262,44 @@ const ControlPanel: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // Firebase Meta Subscription
   // ─────────────────────────────────────────────────────────────────────────────
-  const subscribeToMeta = useCallback((rid: string) => {
+  const subscribeToMeta = useCallback((sport: string, tournamentId: string, matchId?: string) => {
     if (unsubMetaRef.current) unsubMetaRef.current();
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
 
     if (!isFirebaseConfigured || !db) return;
 
-    const tick = () => updateActiveSession(rid).catch(console.error);
+    const tick = () => updateActiveSession(matchId || tournamentId).catch(console.error);
     tick();
     heartbeatRef.current = setInterval(tick, 20000);
 
-    unsubMetaRef.current = onValue(schemaRef('meta', fSport, rid), snap => {
-      const m = snap.val() || {};
-      setMeta(m);
-      setFMatchTitle(m.matchTitle || '');
-      setFTeamA(m.teamA || '');
-      setFTeamB(m.teamB || '');
-      setFAllowReprediction(Boolean(m.allowReprediction));
-      setFAutomationPaused(Boolean(m.automationPaused));
-      setGoogleUrl(m.googleMatchUrl || '');
-      setShowWinProb(Boolean(m.showWinProb));
-      if (!m.disableScoreA && m.disableScoreB) setFBattingTeam('home');
-      else if (!m.disableScoreB && m.disableScoreA) setFBattingTeam('away');
-      setFInnings(m.secondInnings ? '2' : '1');
-    });
+    if (matchId) {
+      // Subscribe to match meta with tournament defaults merged
+      unsubMetaRef.current = onValue(matchMetaRef(sport, tournamentId, matchId), snap => {
+        const matchMeta = snap.val() || {};
+        // Also get tournament meta for defaults
+        get(tournamentMetaRef(sport, tournamentId)).then((tourneySnap: any) => {
+          const tourneyMeta = tourneySnap.val() || {};
+          const merged = { ...tourneyMeta, ...matchMeta };
+          setMeta(merged);
+          setFMatchTitle(merged.matchTitle || '');
+          setFTeamA(merged.teamA || '');
+          setFTeamB(merged.teamB || '');
+          setFAllowReprediction(Boolean(merged.allowReprediction));
+          setFAutomationPaused(Boolean(merged.automationPaused));
+          setGoogleUrl(merged.googleMatchUrl || '');
+          setShowWinProb(Boolean(merged.showWinProb));
+          if (!merged.disableScoreA && merged.disableScoreB) setFBattingTeam('home');
+          else if (!merged.disableScoreB && merged.disableScoreA) setFBattingTeam('away');
+          setFInnings(merged.secondInnings ? '2' : '1');
+        });
+      });
+    } else {
+      // Subscribe to tournament meta only
+      unsubMetaRef.current = onValue(tournamentMetaRef(sport, tournamentId), snap => {
+        const m = snap.val() || {};
+        setMeta(m);
+      });
+    }
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -298,7 +329,91 @@ const ControlPanel: React.FC = () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Deploy Form
+  // Create Tournament
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleCreateTournament = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const tCode = normalizeRoomId(fTournamentCode);
+    try {
+      // 1. Set tournament discovery
+      await setTournamentDiscovery(tCode, fSport, tCode);
+      
+      // 2. Save tournament meta
+      if (isFirebaseConfigured && db) {
+        await update(tournamentMetaRef(fSport, tCode), {
+          tournamentName: fTournamentName,
+          defaultPredictionSort: 'newest',
+          defaultHideChat: false,
+          defaultHideJoin: false,
+          updatedAt: Date.now()
+        });
+      }
+      
+      setTournamentId(tCode);
+      setViewMode('match');
+      alert(`Tournament [${fTournamentName}] created with code: ${tCode}`);
+    } catch (err) { console.error(err); }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Create Match
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleCreateMatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const mCode = normalizeRoomId(fMatchCode);
+    const tId = tournamentId || normalizeRoomId(fTournamentCode);
+    
+    // Generate match ID from team names if not provided
+    const generatedMatchId = generateMatchId(fTeamA, fTeamB);
+    const mId = mCode || generatedMatchId;
+    
+    try {
+      // 1. Set match discovery
+      await setMatchDiscovery(mId, fSport, tId, mId);
+      
+      // 2. Save match meta
+      if (isFirebaseConfigured && db) {
+        await update(matchMetaRef(fSport, tId, mId), {
+          matchTitle: fMatchTitle || `${fTeamA} vs ${fTeamB}`,
+          teamA: fTeamA,
+          teamB: fTeamB,
+          secondInnings: fInnings === '2',
+          disableScoreA: false,
+          disableScoreB: false,
+          predictionsPaused: false,
+          allowReprediction: fAllowReprediction,
+          predictionSort: 'newest',
+          hideChat: false,
+          hideJoin: false,
+          automationPaused: fAutomationPaused,
+          showWinProb: false,
+          googleMatchUrl: '',
+          updatedAt: Date.now()
+        });
+      }
+      
+      // 3. Update local settings
+      // @ts-ignore
+      const nextS = await window.overlayDesktop.updateSettings({ 
+        roomId: mId, 
+        sport: fSport, 
+        tournamentId: tId,
+        matchId: mId,
+        opacity 
+      });
+      setSettings(nextS);
+      setRoomId(mId);
+      setMatchId(mId);
+      
+      subscribeToMeta(fSport, tId, mId);
+      // @ts-ignore
+      await window.overlayDesktop.reloadOverlay();
+      alert(`Match [${fMatchTitle || `${fTeamA} vs ${fTeamB}`}] created with code: ${mId}`);
+    } catch (err) { console.error(err); }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Legacy Deploy (for backward compatibility)
   // ─────────────────────────────────────────────────────────────────────────────
   const handleDeploy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,12 +428,12 @@ const ControlPanel: React.FC = () => {
       setSettings(nextS);
       setRoomId(rid);
       
-      // 3. Save Tournament Meta
+      // 3. Save Tournament Meta (legacy)
       if (isFirebaseConfigured && db) {
         await saveRoomMeta(fSport, rid, getFormMeta());
       }
       
-      subscribeToMeta(rid);
+      subscribeToMeta(fSport, rid);
       // @ts-ignore
       await window.overlayDesktop.reloadOverlay();
       alert(`Tournament context [${fSport}/${rid}] deployed!`);
@@ -823,97 +938,217 @@ const ControlPanel: React.FC = () => {
         <section className="cp-panel-group">
           <h2 className="cp-group-title">Match Configuration</h2>
           <div className="cp-glass-card">
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-              <button className="cp-action-btn cp-pill cp-small" onClick={loadTodayMatch}>🤖 Load Today's Match</button>
+            {/* View Mode Toggle */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('tournament')}
+                className={`cp-action-btn cp-small ${viewMode === 'tournament' ? 'cp-active' : ''}`}
+                style={{ 
+                  flex: 1,
+                  background: viewMode === 'tournament' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.05)',
+                  borderColor: viewMode === 'tournament' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.1)'
+                }}
+              >
+                🏆 Create Tournament
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('match')}
+                className={`cp-action-btn cp-small ${viewMode === 'match' ? 'cp-active' : ''}`}
+                style={{ 
+                  flex: 1,
+                  background: viewMode === 'match' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.05)',
+                  borderColor: viewMode === 'match' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.1)'
+                }}
+              >
+                ⚽ Create Match
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('legacy')}
+                className={`cp-action-btn cp-small ${viewMode === 'legacy' ? 'cp-active' : ''}`}
+                style={{ 
+                  flex: 1,
+                  background: viewMode === 'legacy' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255,255,255,0.05)',
+                  borderColor: viewMode === 'legacy' ? 'rgba(236, 72, 153, 0.5)' : 'rgba(255,255,255,0.1)',
+                  color: viewMode === 'legacy' ? '#f472b6' : 'inherit'
+                }}
+              >
+                🔄 Legacy Mode
+              </button>
             </div>
-            <form onSubmit={handleDeploy}>
-              <div className="cp-dual-row">
+
+            {/* Tournament Creation Form */}
+            {viewMode === 'tournament' && (
+              <form onSubmit={handleCreateTournament}>
                 <div className="cp-form-row">
-                  <label>Room Identity / Tournament ID</label>
-                  <input id="roomId" value={fRoomId} onChange={e => setFRoomId(e.target.value)} maxLength={40} placeholder="e.g. ipl" required />
-                </div>
-                <div className="cp-form-row">
-                  <label>Sport Architecture</label>
+                  <label>Sport Type</label>
                   <select value={fSport} onChange={e => setFSport(e.target.value)}>
-                    <option value="cricket">Cricket (Innings-based)</option>
-                    <option value="football">Football (Time-based)</option>
-                    <option value="generic">Generic (Score-based)</option>
+                    <option value="cricket">Cricket</option>
+                    <option value="football">Football</option>
+                    <option value="basketball">Basketball</option>
                   </select>
                 </div>
-              </div>
-              <div className="cp-form-row">
-                <label>Broadcast Title</label>
-                <input id="matchTitle" value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} maxLength={60} placeholder="Match #001" required />
-              </div>
-              <div className="cp-dual-row">
                 <div className="cp-form-row">
-                  <label>Home Team</label>
-                  <div className="cp-input-action-group">
-                    <input id="teamA" value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
-                    {getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos') && (
-                      <img 
-                        src={getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos')!} 
-                        alt={fTeamA}
-                        style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
-                      />
-                    )}
-                  </div>
+                  <label>Tournament Code</label>
+                  <input value={fTournamentCode} onChange={e => setFTournamentCode(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" required />
                 </div>
                 <div className="cp-form-row">
-                  <label>Away Team</label>
-                  <div className="cp-input-action-group">
-                    <input id="teamB" value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
-                    {getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos') && (
-                      <img 
-                        src={getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos')!} 
-                        alt={fTeamB}
-                        style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
-                      />
-                    )}
+                  <label>Tournament Name</label>
+                  <input value={fTournamentName} onChange={e => setFTournamentName(e.target.value)} placeholder="e.g. IPL 2024" required />
+                </div>
+                <div className="cp-divider" />
+                <button className="cp-primary-btn cp-wide-btn" type="submit">Create Tournament</button>
+              </form>
+            )}
+
+            {/* Match Creation Form */}
+            {viewMode === 'match' && (
+              <form onSubmit={handleCreateMatch}>
+                <div className="cp-dual-row">
+                  <div className="cp-form-row">
+                    <label>Sport Type</label>
+                    <select value={fSport} onChange={e => setFSport(e.target.value)}>
+                      <option value="cricket">Cricket</option>
+                      <option value="football">Football</option>
+                      <option value="basketball">Basketball</option>
+                    </select>
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Tournament ID</label>
+                    <input value={tournamentId} onChange={e => setTournamentId(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" required />
                   </div>
                 </div>
-              </div>
-              <div className="cp-form-row">
-                <label className="cp-toggle-row">
-                  <span>Allow re-prediction</span>
-                  <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
-                </label>
-              </div>
-              <div className="cp-form-row">
-                <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
-                  <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
-                  <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
-                </label>
-              </div>
-              <div className="cp-form-row">
-                <label>Batting Team (Active Predictions)</label>
-                <div className="cp-radio-group">
-                  <div className="cp-radio-option">
-                    <input type="radio" id="battingA" name="battingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
-                    <label className="cp-radio-label" htmlFor="battingA">{fTeamA || 'Home Team'}</label>
+                <div className="cp-form-row">
+                  <label>Match Code (auto-generated from teams)</label>
+                  <input value={fMatchCode} onChange={e => setFMatchCode(e.target.value)} maxLength={40} placeholder="e.g. csk-vs-mi" />
+                </div>
+                <div className="cp-dual-row">
+                  <div className="cp-form-row">
+                    <label>Team A</label>
+                    <input value={fTeamA} onChange={e => setFTeamA(e.target.value)} placeholder="e.g. Chennai Super Kings" required />
                   </div>
-                  <div className="cp-radio-option">
-                    <input type="radio" id="battingB" name="battingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
-                    <label className="cp-radio-label" htmlFor="battingB">{fTeamB || 'Away Team'}</label>
+                  <div className="cp-form-row">
+                    <label>Team B</label>
+                    <input value={fTeamB} onChange={e => setFTeamB(e.target.value)} placeholder="e.g. Mumbai Indians" required />
                   </div>
                 </div>
-              </div>
-              <div className="cp-form-row">
-                <label>Current Innings</label>
-                <div className="cp-radio-group">
-                  <div className="cp-radio-option">
-                    <input type="radio" id="innings1st" name="innings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
-                    <label className="cp-radio-label" htmlFor="innings1st">1st Innings</label>
+                <div className="cp-form-row">
+                  <label>Match Title</label>
+                  <input value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} placeholder="e.g. CSK vs MI - Match 15" />
+                </div>
+                <div className="cp-dual-row">
+                  <div className="cp-form-row">
+                    <label>Allow Reprediction</label>
+                    <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
                   </div>
-                  <div className="cp-radio-option">
-                    <input type="radio" id="innings2nd" name="innings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
-                    <label className="cp-radio-label" htmlFor="innings2nd">2nd Innings</label>
+                  <div className="cp-form-row">
+                    <label>Pause Automation</label>
+                    <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
                   </div>
                 </div>
-              </div>
-              <div className="cp-divider" />
-              <button className="cp-primary-btn cp-wide-btn" type="submit">Deploy Changes & Connect Room</button>
-            </form>
+                <div className="cp-divider" />
+                <button className="cp-primary-btn cp-wide-btn" type="submit">Create Match & Connect</button>
+              </form>
+            )}
+
+            {/* Legacy Form */}
+            {viewMode === 'legacy' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                  <button className="cp-action-btn cp-pill cp-small" onClick={loadTodayMatch}>🤖 Load Today's Match</button>
+                </div>
+                <form onSubmit={handleDeploy}>
+                  <div className="cp-dual-row">
+                    <div className="cp-form-row">
+                      <label>Room Identity / Tournament ID</label>
+                      <input id="roomId" value={fRoomId} onChange={e => setFRoomId(e.target.value)} maxLength={40} placeholder="e.g. ipl" required />
+                    </div>
+                    <div className="cp-form-row">
+                      <label>Sport Architecture</label>
+                      <select value={fSport} onChange={e => setFSport(e.target.value)}>
+                        <option value="cricket">Cricket (Innings-based)</option>
+                        <option value="football">Football (Time-based)</option>
+                        <option value="generic">Generic (Score-based)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Broadcast Title</label>
+                    <input id="matchTitle" value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} maxLength={60} placeholder="Match #001" required />
+                  </div>
+                  <div className="cp-dual-row">
+                    <div className="cp-form-row">
+                      <label>Home Team</label>
+                      <div className="cp-input-action-group">
+                        <input id="teamA" value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
+                        {getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos') && (
+                          <img 
+                            src={getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos')!} 
+                            alt={fTeamA}
+                            style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="cp-form-row">
+                      <label>Away Team</label>
+                      <div className="cp-input-action-group">
+                        <input id="teamB" value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
+                        {getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos') && (
+                          <img 
+                            src={getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos')!} 
+                            alt={fTeamB}
+                            style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row">
+                      <span>Allow re-prediction</span>
+                      <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
+                    </label>
+                  </div>
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
+                      <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
+                      <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
+                    </label>
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Batting Team (Active Predictions)</label>
+                    <div className="cp-radio-group">
+                      <div className="cp-radio-option">
+                        <input type="radio" id="battingA" name="battingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
+                        <label className="cp-radio-label" htmlFor="battingA">{fTeamA || 'Home Team'}</label>
+                      </div>
+                      <div className="cp-radio-option">
+                        <input type="radio" id="battingB" name="battingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
+                        <label className="cp-radio-label" htmlFor="battingB">{fTeamB || 'Away Team'}</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Current Innings</label>
+                    <div className="cp-radio-group">
+                      <div className="cp-radio-option">
+                        <input type="radio" id="innings1st" name="innings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
+                        <label className="cp-radio-label" htmlFor="innings1st">1st Innings</label>
+                      </div>
+                      <div className="cp-radio-option">
+                        <input type="radio" id="innings2nd" name="innings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
+                        <label className="cp-radio-label" htmlFor="innings2nd">2nd Innings</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="cp-divider" />
+                  <button className="cp-primary-btn cp-wide-btn" type="submit">Deploy Changes & Connect Room</button>
+                </form>
+              </>
+            )}
           </div>
         </section>
 

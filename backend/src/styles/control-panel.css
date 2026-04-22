@@ -135,6 +135,12 @@ select {
   font-size: 13px; font-family: inherit; outline: none; width: 100%;
 }
 
+select option {
+  background: #1a1a2e;
+  color: #ffffff;
+  padding: 8px;
+}
+
 /* ─── Input + Button Group ───────────────────────────────────────────────────── */
 .cp-input-action-group { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 

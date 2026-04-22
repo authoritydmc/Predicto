@@ -1,17 +1,5 @@
-import { initializeApp } from "firebase/app";
-import {
-  getDatabase,
-  ref,
-  get,
-  set,
-  update,
-  push,
-  remove,
-  onValue,
-  query,
-  limitToLast,
-  serverTimestamp
-} from "firebase/database";
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, set, get, update, remove, onValue, query, limitToLast, serverTimestamp, push, DatabaseReference, DataSnapshot } from 'firebase/database';
 
 export const firebaseConfig = {
   apiKey: "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
@@ -64,6 +52,9 @@ export const tournamentLeaderboardRef = (sport: string, tournamentId: string) =>
 
 export const tournamentUsersRef = (sport: string, tournamentId: string) =>
   ref(db, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/users`);
+
+export const tournamentScheduleRef = (sport: string, tournamentId: string) =>
+  ref(db, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/schedule`);
 
 // ── Match-Level Refs ───────────────────────────────────────────────────────────
 export const matchRef = (sport: string, tournamentId: string, matchId: string, schema: string, child = "") => {
