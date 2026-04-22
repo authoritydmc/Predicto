@@ -439,6 +439,10 @@ const ControlPanel: React.FC = () => {
         setFMatchTitle(nextMatch.matchTitle);
         setFTeamA(nextMatch.teamA);
         setFTeamB(nextMatch.teamB);
+        // Generate and set match code
+        const generatedMatchId = nextMatch.matchId || generateMatchId(nextMatch.teamA, nextMatch.teamB, nextMatch.date ? new Date(nextMatch.date) : undefined);
+        setFMatchCode(generatedMatchId);
+        setMatchId(generatedMatchId);
       }
     }
   }, [schedule, matchId]);
@@ -1164,14 +1168,14 @@ const ControlPanel: React.FC = () => {
   // Audience URL
   // ─────────────────────────────────────────────────────────────────────────────
   const openAudienceUrl = () => {
-    const url = getAudienceUrl(roomId);
+    const url = getAudienceUrl(roomId, matchId);
     // @ts-ignore
     window.overlayDesktop.openExternal(url);
   };
 
   const copyAudienceUrl = async () => {
     try {
-      const url = getAudienceUrl(roomId);
+      const url = getAudienceUrl(roomId, matchId);
       // @ts-ignore
       await window.overlayDesktop.copyText(url);
       alert('Link copied to clipboard!');
@@ -1215,7 +1219,7 @@ const ControlPanel: React.FC = () => {
       <header className="cp-header">
         <div className="cp-header-main">
           <div className="cp-header-content">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span className="cp-badge">Executive</span>
               <span className="cp-badge" style={{ 
                 background: 'rgba(99, 102, 241, 0.2)',
@@ -1233,7 +1237,23 @@ const ControlPanel: React.FC = () => {
               </span>
             </div>
             <h1>Control Panel</h1>
-            <p>Managing {fMatchTitle || 'Active Session'}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <p style={{ margin: 0 }}>
+                {fMatchTitle ? (
+                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fMatchTitle}</span>
+                ) : (
+                  <span style={{ color: 'var(--muted)' }}>No match selected</span>
+                )}
+              </p>
+              {matchId && (
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)' }}>
+                  Match ID: <span style={{ fontFamily: 'monospace', color: 'var(--accent-blue)' }}>{matchId}</span>
+                  {fTeamA && fTeamB && (
+                    <span> • {fTeamA} vs {fTeamB}</span>
+                  )}
+                </p>
+              )}
+            </div>
           </div>
           <div className="cp-header-controls" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button
@@ -1244,10 +1264,10 @@ const ControlPanel: React.FC = () => {
               className="cp-action-btn cp-small"
               style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', borderColor: 'rgba(99, 102, 241, 0.2)' }}
             >
-              Advanced Debug Log
+              Debug
             </button>
             <button className="cp-action-btn cp-pill" onClick={openHistory}>
-              <span>📚</span> View Match History
+              <span>📚</span> History
             </button>
           </div>
         </div>
@@ -1256,12 +1276,12 @@ const ControlPanel: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>LIVE AUDIENCE LINK</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '0.01em' }}>
-              {getAudienceUrl(roomId)}
+              {getAudienceUrl(roomId, matchId)}
             </span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="cp-action-btn cp-small" onClick={openAudienceUrl} style={{ background: 'rgba(255,255,255,0.05)' }}>Open Browser</button>
-            <button className="cp-glass-btn cp-small" onClick={copyAudienceUrl}>Copy Link</button>
+            <button className="cp-action-btn cp-small" onClick={openAudienceUrl} style={{ background: 'rgba(255,255,255,0.05)' }}>Open</button>
+            <button className="cp-glass-btn cp-small" onClick={copyAudienceUrl}>Copy</button>
           </div>
         </div>
       </header>

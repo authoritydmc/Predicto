@@ -17,10 +17,12 @@ export const getProdBaseUrl = () => {
     return window.OVERLAY_PROD_URL || 'https://vrccim.com';
 };
 
-export const getAudienceUrl = (roomId: string) => {
+export const getAudienceUrl = (roomId: string, matchId?: string) => {
     const mode = getAppMode();
     const base = mode === 'local' ? getLocalBaseUrl() : getProdBaseUrl();
-    return `${base}/room/${roomId.toLowerCase()}`;
+    // Use matchId if provided (new schema), otherwise fall back to roomId (legacy)
+    const id = matchId || roomId;
+    return `${base}/match/${id.toLowerCase()}`;
 };
 
 export const formatRelativeTime = (timestamp: number | string | any) => {
