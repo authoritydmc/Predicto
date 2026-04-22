@@ -527,7 +527,7 @@ const ControlPanel: React.FC = () => {
   };
 
   const updateSeasonLeaderboard = async (rid: string) => {
-    const history = await getHistory(rid);
+    const history = await getHistory(fSport, rid);
     const seasonMap = new Map<string, any>();
     Object.values(history).forEach((match: any) => {
       (match.finalStandings || []).forEach((r: any) => {
@@ -759,6 +759,8 @@ const ControlPanel: React.FC = () => {
 
   return (
     <div className="cp-shell">
+      <div className="ambient ambient-left"></div>
+      <div className="ambient ambient-right"></div>
       {/* ── Header ── */}
       <header className="cp-header">
         <div className="cp-header-main">
