@@ -1332,15 +1332,14 @@ const ControlPanel: React.FC = () => {
 
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>LIVE AUDIENCE LINK</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '0.01em' }}>
-              {getAudienceUrl(roomId, matchId)}
+            <span style={{ fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>MATCH CODE</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '0.01em', fontFamily: 'monospace' }}>
+              {matchId || 'No match selected'}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="cp-action-btn cp-small" onClick={openAudienceUrl} style={{ background: 'rgba(255,255,255,0.05)' }}>Open</button>
-            <button className="cp-glass-btn cp-small" onClick={copyAudienceUrl}>Copy</button>
-          </div>
+          <button className="cp-primary-btn cp-small" onClick={copyAudienceUrl}>
+            Share Link
+          </button>
         </div>
       </header>
 

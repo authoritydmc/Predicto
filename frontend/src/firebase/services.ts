@@ -1,4 +1,4 @@
-import { ref, push, set, serverTimestamp, get } from 'firebase/database';
+import { ref, push, set, update, serverTimestamp, get } from 'firebase/database';
 import { rtdb } from './config';
 
 const dbRoot = import.meta.env.DEV ? 'local' : 'prod';
@@ -120,6 +120,94 @@ export const saveUserGlobalProfile = async (clientId: string, data: any) => {
     console.log('[Firebase] User profile saved successfully');
   } catch (error) {
     console.error('[Firebase] Error saving user profile:', error);
+    throw error;
+  }
+};
+
+// ── Auth Operations ─────────────────────────────────────────────────────────────
+export const checkUsernameAvailability = async (username: string): Promise<boolean> => {
+  try {
+    console.log('[Firebase] Checking username availability:', username);
+    const snap = await get(usernameRef(username));
+    const exists = snap.exists();
+    console.log('[Firebase] Username exists:', exists);
+    return !exists;
+  } catch (error) {
+    console.error('[Firebase] Error checking username availability:', error);
+    throw error;
+  }
+};
+
+export const createUserWithPasskey = async (username: string, clientId: string): Promise<string> => {
+  try {
+    console.log('[Firebase] Creating user with passkey:', { username, clientId });
+    // Generate a random 6-digit passkey
+    const passkey = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Save username -> clientId mapping
+    await set(usernameRef(username), {
+      clientId,
+      passkey,
+      createdAt: serverTimestamp(),
+    });
+    
+    // Save username in user profile
+    await update(userRef(clientId), {
+      username,
+      passkey,
+    });
+    
+    console.log('[Firebase] User created with passkey:', passkey);
+    return passkey;
+  } catch (error) {
+    console.error('[Firebase] Error creating user with passkey:', error);
+    throw error;
+  }
+};
+
+export const verifyUserPasskey = async (username: string, passkey: string): Promise<{ clientId: string, valid: boolean, newPasskey?: string }> => {
+  try {
+    console.log('[Firebase] Verifying user passkey:', { username, passkey });
+    const snap = await get(usernameRef(username));
+    const data = snap.val();
+    
+    if (!data) {
+      console.log('[Firebase] Username not found');
+      return { clientId: '', valid: false };
+    }
+    
+    const isValid = data.passkey === passkey;
+    console.log('[Firebase] Passkey valid:', isValid);
+    
+    if (isValid) {
+      // Generate new passkey for security
+      const newPasskey = Math.floor(100000 + Math.random() * 900000).toString();
+      console.log('[Firebase] Generating new passkey:', newPasskey);
+      
+      // Update username mapping with new passkey
+      await update(usernameRef(username), {
+        passkey: newPasskey,
+        updatedAt: serverTimestamp(),
+      });
+      
+      // Update user profile with new passkey
+      await update(userRef(data.clientId), {
+        passkey: newPasskey,
+      });
+      
+      return {
+        clientId: data.clientId,
+        valid: true,
+        newPasskey,
+      };
+    }
+    
+    return {
+      clientId: data.clientId,
+      valid: false,
+    };
+  } catch (error) {
+    console.error('[Firebase] Error verifying user passkey:', error);
     throw error;
   }
 };

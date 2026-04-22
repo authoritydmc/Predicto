@@ -5,6 +5,7 @@ import AudienceGate from './components/Gate/AudienceGate';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
+import UserAuth from './components/Auth/UserAuth';
 import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
 import './styles/App.css';
 
@@ -15,6 +16,10 @@ function App() {
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [matchStatus, setMatchStatus] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [passkey, setPasskey] = useState<string | null>(null);
+  const [showPasskey, setShowPasskey] = useState(false);
   const [clientId] = useState(() => {
     const existing = localStorage.getItem('ovr_client_id');
     if (existing) return existing;
@@ -23,12 +28,39 @@ function App() {
     return next;
   });
 
-  // Load favorite team from Firebase
+  // Load match code from localStorage on mount
   useEffect(() => {
-    console.log('[App] Loading favorite team for client:', clientId);
+    const storedMatchCode = localStorage.getItem('ovr_match_code');
+    if (storedMatchCode) {
+      console.log('[App] Found match code in localStorage:', storedMatchCode);
+      setMatchCode(storedMatchCode);
+    }
+  }, []);
+
+  // Save match code to localStorage when it changes
+  useEffect(() => {
+    if (matchCode) {
+      localStorage.setItem('ovr_match_code', matchCode);
+    } else {
+      localStorage.removeItem('ovr_match_code');
+    }
+  }, [matchCode]);
+
+  // Load user profile (username, passkey, and favorite team) from Firebase
+  useEffect(() => {
+    console.log('[App] Loading user profile for client:', clientId);
     const unsub = onValue(userRef(clientId), (snap) => {
       const data = snap.val();
       console.log('[App] User profile data:', data);
+      if (data?.username) {
+        console.log('[App] Found username:', data.username);
+        setUsername(data.username);
+        setIsAuthed(true);
+      }
+      if (data?.passkey) {
+        console.log('[App] Found passkey');
+        setPasskey(data.passkey);
+      }
       if (data?.favoriteTeam) {
         console.log('[App] Found favorite team:', data.favoriteTeam);
         setFavoriteTeam(data.favoriteTeam);
@@ -38,6 +70,14 @@ function App() {
     });
     return () => unsub();
   }, [clientId]);
+
+  const handleAuthSuccess = (authUsername: string, authClientId: string) => {
+    console.log('[App] Auth successful:', { authUsername, authClientId });
+    setUsername(authUsername);
+    setIsAuthed(true);
+    // Update localStorage with the authenticated clientId
+    localStorage.setItem('ovr_client_id', authClientId);
+  };
 
   // Save favorite team to Firebase
   const handleSelectFavoriteTeam = async (team: string) => {
@@ -160,7 +200,11 @@ function App() {
         '--team-secondary': teamColors.secondary,
       } as React.CSSProperties}
     >
-      {!favoriteTeam && (
+      {!isAuthed && (
+        <UserAuth clientId={clientId} onAuthSuccess={handleAuthSuccess} />
+      )}
+      
+      {isAuthed && !favoriteTeam && (
         <FavoriteTeamModal onSelectTeam={handleSelectFavoriteTeam} />
       )}
       
@@ -221,6 +265,24 @@ function App() {
           )}
         </div>
       </div>
+
+      {isAuthed && passkey && (
+        <div className="passkey-footer">
+          <div className="passkey-footer-content">
+            <span className="passkey-footer-label">Your Passkey:</span>
+            <div className="passkey-footer-value">
+              {showPasskey ? passkey : '••••••'}
+            </div>
+            <button 
+              className="passkey-toggle-btn"
+              onClick={() => setShowPasskey(!showPasskey)}
+              title={showPasskey ? 'Hide passkey' : 'Show passkey'}
+            >
+              {showPasskey ? '👁️' : '👁️‍🗨️'}
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
