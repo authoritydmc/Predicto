@@ -3,6 +3,13 @@
  */
 
 export const getAppMode = () => {
+    // First check window.APP_MODE (set by environment variable)
+    // @ts-ignore
+    if (window.APP_MODE) {
+        // @ts-ignore
+        return window.APP_MODE;
+    }
+    // Fall back to URL search params
     const params = new URLSearchParams(window.location.search);
     return params.get('appMode') || 'prod';
 };
