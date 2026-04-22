@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { onValue } from 'firebase/database';
-import { discoveryRef, metaRef, userRef } from './firebase/services';
+import { discoveryRef, metaRef } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
+import { getTeamLogoUrl } from './utils/teamLogos';
 import './styles/App.css';
 
 function App() {
@@ -80,6 +81,13 @@ function App() {
         {favoriteTeam && (
           <section className="panel favorite-team-panel">
             <div className="favorite-team-display">
+              {getTeamLogoUrl(favoriteTeam) && (
+                <img 
+                  src={getTeamLogoUrl(favoriteTeam)!} 
+                  alt={favoriteTeam}
+                  className="favorite-team-logo"
+                />
+              )}
               <div className="favorite-team-info">
                 <p className="favorite-team-label">Your Favorite Team</p>
                 <h3 className="favorite-team-name">{favoriteTeam}</h3>

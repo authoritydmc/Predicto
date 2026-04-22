@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, matchMetaRef, matchPredictionsRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
 import { getTeamTheme } from '../utils/shared';
-import '../styles/legacy.css';
+import { getTeamLogoUrl } from '../utils/teamLogos';
+import '../styles/overlay-ticker.css';
 
 const OverlayWindow: React.FC = () => {
   const [roomId, setRoomId] = useState('ipl');
@@ -71,13 +72,29 @@ const OverlayWindow: React.FC = () => {
 
       <main className="predictions-ribbon">
         <div className="overlay-ribbon-header">
-           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
              <span className="badge-mini" style={{ background: 'rgba(255,255,255,0.1)', fontSize: 9 }}>{sport.toUpperCase()}</span>
              <span>{meta.matchTitle || 'Live Predictions'}</span>
            </div>
-          <span className="team-badge" style={{ background: 'rgba(255,255,255,0.2)' }}>
-            {meta.secondInnings ? '2nd Innings' : '1st Innings'}
-          </span>
+           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+             {getTeamLogoUrl(teamA, '../desktop/assets/team-logos') && (
+               <img 
+                 src={getTeamLogoUrl(teamA, '../desktop/assets/team-logos')!} 
+                 alt={teamA}
+                 style={{ width: 24, height: 24, objectFit: 'contain' }}
+               />
+             )}
+             <span className="team-badge" style={{ background: 'rgba(255,255,255,0.2)' }}>
+               {meta.secondInnings ? '2nd Innings' : '1st Innings'}
+             </span>
+             {getTeamLogoUrl(teamB, '../desktop/assets/team-logos') && (
+               <img 
+                 src={getTeamLogoUrl(teamB, '../desktop/assets/team-logos')!} 
+                 alt={teamB}
+                 style={{ width: 24, height: 24, objectFit: 'contain' }}
+               />
+             )}
+           </div>
         </div>
 
         {meta.showWinProb && (

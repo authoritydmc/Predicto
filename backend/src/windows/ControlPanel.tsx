@@ -7,6 +7,7 @@ import {
   matchPredictionsRef
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
+import { getTeamLogoUrl } from '../utils/teamLogos';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const normalizeRoomId = (v: string) =>
@@ -847,11 +848,29 @@ const ControlPanel: React.FC = () => {
               <div className="cp-dual-row">
                 <div className="cp-form-row">
                   <label>Home Team</label>
-                  <input id="teamA" value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
+                  <div className="cp-input-action-group">
+                    <input id="teamA" value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
+                    {getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos') && (
+                      <img 
+                        src={getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos')!} 
+                        alt={fTeamA}
+                        style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="cp-form-row">
                   <label>Away Team</label>
-                  <input id="teamB" value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
+                  <div className="cp-input-action-group">
+                    <input id="teamB" value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
+                    {getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos') && (
+                      <img 
+                        src={getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos')!} 
+                        alt={fTeamB}
+                        style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="cp-form-row">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, matchMetaRef, matchPredictionsRef, matchChatRef, onValue, isFirebaseConfigured, query, limitToLast } from '../firebase/db';
 import { getTeamTheme } from '../utils/shared';
-import '../styles/legacy.css';
+import '../styles/overlay-ticker.css';
 
 const MESSAGE_EXPIRY = 60000;
 

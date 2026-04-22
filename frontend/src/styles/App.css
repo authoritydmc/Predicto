@@ -2093,13 +2093,14 @@ body.desktop-embed .join-card {
 .favorite-team-display {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   padding: 8px;
 }
 
 .favorite-team-logo {
-  width: 120px;
-  height: 120px;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
   flex-shrink: 0;
 }
 

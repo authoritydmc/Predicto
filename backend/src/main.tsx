@@ -7,8 +7,8 @@ import TickerWindow from './windows/TickerWindow';
 import ReactionWindow from './windows/ReactionWindow';
 import DebugWindow from './windows/DebugWindow';
 import './styles/global.css';
-import './styles/control.css';
-import './styles/legacy.css';
+import './styles/control-panel.css';
+import './styles/overlay-ticker.css';
 import initLogger from './utils/logger';
 
 // Auto-detect window name from hash
