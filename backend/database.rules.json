@@ -1,59 +1,121 @@
 {
   "rules": {
-    "rooms": {
-      "$roomId": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "predictions": {
-      "$roomId": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "prediction_history": {
-      "$roomId": {
+    ".read": true,
+    ".write": true,
+    "local": {
+      ".read": true,
+      ".write": true,
+      "tournaments": {
+        "$sport": {
+          "$tournamentId": {
+            ".read": true,
+            ".write": true,
+            "meta": {
+              ".read": true,
+              ".write": true
+            },
+            "predictions": {
+              ".read": true,
+              ".write": true
+            },
+            "chat": {
+              ".read": true,
+              ".write": true
+            },
+            "reactions": {
+              ".read": true,
+              ".write": true
+            },
+            "history": {
+              ".read": true,
+              ".write": true
+            },
+            "innings_history": {
+              ".read": true,
+              ".write": true
+            },
+            "season_leaderboard": {
+              ".read": true,
+              ".write": true
+            }
+          }
+        }
+      },
+      "discovery": {
+        "$roomId": {
+          ".read": true,
+          ".write": true
+        }
+      },
+      "users": {
         "$clientId": {
+          ".read": true,
+          ".write": true
+        }
+      },
+      "active_sessions": {
+        "$roomId": {
           ".read": true,
           ".write": true
         }
       }
     },
-    "match_history": {
-      "$roomId": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "season_leaderboard": {
-      "$roomId": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "users": {
-      "$clientId": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "chat": {
-      "$roomId": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "reactions": {
-      "$roomId": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    "active_sessions": {
-      "$roomId": {
-        ".read": true,
-        ".write": true
+    "prod": {
+      ".read": true,
+      ".write": true,
+      "tournaments": {
+        "$sport": {
+          "$tournamentId": {
+            ".read": true,
+            ".write": true,
+            "meta": {
+              ".read": true,
+              ".write": true
+            },
+            "predictions": {
+              ".read": true,
+              ".write": true
+            },
+            "chat": {
+              ".read": true,
+              ".write": true
+            },
+            "reactions": {
+              ".read": true,
+              ".write": true
+            },
+            "history": {
+              ".read": true,
+              ".write": true
+            },
+            "innings_history": {
+              ".read": true,
+              ".write": true
+            },
+            "season_leaderboard": {
+              ".read": true,
+              ".write": true
+            }
+          }
+        }
+      },
+      "discovery": {
+        "$roomId": {
+          ".read": true,
+          ".write": true
+        }
+      },
+      "users": {
+        "$clientId": {
+          ".read": true,
+          ".write": true
+        }
+      },
+      "active_sessions": {
+        "$roomId": {
+          ".read": true,
+          ".write": true
+        }
       }
     }
   }
