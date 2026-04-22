@@ -165,7 +165,7 @@ export const createUserWithPasskey = async (username: string, clientId: string):
   }
 };
 
-export const verifyUserPasskey = async (username: string, passkey: string): Promise<{ clientId: string, valid: boolean, newPasskey?: string }> => {
+export const verifyUserPasskey = async (username: string, passkey: string): Promise<{ clientId: string, valid: boolean }> => {
   try {
     console.log('[Firebase] Verifying user passkey:', { username, passkey });
     const snap = await get(usernameRef(username));
@@ -179,35 +179,38 @@ export const verifyUserPasskey = async (username: string, passkey: string): Prom
     const isValid = data.passkey === passkey;
     console.log('[Firebase] Passkey valid:', isValid);
     
-    if (isValid) {
-      // Generate new passkey for security
-      const newPasskey = Math.floor(100000 + Math.random() * 900000).toString();
-      console.log('[Firebase] Generating new passkey:', newPasskey);
-      
-      // Update username mapping with new passkey
-      await update(usernameRef(username), {
-        passkey: newPasskey,
-        updatedAt: serverTimestamp(),
-      });
-      
-      // Update user profile with new passkey
-      await update(userRef(data.clientId), {
-        passkey: newPasskey,
-      });
-      
-      return {
-        clientId: data.clientId,
-        valid: true,
-        newPasskey,
-      };
-    }
-    
     return {
       clientId: data.clientId,
-      valid: false,
+      valid: isValid,
     };
   } catch (error) {
     console.error('[Firebase] Error verifying user passkey:', error);
+    throw error;
+  }
+};
+
+export const rotatePasskey = async (username: string, clientId: string): Promise<string> => {
+  try {
+    console.log('[Firebase] Rotating passkey for user:', { username, clientId });
+    // Generate new passkey
+    const newPasskey = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log('[Firebase] Generated new passkey:', newPasskey);
+    
+    // Update username mapping with new passkey
+    await update(usernameRef(username), {
+      passkey: newPasskey,
+      updatedAt: serverTimestamp(),
+    });
+    
+    // Update user profile with new passkey
+    await update(userRef(clientId), {
+      passkey: newPasskey,
+    });
+    
+    console.log('[Firebase] Passkey rotated successfully');
+    return newPasskey;
+  } catch (error) {
+    console.error('[Firebase] Error rotating passkey:', error);
     throw error;
   }
 };

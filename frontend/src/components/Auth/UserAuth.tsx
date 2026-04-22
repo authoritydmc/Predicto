@@ -69,15 +69,7 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
     try {
       const result = await verifyUserPasskey(username, passkey);
       if (result.valid) {
-        if (result.newPasskey) {
-          setGeneratedPasskey(result.newPasskey);
-          // Auto-login after showing new passkey
-          setTimeout(() => {
-            onAuthSuccess(username, result.clientId);
-          }, 3000);
-        } else {
-          onAuthSuccess(username, result.clientId);
-        }
+        onAuthSuccess(username, result.clientId);
       } else {
         setError('Invalid passkey. Please try again.');
       }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onValue, get } from 'firebase/database';
-import { matchDiscoveryRef, metaRef, matchMetaRef, userRef, saveUserGlobalProfile } from './firebase/services';
+import { matchDiscoveryRef, metaRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
@@ -27,6 +27,17 @@ function App() {
     localStorage.setItem('ovr_client_id', next);
     return next;
   });
+
+  // Load auth state from localStorage on mount
+  useEffect(() => {
+    const storedUsername = localStorage.getItem('ovr_username');
+    const storedIsAuthed = localStorage.getItem('ovr_is_authed');
+    if (storedUsername && storedIsAuthed === 'true') {
+      console.log('[App] Found auth state in localStorage:', storedUsername);
+      setUsername(storedUsername);
+      setIsAuthed(true);
+    }
+  }, []);
 
   // Load match code from localStorage on mount
   useEffect(() => {
@@ -75,8 +86,23 @@ function App() {
     console.log('[App] Auth successful:', { authUsername, authClientId });
     setUsername(authUsername);
     setIsAuthed(true);
-    // Update localStorage with the authenticated clientId
+    // Save auth state to localStorage
+    localStorage.setItem('ovr_username', authUsername);
+    localStorage.setItem('ovr_is_authed', 'true');
     localStorage.setItem('ovr_client_id', authClientId);
+  };
+
+  const handleRotatePasskey = async () => {
+    if (!username || !clientId) return;
+    try {
+      const newPasskey = await rotatePasskey(username, clientId);
+      setPasskey(newPasskey);
+      setShowPasskey(true);
+      alert('New passkey generated! Save it for login on other devices.');
+    } catch (error) {
+      console.error('[App] Error rotating passkey:', error);
+      alert('Error generating new passkey. Please try again.');
+    }
   };
 
   // Save favorite team to Firebase
@@ -279,6 +305,13 @@ function App() {
               title={showPasskey ? 'Hide passkey' : 'Show passkey'}
             >
               {showPasskey ? '👁️' : '👁️‍🗨️'}
+            </button>
+            <button 
+              className="passkey-rotate-btn"
+              onClick={handleRotatePasskey}
+              title="Generate new passkey"
+            >
+              🔄
             </button>
           </div>
         </div>
