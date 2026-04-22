@@ -149,6 +149,7 @@ function App() {
         const matchMeta = matchMetaSnap.val();
         if (matchMeta && matchMeta.status) {
           setMatchStatus(matchMeta.status);
+          console.log('[App] Match status:', matchMeta.status);
           // Only block if match is done, allow live and scheduled matches
           if (matchMeta.status === 'done') {
             alert('This match has ended. You cannot join completed matches.');
@@ -158,6 +159,7 @@ function App() {
         } else {
           // If no status set, assume it's live (backward compatibility)
           setMatchStatus('live');
+          console.log('[App] Match status: live (default)');
         }
       } catch (error) {
         console.error('[App] Error fetching match status:', error);
@@ -242,6 +244,11 @@ function App() {
                  {tournamentContext.sport.toUpperCase()}
                </span>
                <span>Room: <strong id="roomBadge">{matchCode}</strong></span>
+               {matchStatus && (
+                 <span className="badge-mini" style={{ background: matchStatus === 'live' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: matchStatus === 'live' ? '#10b981' : '#f59e0b', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>
+                   {matchStatus.toUpperCase()}
+                 </span>
+               )}
             </div>
             <span id="matchBadge">{activeMatch ? `Active: ${activeMatch}` : 'Waiting for host...'}</span>
           </div>
