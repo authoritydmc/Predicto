@@ -1,13 +1,29 @@
 import { useState, FormEvent, useEffect } from 'react';
-import { chatRef, sendChatMessage } from '../../firebase/services';
+import { chatRef, sendChatMessage, userRef } from '../../firebase/services';
 import { onValue, query, limitToLast } from 'firebase/database';
 
-export default function ChatPanel({ matchId }: { matchId: string }) {
+interface ChatPanelProps {
+  sport: string;
+  id: string;
+  clientId: string;
+}
+
+export default function ChatPanel({ sport, id, clientId }: ChatPanelProps) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
+  const [userName, setUserName] = useState('Audience Member');
 
+  // Load User Profile
   useEffect(() => {
-    const q = query(chatRef(matchId), limitToLast(30));
+    return onValue(userRef(clientId), (snap) => {
+      const data = snap.val();
+      if (data?.name) setUserName(data.name);
+    });
+  }, [clientId]);
+
+  // Subscribe to Chat
+  useEffect(() => {
+    const q = query(chatRef(sport, id), limitToLast(30));
     const unsubscribe = onValue(q, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -18,15 +34,15 @@ export default function ChatPanel({ matchId }: { matchId: string }) {
     });
 
     return () => unsubscribe();
-  }, [matchId]);
+  }, [sport, id]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (message.trim()) {
-      await sendChatMessage(matchId, {
-        name: "Audience Member", // Mock user identity until auth logic is added
+      await sendChatMessage(sport, id, {
+        name: userName,
         message: message,
-        clientId: "temp-client",
+        clientId: clientId,
       });
       setMessage('');
     }
@@ -36,10 +52,10 @@ export default function ChatPanel({ matchId }: { matchId: string }) {
     <section className="panel">
       <div className="panel-header">
         <div>
-          <p className="panel-kicker">Live Chat</p>
-          <h2>Chat with the audience</h2>
+          <p className="panel-kicker">Live Chat • {sport.toUpperCase()}</p>
+          <h2>Community Discussion</h2>
         </div>
-        <span className="status-pill neutral">Listening</span>
+        <span className="status-pill neutral">Active</span>
       </div>
 
       <form onSubmit={handleSubmit} className="chat-compose">
@@ -49,12 +65,12 @@ export default function ChatPanel({ matchId }: { matchId: string }) {
             onChange={(e) => setMessage(e.target.value)}
             rows={1}
             maxLength={200}
-            placeholder="Back your team here..."
+            placeholder="Share your thoughts..."
             required
           />
           <div className="chat-actions">
             <button type="submit" className="send-btn" title="Send Message">
-              <i className="fa-solid fa-paper-plane"></i> Send
+              Send
             </button>
           </div>
         </div>
@@ -67,7 +83,7 @@ export default function ChatPanel({ matchId }: { matchId: string }) {
             <div className="chat-msg-content"><p>{msg.message}</p></div>
           </article>
         ))}
-        {messages.length === 0 && <div className="empty-state">No chat yet.</div>}
+        {messages.length === 0 && <div className="empty-state">No chat yet. Start the conversation!</div>}
       </div>
     </section>
   );

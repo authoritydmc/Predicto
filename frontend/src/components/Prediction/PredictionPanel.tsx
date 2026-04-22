@@ -1,22 +1,41 @@
-import { useState, FormEvent } from 'react';
-import { savePrediction } from '../../firebase/services';
+import { useState, FormEvent, useEffect } from 'react';
+import { savePrediction, saveUserGlobalProfile, userRef } from '../../firebase/services';
+import { onValue } from 'firebase/database';
 
-export default function PredictionPanel({ matchId, sportType }: { matchId: string; sportType: string }) {
+interface PredictionPanelProps {
+  sport: string;
+  id: string;
+  clientId: string;
+}
+
+export default function PredictionPanel({ sport, id, clientId }: PredictionPanelProps) {
   const [name, setName] = useState('');
   const [winner, setWinner] = useState('');
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
 
+  // Sync with Global Profile
+  useEffect(() => {
+    return onValue(userRef(clientId), (snap) => {
+      const data = snap.val();
+      if (data?.name) setName(data.name);
+    });
+  }, [clientId]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (matchId && name.trim()) {
-      await savePrediction(matchId, "temp-client", {
-        userId: "temp-client",
+    if (clientId && name.trim()) {
+      // 1. Save global profile (to remember name for chat/other matches)
+      await saveUserGlobalProfile(clientId, { name });
+
+      // 2. Save prediction for this specific match
+      await savePrediction(sport, id, clientId, {
+        userId: clientId,
         name: name,
-        winner: winner,
+        predictedWinner: winner,
         scoreA: scoreA,
         scoreB: scoreB,
-        sportType: sportType
+        sportType: sport
       });
       alert('Prediction submitted!');
     }
@@ -26,7 +45,7 @@ export default function PredictionPanel({ matchId, sportType }: { matchId: strin
     <section className="panel">
       <div className="panel-header">
         <div>
-          <p className="panel-kicker">Prediction • {sportType}</p>
+          <p className="panel-kicker">Predict & Win • {sport.toUpperCase()}</p>
           <h2>Submit your call</h2>
         </div>
         <span className="status-pill status-live">Live</span>
@@ -40,6 +59,7 @@ export default function PredictionPanel({ matchId, sportType }: { matchId: strin
             onChange={e => setName(e.target.value)}
             maxLength={30}
             required
+            placeholder="Display name..."
           />
         </label>
 
@@ -54,22 +74,22 @@ export default function PredictionPanel({ matchId, sportType }: { matchId: strin
 
         <div className="dual-row">
           <label>
-            Team A Score
+            Team A Forecast
             <input
-              type={sportType === 'cricket' ? 'text' : 'number'}
+              type={sport === 'cricket' ? 'text' : 'number'}
               value={scoreA}
               onChange={e => setScoreA(e.target.value)}
-              placeholder={sportType === 'cricket' ? "e.g. 185/4" : "0"}
+              placeholder={sport === 'cricket' ? "e.g. 185/4" : "0"}
               required
             />
           </label>
           <label>
-            Team B Score
+            Team B Forecast
             <input
-              type={sportType === 'cricket' ? 'text' : 'number'}
+              type={sport === 'cricket' ? 'text' : 'number'}
               value={scoreB}
               onChange={e => setScoreB(e.target.value)}
-              placeholder={sportType === 'cricket' ? "e.g. 180/8" : "0"}
+              placeholder={sport === 'cricket' ? "e.g. 180/8" : "0"}
               required
             />
           </label>

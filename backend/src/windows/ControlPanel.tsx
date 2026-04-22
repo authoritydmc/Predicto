@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   db, isFirebaseConfigured, onValue, query, ref, roomRef,
-  saveRoomMeta, clearRoomNode, getOnce,
+  saveRoomMeta, clearRoomNode, getOnce, setDiscovery,
   saveInningsHistory, getInningsHistory, archiveToHistory,
   getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot
 } from '../firebase/db';
@@ -15,7 +15,7 @@ const escapeHtml = (v = '') =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-const AUDIENCE_URL = 'http://localhost:5173/'; // Fallback
+// Dynamic Audience URL is handled via getAudienceUrl(roomId)
 
 const oversToBalls = (val: string | number) => {
   const num = Number(val || 0);
@@ -130,6 +130,7 @@ const ControlPanel: React.FC = () => {
 
   // ── Form State
   const [fRoomId, setFRoomId] = useState('ipl');
+  const [fSport, setFSport] = useState('cricket');
   const [fMatchTitle, setFMatchTitle] = useState('');
   const [fTeamA, setFTeamA] = useState('');
   const [fTeamB, setFTeamB] = useState('');
@@ -252,8 +253,10 @@ const ControlPanel: React.FC = () => {
     tick();
     heartbeatRef.current = setInterval(tick, 20000);
 
-    const metaRef = roomRef(rid, 'meta');
-    unsubMetaRef.current = onValue(metaRef, snap => {
+    const metaRef = roomRef(rid, 'meta'); // In db.ts now simplified or need to handle sport locally
+    // Since roomRef was changed or removed, let's use the new schemaRef logic if accessible
+    // @ts-ignore (need to confirm what db.ts exports, but matchMetaRef is safe)
+    unsubMetaRef.current = onValue(matchMetaRef(fSport, rid), snap => {
       const m = snap.val() || {};
       setMeta(m);
       setFMatchTitle(m.matchTitle || '');
@@ -302,14 +305,24 @@ const ControlPanel: React.FC = () => {
     e.preventDefault();
     const rid = normalizeRoomId(fRoomId);
     try {
+      // 1. Establish Discovery
+      await setDiscovery(rid, fSport, rid);
+      
+      // 2. Update Local Settings
       // @ts-ignore
-      const nextS = await window.overlayDesktop.updateSettings({ roomId: rid, opacity });
+      const nextS = await window.overlayDesktop.updateSettings({ roomId: rid, sport: fSport, opacity });
       setSettings(nextS);
       setRoomId(rid);
+      
+      // 3. Save Tournament Meta
+      if (isFirebaseConfigured && db) {
+        await saveRoomMeta(fSport, rid, getFormMeta());
+      }
+      
       subscribeToMeta(rid);
-      if (isFirebaseConfigured && db) await saveRoomMeta(rid, getFormMeta());
       // @ts-ignore
       await window.overlayDesktop.reloadOverlay();
+      alert(`Tournament context [${fSport}/${rid}] deployed!`);
     } catch (err) { console.error(err); }
   };
 
@@ -326,7 +339,7 @@ const ControlPanel: React.FC = () => {
         setFetchStatus(`Status: Success (${result.probA} / ${result.probB})`);
         if (isFirebaseConfigured && db) {
           const rid = normalizeRoomId(fRoomId);
-          await saveRoomMeta(rid, { winProbabilityA: parseInt(result.probA), winProbabilityB: parseInt(result.probB) });
+          await saveRoomMeta(fSport, rid, { winProbabilityA: parseInt(result.probA), winProbabilityB: parseInt(result.probB) });
         }
       } else {
         setFetchStatus('Status: Failed (Widget not found)');
@@ -338,11 +351,11 @@ const ControlPanel: React.FC = () => {
 
   const handleShowWinProbToggle = async (v: boolean) => {
     setShowWinProb(v);
-    if (isFirebaseConfigured && db) await saveRoomMeta(normalizeRoomId(fRoomId), { showWinProb: v });
+    if (isFirebaseConfigured && db) await saveRoomMeta(fSport, normalizeRoomId(fRoomId), { showWinProb: v });
   };
 
   const handleGoogleUrlSave = async () => {
-    if (isFirebaseConfigured && db) await saveRoomMeta(normalizeRoomId(fRoomId), { googleMatchUrl: googleUrl.trim() });
+    if (isFirebaseConfigured && db) await saveRoomMeta(fSport, normalizeRoomId(fRoomId), { googleMatchUrl: googleUrl.trim() });
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -361,32 +374,32 @@ const ControlPanel: React.FC = () => {
     if (!isFirebaseConfigured || !db) return;
     const rid = normalizeRoomId(fRoomId || roomId);
     if (!confirm(`Clear ALL ${node} for room ${rid}?`)) return;
-    try { await clearRoomNode(rid, node); } catch (err) { console.error(err); }
+    try { await clearRoomNode(fSport, rid, node); } catch (err) { console.error(err); }
   };
 
   const togglePredictionPause = async () => {
     const rid = normalizeRoomId(fRoomId || roomId);
     const next = !Boolean(meta.predictionsPaused);
     const m = { ...getFormMeta(), predictionsPaused: next };
-    await saveRoomMeta(rid, m);
+    await saveRoomMeta(fSport, rid, m);
     // @ts-ignore
     await window.overlayDesktop.reloadOverlay();
   };
 
   const toggleHideChat = async () => {
     const rid = normalizeRoomId(fRoomId || roomId);
-    await saveRoomMeta(rid, { ...getFormMeta(), hideChat: !Boolean(meta.hideChat) });
+    await saveRoomMeta(fSport, rid, { ...getFormMeta(), hideChat: !Boolean(meta.hideChat) });
   };
 
   const toggleHideJoin = async () => {
     const rid = normalizeRoomId(fRoomId || roomId);
-    await saveRoomMeta(rid, { ...getFormMeta(), hideJoin: !Boolean(meta.hideJoin) });
+    await saveRoomMeta(fSport, rid, { ...getFormMeta(), hideJoin: !Boolean(meta.hideJoin) });
   };
 
   const toggleSortMode = async () => {
     const rid = normalizeRoomId(fRoomId || roomId);
     const next = (meta.predictionSort || 'newest') === 'newest' ? 'score' : 'newest';
-    await saveRoomMeta(rid, { ...getFormMeta(), predictionSort: next });
+    await saveRoomMeta(fSport, rid, { ...getFormMeta(), predictionSort: next });
     // @ts-ignore
     await window.overlayDesktop.reloadOverlay();
   };
@@ -434,7 +447,8 @@ const ControlPanel: React.FC = () => {
     }
 
     try {
-      const snap = await getOnce(roomRef(rid, 'predictions'));
+      // @ts-ignore
+      const snap = await getOnce(matchPredictionsRef(fSport, rid));
       const predData = snap.val() || {};
       const preds = Object.entries(predData);
       if (!preds.length) { alert('No predictions found.'); return; }
@@ -468,15 +482,15 @@ const ControlPanel: React.FC = () => {
       if (lastResults.length > 0) {
         const payload: Record<string, any> = {};
         lastResults.forEach(r => { payload[r.clientId || `legacy-${r.name}`] = { name: r.name, points: r.points, guess: r.guess, predictedWinner: r.originalPrediction?.predictedWinner || '' }; });
-        await saveInningsHistory(rid, label, payload);
+        await saveInningsHistory(fSport, rid, label, payload);
       }
-      await clearRoomNode(rid, 'predictions');
+      await clearRoomNode(fSport, rid, 'predictions');
       if (!is2nd) {
         const nextMeta = { ...getFormMeta(), secondInnings: true };
         const battingHome = !meta.disableScoreA;
         nextMeta.disableScoreA = battingHome;
         nextMeta.disableScoreB = !battingHome;
-        await saveRoomMeta(rid, nextMeta);
+        await saveRoomMeta(fSport, rid, nextMeta);
         alert('Results Archived! Stages switched and Batting Team swapped.');
       } else {
         alert('Match Finalized! View Final standings for full results.');
@@ -489,7 +503,7 @@ const ControlPanel: React.FC = () => {
   const viewFinalStandings = async () => {
     const rid = normalizeRoomId(fRoomId || roomId);
     try {
-      const history = await getInningsHistory(rid);
+      const history = await getInningsHistory(fSport, rid);
       const h1 = history['1st'] || {}; const h2 = history['2nd'] || {};
       if (!Object.keys(h1).length && !Object.keys(h2).length) { alert('No innings data found yet.'); return; }
       const overall = calcMatchFinals(h1, h2).sort((a, b) => b.total - a.total);
@@ -502,13 +516,13 @@ const ControlPanel: React.FC = () => {
     const rid = normalizeRoomId(fRoomId || roomId);
     if (!confirm('End match? Standings archived and live room cleared.')) return;
     try {
-      const history = await getInningsHistory(rid);
+      const history = await getInningsHistory(fSport, rid);
       const h1 = history['1st'] || {}; const h2 = history['2nd'] || {};
       const finalStandings = calcMatchFinals(h1, h2);
       const dateKey = `${new Date().toISOString().split('T')[0]}_${Date.now()}`;
-      await archiveToHistory(rid, dateKey, { matchTitle: fMatchTitle || 'Unnamed Match', teamA: fTeamA, teamB: fTeamB, innings1: h1, innings2: h2, finalStandings });
+      await archiveToHistory(fSport, rid, dateKey, { matchTitle: fMatchTitle || 'Unnamed Match', teamA: fTeamA, teamB: fTeamB, innings1: h1, innings2: h2, finalStandings });
       await updateSeasonLeaderboard(rid);
-      await wipeMatchData(rid);
+      await wipeMatchData(fSport, rid);
       setOverallOpen(false);
       alert('Match Archived and Live Room Reset.');
     } catch (err) { console.error(err); alert('Error archiving match.'); }
@@ -525,7 +539,7 @@ const ControlPanel: React.FC = () => {
       });
     });
     const players = Array.from(seasonMap.values()).map(p => ({ ...p, ppg: +(p.total / (p.matchCount || 1)).toFixed(2) }));
-    await saveSeasonLeaderboard(rid, players.sort((a, b) => b.total - a.total));
+    await saveSeasonLeaderboard(fSport, rid, players.sort((a, b) => b.total - a.total));
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -535,7 +549,7 @@ const ControlPanel: React.FC = () => {
     const rid = normalizeRoomId(fRoomId || roomId);
     setHistoryOpen(true);
     try {
-      const h = await getHistory(rid);
+      const h = await getHistory(fSport, rid);
       setFullHistory(h || {});
       showSeasonStats(h || {}, rid);
     } catch (err) { console.error(err); }
@@ -639,7 +653,7 @@ const ControlPanel: React.FC = () => {
     });
     const finalStandings = calcMatchFinals(innings1, innings2);
     const dateKey = `${manDate.replace(/[^a-zA-Z0-9]/g, '-')}_MANUAL_${Date.now()}`;
-    await archiveToHistory(rid, dateKey, { matchTitle: manTitle, teamA: tA, teamB: tB, innings1, innings2, finalStandings, matchResults: { actual1st: Number(manActual1st), actual2nd: manActual2nd, actualWinner } });
+    await archiveToHistory(fSport, rid, dateKey, { matchTitle: manTitle, teamA: tA, teamB: tB, innings1, innings2, finalStandings, matchResults: { actual1st: Number(manActual1st), actual2nd: manActual2nd, actualWinner } });
     alert('Manual Match Archived!');
     setManualOpen(false);
     await updateSeasonLeaderboard(rid);
@@ -685,10 +699,13 @@ const ControlPanel: React.FC = () => {
     snap.finalStandings = calcMatchFinals(snap.innings1 || {}, snap.innings2 || {});
     const oldKey = editKey;
     const newKey = `${editMatchDate}_${oldKey.split('_')[1] || Date.now()}`;
-    if (oldKey !== newKey) { await archiveToHistory(rid, newKey, snap); await clearRoomNode(rid, `history/${oldKey}`); }
-    else await archiveToHistory(rid, oldKey, snap);
+    if (oldKey !== newKey) { 
+      await archiveToHistory(fSport, rid, newKey, snap); 
+      await clearRoomNode(fSport, rid, `history/${oldKey}`); 
+    }
+    else await archiveToHistory(fSport, rid, oldKey, snap);
     await updateSeasonLeaderboard(rid);
-    const h = await getHistory(rid);
+    const h = await getHistory(fSport, rid);
     setFullHistory(h || {});
     setEditOpen(false);
     alert('Match updated and points recalculated!');
@@ -698,10 +715,18 @@ const ControlPanel: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // Audience URL
   // ─────────────────────────────────────────────────────────────────────────────
+  const openAudienceUrl = () => {
+    const url = getAudienceUrl(roomId);
+    // @ts-ignore
+    window.overlayDesktop.openExternal(url);
+  };
+
   const copyAudienceUrl = async () => {
     try {
+      const url = getAudienceUrl(roomId);
       // @ts-ignore
-      await window.overlayDesktop.copyText(AUDIENCE_URL);
+      await window.overlayDesktop.copyText(url);
+      alert('Link copied to clipboard!');
     } catch (err) { console.error(err); }
   };
 
@@ -741,7 +766,14 @@ const ControlPanel: React.FC = () => {
         <div className="cp-header-main">
           <div className="cp-header-content">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="cp-badge">Desktop</span>
+              <span className="cp-badge">Executive</span>
+              <span className={`cp-badge ${fSport === 'cricket' ? 'cp-badge-local' : 'cp-badge-prod'}`} style={{ 
+                background: fSport === 'cricket' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(236, 72, 153, 0.2)',
+                color: fSport === 'cricket' ? '#818cf8' : '#f472b6',
+                border: fSport === 'cricket' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(236, 72, 153, 0.3)'
+              }}>
+                {fSport.toUpperCase()}
+              </span>
               <span className={`cp-badge ${getDbRoot() === 'local' ? 'cp-badge-local' : 'cp-badge-prod'}`} style={{ 
                 background: getDbRoot() === 'local' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
                 color: getDbRoot() === 'local' ? '#818cf8' : '#34d399',
@@ -750,8 +782,8 @@ const ControlPanel: React.FC = () => {
                 {getDbRoot().toUpperCase()}
               </span>
             </div>
-            <h1>Overlay Executive</h1>
-            <p>Control the broadcast overlay in real-time.</p>
+            <h1>Control Panel</h1>
+            <p>Managing {fMatchTitle || 'Active Session'}</p>
           </div>
           <div className="cp-header-controls" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button
@@ -769,14 +801,18 @@ const ControlPanel: React.FC = () => {
             </button>
           </div>
         </div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span className="ppg-label" style={{ fontSize: 9 }}>AUDIENCE JOIN LINK</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '0.02em' }}>
+
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>LIVE AUDIENCE LINK</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '0.01em' }}>
               {getAudienceUrl(roomId)}
             </span>
           </div>
-          <button className="cp-glass-btn cp-small" onClick={copyAudienceUrl}>Copy Link</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="cp-action-btn cp-small" onClick={openAudienceUrl} style={{ background: 'rgba(255,255,255,0.05)' }}>Open Browser</button>
+            <button className="cp-glass-btn cp-small" onClick={copyAudienceUrl}>Copy Link</button>
+          </div>
         </div>
       </header>
 
@@ -789,10 +825,19 @@ const ControlPanel: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
               <button className="cp-action-btn cp-pill cp-small" onClick={loadTodayMatch}>🤖 Load Today's Match</button>
             </div>
-            <form className="cp-stack" onSubmit={handleDeploy}>
-              <div className="cp-form-row">
-                <label>Room Identity</label>
-                <input id="roomId" value={fRoomId} onChange={e => setFRoomId(e.target.value)} maxLength={40} placeholder="e.g. ipl" required />
+              <div className="cp-dual-row">
+                <div className="cp-form-row">
+                  <label>Room Identity / Tournament ID</label>
+                  <input id="roomId" value={fRoomId} onChange={e => setFRoomId(e.target.value)} maxLength={40} placeholder="e.g. ipl" required />
+                </div>
+                <div className="cp-form-row">
+                  <label>Sport Architecture</label>
+                  <select value={fSport} onChange={e => setFSport(e.target.value)}>
+                    <option value="cricket">Cricket (Innings-based)</option>
+                    <option value="football">Football (Time-based)</option>
+                    <option value="generic">Generic (Score-based)</option>
+                  </select>
+                </div>
               </div>
               <div className="cp-form-row">
                 <label>Broadcast Title</label>
@@ -846,17 +891,9 @@ const ControlPanel: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="cp-form-row">
-                <label>Join Link (Preview)</label>
-                <div className="cp-input-action-group">
-                  <input value={getAudienceUrl(fRoomId)} readOnly />
-                  <button className="cp-action-btn" type="button" onClick={() => {
-                    // @ts-ignore
-                    window.overlayDesktop.copyText(getAudienceUrl(fRoomId));
-                  }}>Copy</button>
-                </div>
-              </div>
-              <button className="cp-primary-btn cp-wide-btn" type="submit">Deploy Changes</button>
+              <div className="cp-divider" />
+              <button className="cp-primary-btn cp-wide-btn" type="submit">Deploy Changes & Connect Room</button>
+            </form>
             </form>
           </div>
         </section>

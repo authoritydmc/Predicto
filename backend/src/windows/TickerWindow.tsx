@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, roomRef, onValue, isFirebaseConfigured, query, limitToLast } from '../firebase/db';
-import { getTeamTheme, escapeHtml } from '../utils/shared';
+import { db, matchMetaRef, matchPredictionsRef, matchChatRef, onValue, isFirebaseConfigured, query, limitToLast } from '../firebase/db';
+import { getTeamTheme } from '../utils/shared';
 import '../styles/legacy.css';
 
 const MESSAGE_EXPIRY = 60000;
 
 const TickerWindow: React.FC = () => {
   const [roomId, setRoomId] = useState('ipl');
+  const [sport, setSport] = useState('cricket');
   const [meta, setMeta] = useState<any>({});
   const [predictions, setPredictions] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
@@ -15,12 +16,14 @@ const TickerWindow: React.FC = () => {
   useEffect(() => {
     // @ts-ignore
     window.overlayDesktop.getSettings().then((s: any) => {
-      setRoomId(s.roomId || 'ipl');
+      if (s.roomId) setRoomId(s.roomId);
+      if (s.sport) setSport(s.sport);
     });
 
     // @ts-ignore
     window.overlayDesktop.onSettingsChanged((s: any) => {
       if (s.roomId) setRoomId(s.roomId);
+      if (s.sport) setSport(s.sport);
     });
 
     const timer = setInterval(() => setNow(Date.now()), 10000);
@@ -30,13 +33,13 @@ const TickerWindow: React.FC = () => {
   useEffect(() => {
     if (!isFirebaseConfigured || !db || !roomId) return;
 
-    const unsubMeta = onValue(roomRef(roomId, 'meta'), snap => setMeta(snap.val() || {}));
-    const unsubPreds = onValue(roomRef(roomId, 'predictions'), snap => {
+    const unsubMeta = onValue(matchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
+    const unsubPreds = onValue(matchPredictionsRef(sport, roomId), snap => {
       const data = snap.val() || {};
       setPredictions(Object.entries(data).map(([id, p]: [string, any]) => ({ id, ...p })));
     });
 
-    const chatQuery = query(roomRef(roomId, 'chat'), limitToLast(15));
+    const chatQuery = query(matchChatRef(sport, roomId), limitToLast(15));
     const unsubChat = onValue(chatQuery, snap => {
       const data = snap.val() || {};
       setMessages(Object.entries(data).map(([id, m]: [string, any]) => ({ id, ...m })));
@@ -47,7 +50,7 @@ const TickerWindow: React.FC = () => {
       unsubPreds();
       unsubChat();
     };
-  }, [roomId]);
+  }, [roomId, sport]);
 
   const theme = useMemo(() => getTeamTheme(meta.teamA), [meta.teamA]);
 
@@ -76,8 +79,8 @@ const TickerWindow: React.FC = () => {
         const isChaser = chaser && win.toLowerCase() === chaser.toLowerCase();
         
         let score = isA ? p.scoreA : (p.scoreB || p.scoreA);
-        const suffix = (is2nd && isChaser) ? ' ov' : '';
-        if (is2nd && isChaser) score = Number(score || 0).toFixed(1);
+        const suffix = (is2nd && isChaser && sport === 'cricket') ? ' ov' : '';
+        if (is2nd && isChaser && sport === 'cricket') score = Number(score || 0).toFixed(1);
 
         return `${p.name} (${win}): ${score}${suffix}`;
       });
@@ -113,12 +116,11 @@ const TickerWindow: React.FC = () => {
     }
 
     return items;
-  }, [predictions, messages, meta, now, theme]);
+  }, [predictions, messages, meta, now, theme, sport]);
 
-  // Calculate Duration based on content length
   const duration = useMemo(() => {
-    const rawText = tickerItems.map(i => (i as any).key).join(' '); // Rough estimate
-    return Math.max(25, (tickerItems.length * 15)); // Simple linear scaling
+    const rawText = tickerItems.map(i => (i as any).key).join(' ');
+    return Math.max(25, (tickerItems.length * 15));
   }, [tickerItems]);
 
   if (meta.hideTicker) return null;

@@ -1,18 +1,34 @@
-import { ref, onValue, push, set, serverTimestamp, limitToLast, query } from 'firebase/database';
+import { ref, onValue, push, set, serverTimestamp, limitToLast, query, get } from 'firebase/database';
 import { rtdb } from './config';
 
 const dbRoot = import.meta.env.DEV ? 'local' : 'prod';
 
-export const metaRef = (roomId: string) => ref(rtdb, `${dbRoot}/meta/${roomId}`);
-export const chatRef = (roomId: string) => ref(rtdb, `${dbRoot}/chat/${roomId}`);
-export const predictionsRef = (roomId: string, clientId: string) => 
-  ref(rtdb, `${dbRoot}/predictions/${roomId}/${clientId}`);
-export const activeMatchRef = (roomId: string) => ref(rtdb, `${dbRoot}/rooms/${roomId}/active_match`); // Keep legacy discovery if needed
-export const seasonLeaderboardRef = (roomId: string) => ref(rtdb, `${dbRoot}/season_leaderboard/${roomId}`);
-export const userRef = (clientId: string) => ref(rtdb, `${dbRoot}/users/${clientId}`);
+// ── Discovery (Resolve roomId to sport/tournamentId) ───────────────────────────
+export const discoveryRef = (roomId: string) => 
+  ref(rtdb, `${dbRoot}/discovery/${roomId.toLowerCase()}`);
 
-export const sendChatMessage = async (matchId: string, payload: any) => {
-  const cRef = chatRef(matchId);
+// ── Polymorphic Refs (Tournament Specific) ─────────────────────────────────────
+export const metaRef = (sport: string, id: string) => 
+  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/meta`);
+
+export const chatRef = (sport: string, id: string) => 
+  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/chat`);
+
+export const predictionsRef = (sport: string, id: string, clientId: string) => 
+  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/predictions/${clientId}`);
+
+export const allPredictionsRef = (sport: string, id: string) => 
+  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/predictions`);
+
+export const seasonLeaderboardRef = (sport: string, id: string) => 
+  ref(rtdb, `${dbRoot}/tournaments/${sport}/${id}/season_leaderboard`);
+
+// ── Global User Profiles ───────────────────────────────────────────────────────
+export const userRef = (clientId: string) => 
+  ref(rtdb, `${dbRoot}/users/${clientId}`);
+
+export const sendChatMessage = async (sport: string, id: string, payload: any) => {
+  const cRef = chatRef(sport, id);
   const nextRef = push(cRef);
   await set(nextRef, {
     ...payload,
@@ -20,16 +36,16 @@ export const sendChatMessage = async (matchId: string, payload: any) => {
   });
 };
 
-export const savePrediction = async (matchId: string, clientId: string, payload: any) => {
-  await set(predictionsRef(matchId, clientId), {
+export const savePrediction = async (sport: string, id: string, clientId: string, payload: any) => {
+  await set(predictionsRef(sport, id, clientId), {
     ...payload,
     updatedAt: serverTimestamp(),
   });
 };
 
-export const saveUserFavoriteTeam = async (clientId: string, teamName: string) => {
+export const saveUserGlobalProfile = async (clientId: string, data: any) => {
   await set(userRef(clientId), {
-    favoriteTeam: teamName,
-    favoriteTeamSetAt: serverTimestamp(),
+    ...data,
+    updatedAt: serverTimestamp(),
   });
 };

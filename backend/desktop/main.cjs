@@ -24,17 +24,26 @@ initLogServer();
 const isDev = process.env.NODE_ENV === "development";
 const VITE_DEV_SERVER_URL = "http://localhost:5174";
 
-const rawAppMode = process.env.APP_MODE || process.env.NODE_ENV || "production";
+// ── Environment Detection ───────────────────────────────────────────────────
+const getAppModeFromArgs = () => {
+  const modeArg = process.argv.find(arg => arg.startsWith('--mode='));
+  if (modeArg) return modeArg.split('=')[1].toLowerCase();
+  return null;
+};
+
+const rawAppMode = getAppModeFromArgs() || process.env.APP_MODE || process.env.NODE_ENV || "prod";
 const APP_MODE = (() => {
-  const n = rawAppMode.toLowerCase();
-  if (n === "local") return "local";
-  if (n === "dev" || n === "development") return "dev";
+  if (rawAppMode === "local" || rawAppMode === "dev") return "local";
   return "prod";
 })();
+
+console.log(`[System] Initializing in ${APP_MODE.toUpperCase()} mode`);
+console.log(`[System] Version: ${APP_VERSION}`);
 
 const DEFAULT_SETTINGS = {
   appVersion: APP_VERSION,
   roomId: "ipl",
+  sport: "cricket",
   clickThrough: false,
   overlayVisible: true,
   opacity: 1,
@@ -79,8 +88,9 @@ const saveSettings = () => {
 };
 
 const getWindowUrl = (winName) => {
-  if (isDev) return `${VITE_DEV_SERVER_URL}/#/${winName}?appMode=${APP_MODE}&room=${settings.roomId}`;
-  return `file://${path.join(__dirname, "../dist/index.html")}#/${winName}?appMode=${APP_MODE}&room=${settings.roomId}`;
+  const baseParams = `appMode=${APP_MODE}&room=${settings.roomId}&sport=${settings.sport || 'cricket'}`;
+  if (isDev) return `${VITE_DEV_SERVER_URL}/#/${winName}?${baseParams}`;
+  return `file://${path.join(__dirname, "../dist/index.html")}#/${winName}?${baseParams}`;
 };
 
 const commonWebPrefs = {

@@ -1,36 +1,39 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, roomRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
+import { db, matchMetaRef, matchPredictionsRef, onValue, isFirebaseConfigured, clearRoomNode } from '../firebase/db';
 import { getTeamTheme } from '../utils/shared';
 import '../styles/legacy.css';
 
 const OverlayWindow: React.FC = () => {
   const [roomId, setRoomId] = useState('ipl');
+  const [sport, setSport] = useState('cricket');
   const [meta, setMeta] = useState<any>({});
   const [predictions, setPredictions] = useState<any>({});
 
   useEffect(() => {
     // @ts-ignore
     window.overlayDesktop.getSettings().then((s: any) => {
-      setRoomId(s.roomId || 'ipl');
+      if (s.roomId) setRoomId(s.roomId);
+      if (s.sport) setSport(s.sport);
     });
 
     // @ts-ignore
     window.overlayDesktop.onSettingsChanged((s: any) => {
       if (s.roomId) setRoomId(s.roomId);
+      if (s.sport) setSport(s.sport);
     });
   }, []);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !db || !roomId) return;
 
-    const unsubMeta = onValue(roomRef(roomId, 'meta'), snap => setMeta(snap.val() || {}));
-    const unsubPreds = onValue(roomRef(roomId, 'predictions'), snap => setPredictions(snap.val() || {}));
+    const unsubMeta = onValue(matchMetaRef(sport, roomId), snap => setMeta(snap.val() || {}));
+    const unsubPreds = onValue(matchPredictionsRef(sport, roomId), snap => setPredictions(snap.val() || {}));
 
     return () => {
       unsubMeta();
       unsubPreds();
     };
-  }, [roomId]);
+  }, [roomId, sport]);
 
   const teamA = meta.teamA || 'Team A';
   const teamB = meta.teamB || 'Team B';
@@ -52,7 +55,7 @@ const OverlayWindow: React.FC = () => {
 
   const removePrediction = (cid: string) => {
     if (!confirm('Remove this prediction?')) return;
-    clearRoomNode(roomId, `predictions/${cid}`).catch(console.error);
+    clearRoomNode(sport, roomId, `predictions/${cid}`).catch(console.error);
   };
 
   if (meta.hideOverlay) return null;
@@ -68,7 +71,10 @@ const OverlayWindow: React.FC = () => {
 
       <main className="predictions-ribbon">
         <div className="overlay-ribbon-header">
-          <span>{meta.matchTitle || 'Live Predictions'}</span>
+           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+             <span className="badge-mini" style={{ background: 'rgba(255,255,255,0.1)', fontSize: 9 }}>{sport.toUpperCase()}</span>
+             <span>{meta.matchTitle || 'Live Predictions'}</span>
+           </div>
           <span className="team-badge" style={{ background: 'rgba(255,255,255,0.2)' }}>
             {meta.secondInnings ? '2nd Innings' : '1st Innings'}
           </span>
