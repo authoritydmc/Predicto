@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef } from '../../firebase/services';
+import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef, matchPredictionsRef } from '../../firebase/services';
 import { onValue, get } from 'firebase/database';
 import CricketPrediction from './CricketPrediction';
 import FootballPrediction from './FootballPrediction';
@@ -26,6 +26,9 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
   const [pauseReason, setPauseReason] = useState('');
   const [disableReason, setDisableReason] = useState('');
   const [targetScore, setTargetScore] = useState<number | null>(null);
+  const [allowReprediction, setAllowReprediction] = useState(false);
+  const [hasPredicted, setHasPredicted] = useState(false);
+  const [previousPrediction, setPreviousPrediction] = useState<any>(null);
 
   console.log('[PredictionPanel] Component mounted with props:', { sport, id, matchId, clientId });
 
@@ -114,6 +117,9 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         if (data?.disableReason) {
           setDisableReason(data.disableReason);
         }
+        if (data?.allowReprediction !== undefined) {
+          setAllowReprediction(data.allowReprediction);
+        }
       } catch (error) {
         console.error('[PredictionPanel] Error loading match meta:', error);
       }
@@ -163,6 +169,33 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
     });
   }, [clientId]);
 
+  // Check if user has already predicted and load previous prediction
+  useEffect(() => {
+    if (!matchId || !name) return;
+    const checkPrediction = async () => {
+      try {
+        const predictionsRef = matchPredictionsRef(sport, id, matchId);
+        const snap = await get(predictionsRef);
+        const predictionsData = snap.val();
+        if (predictionsData && predictionsData[name]) {
+          setHasPredicted(true);
+          // Get prediction based on current innings
+          const userData = predictionsData[name];
+          if (currentInnings === 2 && userData.second_inn) {
+            setPreviousPrediction(userData.second_inn);
+          } else if (currentInnings === 1 && userData.first_inn) {
+            setPreviousPrediction(userData.first_inn);
+          } else if (userData.early_predict?.first) {
+            setPreviousPrediction(userData.early_predict.first);
+          }
+        }
+      } catch (error) {
+        console.error('[PredictionPanel] Error checking prediction:', error);
+      }
+    };
+    checkPrediction();
+  }, [sport, id, matchId, name, currentInnings]);
+
   const handlePredictionSubmit = async (e: FormEvent, formData: any) => {
     e.preventDefault();
     if (clientId && name.trim()) {
@@ -173,12 +206,26 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         // 1. Save global profile (to remember name for chat/other matches)
         await saveUserGlobalProfile(clientId, { username: name });
 
-        // 2. Save prediction for this specific match
+        // 2. Check for existing penalties and include them
+        let existingPenalties: any[] = [];
+        try {
+          const predictionsRef = matchPredictionsRef(sport, id, matchId);
+          const snap = await get(predictionsRef);
+          const predictionsData = snap.val();
+          if (predictionsData && predictionsData[name] && predictionsData[name].penalties) {
+            existingPenalties = predictionsData[name].penalties;
+          }
+        } catch (error) {
+          console.error('[PredictionPanel] Error fetching existing penalties:', error);
+        }
+
+        // 3. Save prediction for this specific match
         const predictionData: any = {
           userId: clientId,
           name: name,
           sportType: sport,
-          currentInnings: currentInnings
+          currentInnings: currentInnings,
+          existingPenalties: existingPenalties
         };
 
         // Handle different prediction types based on form data
@@ -215,6 +262,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
 
         await savePrediction(sport, id, clientId, predictionData, matchId);
         
+        setHasPredicted(true);
         console.log('[PredictionPanel] Prediction submitted successfully');
         alert('Prediction submitted!');
       } catch (error) {
@@ -254,6 +302,12 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           pauseReason={pauseReason}
           disableReason={disableReason}
           targetScore={targetScore}
+          allowReprediction={allowReprediction}
+          hasPredicted={hasPredicted}
+          previousPrediction={previousPrediction}
+          sport={sport}
+          id={id}
+          matchId={matchId}
           onNameChange={setName}
           onSubmit={handlePredictionSubmit}
           loading={loading}

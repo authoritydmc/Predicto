@@ -596,15 +596,30 @@ function MatchPage() {
                 {/* Second Innings Info */}
                 {meta.secondInnings && liveScore?.teamA && liveScore?.teamB && (
                   <>
-                    {/* Runs Required */}
+                    {/* Runs/Wickets Required */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ color: '#34c759' }}>🎯</span>
                       <span>
-                        {meta.disableScoreA === false && meta.disableScoreB === true 
-                          ? `${meta.teamB} needs ${liveScore.teamA.runs + 1 - liveScore.teamB.runs} runs`
-                          : meta.disableScoreA === true && meta.disableScoreB === false 
-                            ? `${meta.teamA} needs ${liveScore.teamB.runs + 1 - liveScore.teamA.runs} runs`
-                            : 'Chasing...'}
+                        {(() => {
+                          // Use battingFirst from meta to correctly identify who batted first
+                          const firstBattingTeam = meta.battingFirst || (meta.disableScoreA === false && meta.disableScoreB === true ? 'teamA' : 'teamB');
+                          const chasingTeam = firstBattingTeam === 'teamA' ? 'teamB' : 'teamA';
+                          const firstBattingScore = firstBattingTeam === 'teamA' ? liveScore.teamA.runs : liveScore.teamB.runs;
+                          const chasingScore = chasingTeam === 'teamA' ? liveScore.teamA.runs : liveScore.teamB.runs;
+                          const chasingOvers = chasingTeam === 'teamA' ? liveScore.teamA.overs : liveScore.teamB.overs;
+                          const target = firstBattingScore + 1;
+                          const runsNeeded = target - chasingScore;
+                          const oversRemaining = 20 - Math.floor(chasingOvers);
+                          const chasingTeamName = chasingTeam === 'teamA' ? meta.teamA : meta.teamB;
+
+                          // Chasing team (batting second) needs runs to win
+                          if (runsNeeded > 0) {
+                            return `${chasingTeamName} needs ${runsNeeded} runs in ${oversRemaining} overs to win`;
+                          } else {
+                            // Chasing team has already exceeded target - they won
+                            return `${chasingTeamName} won by ${Math.abs(runsNeeded)} runs`;
+                          }
+                        })()}
                       </span>
                     </div>
                     

@@ -130,52 +130,116 @@ export const savePrediction = async (sport: string, id: string, clientId: string
       ? matchRef(sport, id, matchId, "predictions", username)
       : predictionsRef(sport, id, username);
 
-    // Get existing predictions array
+    // Get existing data
     const snap = await get(pRef);
     const existingData = snap.val();
 
-    const newPrediction = {
-      ...payload,
-      userId: clientId, // Keep clientId for reference
-      predictionId: Date.now(), // Unique ID for this prediction
-      predictionType: payload.predictionType || 'live_first_innings', // Default if not provided
-      timestamp: Date.now(),
+    const timestamp = Date.now();
+    const basePrediction = {
+      userId: clientId,
+      predictionId: timestamp,
+      timestamp,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      // Reconciliation metadata
       reconciled: false,
       reconciledAt: null,
-      penaltyScore: null,
       score: null
     };
 
-    if (existingData && Array.isArray(existingData.predictions)) {
-      // Append to existing array
-      existingData.predictions.push(newPrediction);
-      existingData.latestPrediction = newPrediction;
-      existingData.predictionCount = existingData.predictions.length;
+    let updateData: any = {
+      username,
+      userId: clientId,
+      updatedAt: serverTimestamp()
+    };
+
+    // Preserve existing penalties if they exist
+    if (existingData && existingData.penalties) {
+      updateData.penalties = existingData.penalties;
+    } else if (payload.existingPenalties) {
+      // Use penalties from payload if provided
+      updateData.penalties = payload.existingPenalties;
+    }
+
+    // Handle different prediction types
+    if (payload.predictionType === 'early_first_innings') {
+      // Store in early_predict/first
+      updateData['early_predict/first'] = {
+        ...basePrediction,
+        teamABattingFirstScore: payload.teamABattingFirstScore,
+        teamBBattingFirstScore: payload.teamBBattingFirstScore,
+        predictedWinner: payload.winner
+      };
+    } else if (payload.predictionType === 'live_first_innings') {
+      // Store in first_inn
+      updateData['first_inn'] = {
+        ...basePrediction,
+        battingFirst: payload.battingFirst,
+        predictedWinner: payload.winner,
+        scoreA: payload.scoreA,
+        scoreB: payload.scoreB
+      };
+    } else if (payload.predictionType === 'live_second_innings') {
+      // Store in second_inn
+      updateData['second_inn'] = {
+        ...basePrediction,
+        battingFirst: payload.battingFirst,
+        secondInningsWinner: payload.secondInningsWinner,
+        secondInningsChasingScore: payload.secondInningsChasingScore,
+        secondInningsWinOvers: payload.secondInningsWinOvers
+      };
+    }
+
+    // Merge with existing data
+    if (existingData) {
+      await update(pRef, updateData);
+    } else {
+      await set(pRef, updateData);
+    }
+
+    console.log('[Firebase] Prediction saved successfully with new schema');
+  } catch (error) {
+    console.error('[Firebase] Error saving prediction:', error);
+    throw error;
+  }
+};
+
+export const applyPenalty = async (sport: string, id: string, username: string, matchId: string, penaltyType: string, penaltyPoints: number, reason: string) => {
+  try {
+    console.log('[Firebase] Applying penalty:', { sport, id, username, matchId, penaltyType, penaltyPoints, reason });
+    const pRef = matchRef(sport, id, matchId, "predictions", username);
+    const snap = await get(pRef);
+    const existingData = snap.val();
+
+    const newPenalty = {
+      penaltyId: Date.now(),
+      penaltyType,
+      penaltyPoints,
+      reason,
+      timestamp: Date.now(),
+      createdAt: serverTimestamp()
+    };
+
+    if (existingData) {
+      // Get existing penalties array or create new one
+      const existingPenalties = existingData.penalties || [];
+      existingPenalties.push(newPenalty);
+      
       await update(pRef, {
-        predictions: existingData.predictions,
-        latestPrediction: newPrediction,
-        predictionCount: existingData.predictions.length,
+        penalties: existingPenalties,
         updatedAt: serverTimestamp()
       });
     } else {
-      // Create new array structure
+      // Create new structure with penalty
       await set(pRef, {
-        username: username,
-        userId: clientId,
-        predictions: [newPrediction],
-        latestPrediction: newPrediction,
-        predictionCount: 1,
-        createdAt: serverTimestamp(),
+        username,
+        penalties: [newPenalty],
         updatedAt: serverTimestamp()
       });
     }
 
-    console.log('[Firebase] Prediction saved successfully');
+    console.log('[Firebase] Penalty applied successfully');
   } catch (error) {
-    console.error('[Firebase] Error saving prediction:', error);
+    console.error('[Firebase] Error applying penalty:', error);
     throw error;
   }
 };
@@ -225,30 +289,6 @@ export const reconcilePrediction = async (sport: string, id: string, username: s
     }
   } catch (error) {
     console.error('[Firebase] Error reconciling prediction:', error);
-    throw error;
-  }
-};
-
-export const applyPenalty = async (sport: string, id: string, username: string, matchId: string, penalty: number, reasonText: string, updatedBy: string) => {
-  try {
-    console.log('[Firebase] Applying penalty:', { sport, id, username, matchId, penalty, reasonText, updatedBy });
-    const pRef = matchRef(sport, id, matchId, "predictions", username);
-
-    const penaltyData = {
-      penalty,
-      reasonText,
-      timestamp: Date.now(),
-      updatedBy
-    };
-
-    await update(pRef, {
-      penalty: penaltyData,
-      updatedAt: serverTimestamp()
-    });
-
-    console.log('[Firebase] Penalty applied successfully');
-  } catch (error) {
-    console.error('[Firebase] Error applying penalty:', error);
     throw error;
   }
 };

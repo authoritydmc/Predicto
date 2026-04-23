@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
+import { applyPenalty } from '../../firebase/services';
 
 interface CricketPredictionProps {
   teamA: string;
@@ -14,6 +15,12 @@ interface CricketPredictionProps {
   pauseReason: string;
   disableReason: string;
   targetScore: number | null;
+  allowReprediction: boolean;
+  hasPredicted: boolean;
+  previousPrediction: any;
+  sport: string;
+  id: string;
+  matchId: string;
   onNameChange: (name: string) => void;
   onSubmit: (e: FormEvent, data: any) => void;
   loading: boolean;
@@ -32,6 +39,12 @@ export default function CricketPrediction({
   pauseReason,
   disableReason,
   targetScore,
+  allowReprediction,
+  hasPredicted,
+  previousPrediction,
+  sport,
+  id,
+  matchId,
   onNameChange,
   onSubmit,
   loading
@@ -44,6 +57,18 @@ export default function CricketPrediction({
   const [secondInningsWinner, setSecondInningsWinner] = useState<'teamA' | 'teamB' | ''>('');
   const [secondInningsChasingScore, setSecondInningsChasingScore] = useState('');
   const [secondInningsWinOvers, setSecondInningsWinOvers] = useState('');
+
+  // Pre-select winner based on previous prediction
+  useEffect(() => {
+    if (previousPrediction) {
+      if (previousPrediction.predictedWinner) {
+        setWinner(previousPrediction.predictedWinner);
+      }
+      if (previousPrediction.secondInningsWinner) {
+        setSecondInningsWinner(previousPrediction.secondInningsWinner);
+      }
+    }
+  }, [previousPrediction]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -249,8 +274,8 @@ export default function CricketPrediction({
               </label>
             </div>
 
-            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
-              {loading ? 'Submitting...' : '🚀 Send Prediction'}
+            <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
+              {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
         </div>
@@ -323,8 +348,8 @@ export default function CricketPrediction({
               />
             </label>
 
-            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
-              {loading ? 'Submitting...' : '🚀 Send Prediction'}
+            <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
+              {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
         </div>
@@ -380,7 +405,28 @@ export default function CricketPrediction({
               </span>
               <select
                 value={secondInningsWinner}
-                onChange={e => setSecondInningsWinner(e.target.value as 'teamA' | 'teamB')}
+                onChange={async e => {
+                  const newValue = e.target.value as 'teamA' | 'teamB';
+                  // Check if user is switching from their previous prediction
+                  if (previousPrediction?.secondInningsWinner && 
+                      previousPrediction.secondInningsWinner !== newValue &&
+                      previousPrediction.secondInningsWinner !== '') {
+                    const confirmed = confirm(
+                      `⚠️ Warning: Switching your winner prediction will apply a -20 point penalty.\n\nPrevious: ${previousPrediction.secondInningsWinner === 'teamA' ? teamA : teamB}\nNew: ${newValue === 'teamA' ? teamA : teamB}\n\nDo you want to continue?`
+                    );
+                    if (confirmed) {
+                      setSecondInningsWinner(newValue);
+                      // Apply penalty
+                      try {
+                        await applyPenalty(sport, id, name, matchId, 'team_switch', -20, 'Switching winner prediction in second innings');
+                      } catch (error) {
+                        console.error('[CricketPrediction] Error applying penalty:', error);
+                      }
+                    }
+                  } else {
+                    setSecondInningsWinner(newValue);
+                  }
+                }}
                 required
               >
                 <option value="">Choose winner...</option>
@@ -457,8 +503,8 @@ export default function CricketPrediction({
               </>
             )}
 
-            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
-              {loading ? 'Submitting...' : '🚀 Send Prediction'}
+            <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
+              {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
         </div>
