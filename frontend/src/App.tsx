@@ -240,7 +240,7 @@ function AppContent() {
   }
 
   if (loading || !tournamentContext) {
-    return <main className="page"><div className="panel"><p>Connecting to {matchCode.toUpperCase()}...</p></div></main>;
+    return <main className="page"><div className="panel"><p>Connecting to {matchCode?.toUpperCase() || 'match'}...</p></div></main>;
   }
 
   const activeMatch = meta?.matchTitle;
@@ -293,7 +293,7 @@ function AppContent() {
           </button>
           <div className="audience-header-title">
             <span className="audience-header-kicker">Live Match</span>
-            <span className="audience-header-code">{matchCode.toUpperCase()}</span>
+            <span className="audience-header-code">{matchCode?.toUpperCase() || ''}</span>
           </div>
           <button 
             onClick={() => {
