@@ -9,14 +9,16 @@ from .firebase_client import FirebaseClient
 class LeaderboardUpdater:
     """Updates tournament leaderboards with aggregated scores"""
     
-    def __init__(self, firebase_client: FirebaseClient):
+    def __init__(self, firebase_client: FirebaseClient, db_root: str = 'prod'):
         """
         Initialize leaderboard updater
         
         Args:
             firebase_client: Firebase client instance
+            db_root: Database root ('local' or 'prod')
         """
         self.client = firebase_client
+        self.db_root = db_root
     
     def update_tournament_leaderboard(self, sport: str, tournament_id: str) -> Dict[str, Any]:
         """
@@ -30,7 +32,7 @@ class LeaderboardUpdater:
             Update result summary
         """
         # Get all matches in tournament
-        matches_path = f"{sport}/{tournament_id}/matches"
+        matches_path = f"{self.db_root}/{sport}/{tournament_id}/matches"
         matches_data = self.client.get(matches_path)
         
         if not matches_data:
@@ -43,7 +45,7 @@ class LeaderboardUpdater:
             if not isinstance(match_data, dict):
                 continue
             
-            predictions_path = f"{sport}/{tournament_id}/matches/{match_id}/predictions"
+            predictions_path = f"{self.db_root}/{sport}/{tournament_id}/matches/{match_id}/predictions"
             predictions = self.client.get(predictions_path)
             
             if not predictions:
@@ -64,7 +66,7 @@ class LeaderboardUpdater:
         leaderboard = self._create_leaderboard(user_scores)
         
         # Update Firebase
-        leaderboard_path = f"{sport}/{tournament_id}/leaderboard"
+        leaderboard_path = f"{self.db_root}/{sport}/{tournament_id}/leaderboard"
         success = self.client.set(leaderboard_path, {
             'rankings': leaderboard,
             'updatedAt': self.client.get_timestamp(),

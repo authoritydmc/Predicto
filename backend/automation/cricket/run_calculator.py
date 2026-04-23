@@ -38,6 +38,11 @@ def main():
         print(f"[Cricket Calculator] ERROR initializing Firebase: {e}")
         sys.exit(1)
     
+    # Get environment from APP_MODE (default to prod)
+    app_mode = os.environ.get('APP_MODE', 'prod')
+    db_root = 'local' if app_mode == 'local' else 'prod'
+    print(f"[Cricket Calculator] Using database environment: {db_root}")
+    
     # Initialize cricket calculator
     print("[Cricket Calculator] Initializing cricket calculator...")
     calculator = CricketCalculator()
@@ -50,13 +55,8 @@ def main():
     
     # Initialize leaderboard updater
     print("[Cricket Calculator] Initializing leaderboard updater...")
-    leaderboard_updater = LeaderboardUpdater(firebase_client)
+    leaderboard_updater = LeaderboardUpdater(firebase_client, db_root)
     print("[Cricket Calculator] Leaderboard updater initialized")
-    
-    # Get environment from APP_MODE (default to prod)
-    app_mode = os.environ.get('APP_MODE', 'prod')
-    db_root = 'local' if app_mode == 'local' else 'prod'
-    print(f"[Cricket Calculator] Using database environment: {db_root}")
     
     # Get all cricket tournaments
     print("[Cricket Calculator] Fetching cricket tournaments from Firebase...")

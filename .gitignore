@@ -70,6 +70,12 @@ firebase-service-account.json
 service-account.json
 *.json
 
+# Python bytecode
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
 # dataconnect generated files
 .dataconnect
 dist/
