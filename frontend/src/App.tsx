@@ -9,7 +9,6 @@ import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
 import UserAuth from './components/Auth/UserAuth';
-import PasscodeViewer from './components/Auth/PasscodeViewer';
 import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
 import './styles/App.css';
 
@@ -265,15 +264,6 @@ function AppLayout() {
               </button>
             </div>
           </div>
-        )}
-
-        {showPasscodeViewer && username && passkey && (
-          <PasscodeViewer
-            username={username}
-            passkey={passkey}
-            onClose={() => setShowPasscodeViewer(false)}
-            onResetPasskey={handleRotatePasskey}
-          />
         )}
       </div>
     </AppContext.Provider>

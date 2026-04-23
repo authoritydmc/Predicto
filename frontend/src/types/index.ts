@@ -11,6 +11,8 @@ export interface UserProfile {
   passkey?: string;
   favoriteTeam?: string;
   teamChangeCount?: number;
+  updatedAt?: number;
+  createdAt?: number;
 }
 
 // Match Types

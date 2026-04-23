@@ -1,5 +1,6 @@
 import { ref, push, set, update, serverTimestamp, get } from 'firebase/database';
 import { rtdb } from './config';
+import type { UserProfile } from '../types';
 
 // Get Firebase mode from localStorage, default based on URL
 const getDbRoot = () => {
@@ -137,10 +138,10 @@ export const savePrediction = async (sport: string, id: string, clientId: string
   }
 };
 
-export const saveUserGlobalProfile = async (clientId: string, data: any) => {
+export const saveUserGlobalProfile = async (clientId: string, data: Partial<UserProfile>) => {
   try {
     console.log('[Firebase] Saving user profile:', { clientId, data });
-    await set(userRef(clientId), {
+    await update(userRef(clientId), {
       ...data,
       updatedAt: serverTimestamp(),
     });
