@@ -5,11 +5,13 @@ interface PasscodeViewerProps {
   username: string;
   passkey: string;
   onClose: () => void;
+  onResetPasskey: () => Promise<void>;
 }
 
-export default function PasscodeViewer({ username, passkey, onClose }: PasscodeViewerProps) {
+export default function PasscodeViewer({ username, passkey, onClose, onResetPasskey }: PasscodeViewerProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // Generate shareable URL and QR code
   useEffect(() => {
@@ -44,6 +46,21 @@ export default function PasscodeViewer({ username, passkey, onClose }: PasscodeV
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('Error copying to clipboard:', error);
+    }
+  };
+
+  const handleResetPasskey = async () => {
+    if (confirm('Are you sure you want to generate a new passkey? Your old passkey will no longer work.')) {
+      setResetting(true);
+      try {
+        await onResetPasskey();
+        // QR code will regenerate automatically when passkey changes
+      } catch (error) {
+        console.error('Error resetting passkey:', error);
+        alert('Failed to reset passkey. Please try again.');
+      } finally {
+        setResetting(false);
+      }
     }
   };
 
@@ -83,6 +100,14 @@ export default function PasscodeViewer({ username, passkey, onClose }: PasscodeV
               </button>
             </div>
           </div>
+
+          <button 
+            onClick={handleResetPasskey} 
+            className="reset-passkey-btn"
+            disabled={resetting}
+          >
+            {resetting ? 'Generating...' : '🔄 Reset Passkey'}
+          </button>
 
           <div className="passcode-instructions">
             <h3>How to use:</h3>

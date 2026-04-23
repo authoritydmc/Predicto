@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import React from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { checkUsernameAvailability, createUserWithPasskey, verifyUserPasskey } from '../../firebase/services';
 
 interface UserAuthProps {
@@ -13,6 +15,76 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
   const [loading, setLoading] = useState(false);
   const [generatedPasskey, setGeneratedPasskey] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  // Cleanup QR scanner on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(console.error);
+      }
+    };
+  }, []);
+
+  const handleScanSuccess = async (decodedText: string) => {
+    try {
+      console.log('[UserAuth] QR scanned:', decodedText);
+      
+      // Parse URL format: ?login=username:passkey
+      const url = new URL(decodedText);
+      const loginParam = url.searchParams.get('login');
+      
+      if (loginParam) {
+        const [scannedUsername, scannedPasskey] = loginParam.split(':');
+        if (scannedUsername && scannedPasskey) {
+          // Auto-fill and login
+          setUsername(scannedUsername);
+          setPasskey(scannedPasskey);
+          setMode('login');
+          setShowQRScanner(false);
+          
+          // Auto-submit login
+          const result = await verifyUserPasskey(scannedUsername, scannedPasskey);
+          if (result.valid) {
+            onAuthSuccess(scannedUsername, result.clientId);
+          } else {
+            setError('Invalid passkey from QR code');
+          }
+          return;
+        }
+      }
+      
+      setError('Invalid QR code format');
+    } catch (err) {
+      console.error('[UserAuth] Error processing QR:', err);
+      setError('Error processing QR code');
+    }
+  };
+
+  const handleStartQRScan = () => {
+    setShowQRScanner(true);
+    // Initialize QR scanner after modal is rendered
+    setTimeout(() => {
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5QrcodeScanner(
+          "qr-reader",
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          false
+        );
+        scannerRef.current.render(handleScanSuccess, (error) => {
+          console.error('[UserAuth] QR scan error:', error);
+        });
+      }
+    }, 100);
+  };
+
+  const handleCloseQRScanner = () => {
+    setShowQRScanner(false);
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch(console.error);
+    }
+  };
 
   const handleCheckUsername = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,16 +224,43 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
             </div>
             <label>
               Passkey
-              <input
-                type="text"
-                value={passkey}
-                onChange={(e) => setPasskey(e.target.value)}
-                placeholder="Enter 6-digit passkey..."
-                required
-                maxLength={6}
-                pattern="[0-9]{6}"
-                title="Enter 6-digit passkey"
-              />
+              <div className="passkey-input-container">
+                {[...Array(8)].map((_, index) => (
+                  <React.Fragment key={index}>
+                    <input
+                      type="text"
+                      maxLength={1}
+                      value={passkey[index] || ''}
+                      onChange={(e) => {
+                        const value = e.target.value.toUpperCase();
+                        const newPasskey = passkey.split('');
+                        newPasskey[index] = value;
+                        setPasskey(newPasskey.join(''));
+                        
+                        // Auto-focus next input
+                        if (value && index < 7) {
+                          const nextInput = document.querySelectorAll('.passkey-input')[index + 1] as HTMLInputElement;
+                          nextInput?.focus();
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        // Handle backspace to go to previous input
+                        if (e.key === 'Backspace' && !passkey[index] && index > 0) {
+                          const prevInput = document.querySelectorAll('.passkey-input')[index - 1] as HTMLInputElement;
+                          prevInput?.focus();
+                        }
+                      }}
+                      className="passkey-input"
+                      ref={(el) => {
+                        if (el && index === 0 && !passkey) {
+                          el.focus();
+                        }
+                      }}
+                    />
+                    {index === 3 && <span className="passkey-separator">-</span>}
+                  </React.Fragment>
+                ))}
+              </div>
             </label>
             {error && <p className="error-text">{error}</p>}
             <button type="submit" className="primary-btn" disabled={loading}>
@@ -169,13 +268,36 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
             </button>
             <button
               type="button"
-              onClick={() => setMode('check')}
+              onClick={handleStartQRScan}
               className="secondary-btn"
+              style={{ marginTop: '8px' }}
+            >
+              📷 Scan QR Code
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('check')}
+              className="ghost-btn"
               style={{ marginTop: '8px' }}
             >
               Use different username
             </button>
           </form>
+        )}
+
+        {showQRScanner && (
+          <div className="qr-scanner-overlay">
+            <div className="qr-scanner-modal">
+              <div className="qr-scanner-header">
+                <h3>Scan QR Code</h3>
+                <button onClick={handleCloseQRScanner} className="close-btn">×</button>
+              </div>
+              <div id="qr-reader" className="qr-reader-container"></div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--muted)', textAlign: 'center', marginTop: '12px' }}>
+                Point your camera at the QR code from another device
+              </p>
+            </div>
+          </div>
         )}
 
         {generatedPasskey && (

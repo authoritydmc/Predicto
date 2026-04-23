@@ -111,7 +111,7 @@ export const sendChatMessage = async (sport: string, id: string, payload: any, m
     const nextRef = push(cRef);
     await set(nextRef, {
       ...payload,
-      createdAt: serverTimestamp(),
+      timestamp: serverTimestamp(),
     });
     console.log('[Firebase] Chat message sent successfully');
   } catch (error) {
@@ -168,8 +168,12 @@ export const checkUsernameAvailability = async (username: string): Promise<boole
 export const createUserWithPasskey = async (username: string, clientId: string): Promise<string> => {
   try {
     console.log('[Firebase] Creating user with passkey:', { username, clientId });
-    // Generate a random 6-digit passkey
-    const passkey = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate a random 8-character alphanumeric passkey
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let passkey = '';
+    for (let i = 0; i < 8; i++) {
+      passkey += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
     
     // Save username -> clientId mapping
     await set(usernameRef(username), {
@@ -219,8 +223,12 @@ export const verifyUserPasskey = async (username: string, passkey: string): Prom
 export const rotatePasskey = async (username: string, clientId: string): Promise<string> => {
   try {
     console.log('[Firebase] Rotating passkey for user:', { username, clientId });
-    // Generate new passkey
-    const newPasskey = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate new 8-character alphanumeric passkey
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let newPasskey = '';
+    for (let i = 0; i < 8; i++) {
+      newPasskey += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
     console.log('[Firebase] Generated new passkey:', newPasskey);
     
     // Update username mapping with new passkey

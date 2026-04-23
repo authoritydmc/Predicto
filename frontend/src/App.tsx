@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect, createContext, useContext } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useParams, Outlet } from 'react-router-dom';
 import { onValue, get } from 'firebase/database';
 import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
@@ -12,24 +12,38 @@ import PasscodeViewer from './components/Auth/PasscodeViewer';
 import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
 import './styles/App.css';
 
-function AppContent() {
-  const navigate = useNavigate();
-  const params = useParams();
-  
-  const matchCode = params.matchCode || null;
-  const tournamentCode = params.tournamentCode || null;
-  
-  const [tournamentContext, setTournamentContext] = useState<{ sport: string; id: string; matchId: string } | null>(null);
-  const [meta, setMeta] = useState<any>(null);
-  const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [matchStatus, setMatchStatus] = useState<string | null>(null);
+// Context for shared app state
+interface AppContextType {
+  username: string | null;
+  isAuthed: boolean;
+  passkey: string | null;
+  favoriteTeam: string | null;
+  teamChangeCount: number;
+  clientId: string;
+  firebaseMode: 'local' | 'prod';
+  handleAuthSuccess: (username: string, clientId: string) => void;
+  handleRotatePasskey: () => Promise<void>;
+  handleSelectFavoriteTeam: (team: string) => Promise<void>;
+  handleToggleFirebaseMode: () => void;
+}
+
+const AppContext = createContext<AppContextType | null>(null);
+
+function useAppContext() {
+  const context = useContext(AppContext);
+  if (!context) throw new Error('useAppContext must be used within AppLayout');
+  return context;
+}
+
+// Layout component with persistent footer
+function AppLayout() {
   const [username, setUsername] = useState<string | null>(null);
   const [isAuthed, setIsAuthed] = useState(false);
   const [passkey, setPasskey] = useState<string | null>(null);
+  const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
+  const [teamChangeCount, setTeamChangeCount] = useState(0);
   const [showPasskey, setShowPasskey] = useState(false);
   const [showPasscodeViewer, setShowPasscodeViewer] = useState(false);
-  const [teamChangeCount, setTeamChangeCount] = useState(0);
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
     return (localStorage.getItem('firebase_mode') as 'local' | 'prod') || 'local';
   });
@@ -44,7 +58,6 @@ function AppContent() {
   // Load auth state from localStorage on mount and check for login URL parameter
   useEffect(() => {
     const checkLoginParam = async () => {
-      // Check for ?login=username:passkey parameter
       const urlParams = new URLSearchParams(window.location.search);
       const loginParam = urlParams.get('login');
       
@@ -61,11 +74,8 @@ function AppContent() {
               localStorage.setItem('ovr_client_id', result.clientId);
               setUsername(username);
               setIsAuthed(true);
-              // Clear the URL parameter
               window.history.replaceState({}, '', window.location.pathname);
               return;
-            } else {
-              console.log('[App] Auto-login failed: invalid passkey');
             }
           } catch (error) {
             console.error('[App] Auto-login error:', error);
@@ -73,7 +83,6 @@ function AppContent() {
         }
       }
       
-      // Fall back to localStorage auth state
       const storedUsername = localStorage.getItem('ovr_username');
       const storedIsAuthed = localStorage.getItem('ovr_is_authed');
       if (storedUsername && storedIsAuthed === 'true') {
@@ -86,27 +95,23 @@ function AppContent() {
     checkLoginParam();
   }, []);
 
-  // Load user profile (username, passkey, favorite team, and change count) from Firebase
+  // Load user profile from Firebase
   useEffect(() => {
     console.log('[App] Loading user profile for client:', clientId);
     const unsub = onValue(userRef(clientId), (snap) => {
       const data = snap.val();
       console.log('[App] User profile data:', data);
       if (data?.username) {
-        console.log('[App] Found username:', data.username);
         setUsername(data.username);
         setIsAuthed(true);
       }
       if (data?.passkey) {
-        console.log('[App] Found passkey');
         setPasskey(data.passkey);
       }
       if (data?.favoriteTeam) {
-        console.log('[App] Found favorite team:', data.favoriteTeam);
         setFavoriteTeam(data.favoriteTeam);
       }
       if (data?.teamChangeCount !== undefined) {
-        console.log('[App] Found team change count:', data.teamChangeCount);
         setTeamChangeCount(data.teamChangeCount);
       }
     }, (error) => {
@@ -119,7 +124,6 @@ function AppContent() {
     console.log('[App] Auth successful:', { authUsername, authClientId });
     setUsername(authUsername);
     setIsAuthed(true);
-    // Save auth state to localStorage
     localStorage.setItem('ovr_username', authUsername);
     localStorage.setItem('ovr_is_authed', 'true');
     localStorage.setItem('ovr_client_id', authClientId);
@@ -146,11 +150,7 @@ function AppContent() {
     window.location.reload();
   };
 
-  // Save favorite team to Firebase
   const handleSelectFavoriteTeam = async (team: string) => {
-    console.log('[App] Saving favorite team:', team, 'Current count:', teamChangeCount);
-    
-    // Check if user has reached the limit
     if (teamChangeCount >= 3) {
       alert('You have reached the maximum limit of 3 favorite team changes.');
       return;
@@ -158,21 +158,148 @@ function AppContent() {
     
     try {
       const newCount = favoriteTeam ? teamChangeCount + 1 : 0;
-      console.log('[App] New team change count:', newCount);
-      
       await saveUserGlobalProfile(clientId, { 
         favoriteTeam: team,
         teamChangeCount: newCount
       });
       setFavoriteTeam(team);
       setTeamChangeCount(newCount);
-      console.log('[App] Favorite team saved successfully');
     } catch (error) {
       console.error('[App] Error saving favorite team:', error);
     }
   };
 
-  // 1. Resolve Tournament Context from Match Code
+  const contextValue: AppContextType = {
+    username,
+    isAuthed,
+    passkey,
+    favoriteTeam,
+    teamChangeCount,
+    clientId,
+    firebaseMode,
+    handleAuthSuccess,
+    handleRotatePasskey,
+    handleSelectFavoriteTeam,
+    handleToggleFirebaseMode,
+  };
+
+  return (
+    <AppContext.Provider value={contextValue}>
+      <div className="app-layout">
+        <Outlet />
+        
+        {!isAuthed && (
+          <UserAuth clientId={clientId} onAuthSuccess={handleAuthSuccess} />
+        )}
+        
+        {isAuthed && !favoriteTeam && (
+          <FavoriteTeamModal onSelectTeam={handleSelectFavoriteTeam} teamChangeCount={teamChangeCount} />
+        )}
+
+        {isAuthed && passkey && (
+          <div className="passkey-footer">
+            <div className="passkey-footer-content">
+              <span className="passkey-footer-label">Your Passkey:</span>
+              <div className="passkey-footer-value">
+                {showPasskey ? passkey : '••••••'}
+              </div>
+              <button 
+                className="passkey-toggle-btn"
+                onClick={() => setShowPasskey(!showPasskey)}
+                title={showPasskey ? 'Hide passkey' : 'Show passkey'}
+              >
+                {showPasskey ? '👁️' : '👁️‍🗨️'}
+              </button>
+              <button 
+                className="passkey-rotate-btn"
+                onClick={handleRotatePasskey}
+                title="Generate new passkey"
+              >
+                🔄
+              </button>
+              <button 
+                className="passkey-view-btn"
+                onClick={() => setShowPasscodeViewer(true)}
+                title="View passcode with QR and share link"
+              >
+                View Passcode
+              </button>
+              <button 
+                className="firebase-mode-btn"
+                onClick={handleToggleFirebaseMode}
+                title={`Switch to ${firebaseMode === 'local' ? 'PROD' : 'LOCAL'} mode`}
+                style={{
+                  background: firebaseMode === 'prod' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                  color: firebaseMode === 'prod' ? '#ef4444' : '#10b981',
+                }}
+              >
+                {firebaseMode.toUpperCase()}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showPasscodeViewer && username && passkey && (
+          <PasscodeViewer
+            username={username}
+            passkey={passkey}
+            onClose={() => setShowPasscodeViewer(false)}
+            onResetPasskey={handleRotatePasskey}
+          />
+        )}
+      </div>
+    </AppContext.Provider>
+  );
+}
+
+// Home page
+function HomePage() {
+  const navigate = useNavigate();
+  return (
+    <main className="page">
+      <AudienceGate 
+        onJoinMatch={(code) => navigate(`/match/${code}`)}
+        onJoinTournament={(code) => navigate(`/tournament/${code}`)}
+      />
+    </main>
+  );
+}
+
+// Tournament page
+function TournamentPage() {
+  const { tournamentCode } = useParams();
+  const navigate = useNavigate();
+  
+  if (!tournamentCode) return null;
+  
+  return (
+    <main className="page">
+      <TournamentBrowser 
+        tournamentCode={tournamentCode}
+        onJoinMatch={(matchId) => navigate(`/match/${matchId}`)}
+        onBack={() => navigate('/')}
+      />
+    </main>
+  );
+}
+
+// Match page
+function MatchPage() {
+  const { matchCode } = useParams();
+  const navigate = useNavigate();
+  const { 
+    clientId, 
+    favoriteTeam, 
+    handleSelectFavoriteTeam, 
+    teamChangeCount 
+  } = useAppContext();
+  
+  const [tournamentContext, setTournamentContext] = useState<{ sport: string; id: string; matchId: string } | null>(null);
+  const [meta, setMeta] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [matchStatus, setMatchStatus] = useState<string | null>(null);
+
+  // Resolve Tournament Context from Match Code
   useEffect(() => {
     if (!matchCode) return;
     setLoading(true);
@@ -181,7 +308,6 @@ function AppContent() {
       if (data && data.sport && data.tournamentId) {
         setTournamentContext({ sport: data.sport, id: data.tournamentId, matchId: matchCode });
       } else {
-        console.error('[App] Match not found or not active for match:', matchCode);
         alert('Match not found or not active. Check the code.');
         navigate('/');
       }
@@ -193,7 +319,7 @@ function AppContent() {
     return () => unsub();
   }, [matchCode, navigate]);
 
-  // 2. Check match status
+  // Check match status
   useEffect(() => {
     if (!tournamentContext) return;
     const { sport, id, matchId } = tournamentContext;
@@ -204,21 +330,15 @@ function AppContent() {
         const matchMeta = matchMetaSnap.val();
         if (matchMeta && matchMeta.status) {
           setMatchStatus(matchMeta.status);
-          console.log('[App] Match status:', matchMeta.status);
-          // Only block if match is done, allow live and scheduled matches
           if (matchMeta.status === 'done') {
             alert('This match has ended. You cannot join completed matches.');
             navigate('/');
             setTournamentContext(null);
           }
         } else {
-          // If no status set, assume it's live (backward compatibility)
           setMatchStatus('live');
-          console.log('[App] Match status: live (default)');
         }
       } catch (error) {
-        console.error('[App] Error fetching match status:', error);
-        // If error fetching, allow entry (backward compatibility)
         setMatchStatus('live');
       }
     };
@@ -226,54 +346,17 @@ function AppContent() {
     checkMatchStatus();
   }, [tournamentContext, navigate]);
 
-  // 3. Subscribe to Match Meta (not Tournament Meta)
+  // Subscribe to Match Meta
   useEffect(() => {
     if (!tournamentContext) return;
     const { sport, id, matchId } = tournamentContext;
-    console.log('[App] Subscribing to match meta for:', { sport, id, matchId });
     const unsubMatch = onValue(matchMetaRef(sport, id, matchId), (snap) => {
-      const data = snap.val();
-      console.log('[App] Match meta received:', data);
-      setMeta(data);
+      setMeta(snap.val());
     }, (error) => {
       console.error('[App] Error fetching match meta:', { sport, id, matchId }, error);
     });
     return () => unsubMatch();
   }, [tournamentContext]);
-
-  if (!matchCode && !tournamentCode) {
-    console.log('[App] Rendering AudienceGate');
-    return <AudienceGate 
-      onJoinMatch={(code) => {
-        console.log('[App] onJoinMatch called with:', code);
-        navigate(`/match/${code}`);
-      }}
-      onJoinTournament={(code) => {
-        console.log('[App] onJoinTournament called with:', code);
-        navigate(`/tournament/${code}`);
-      }}
-    />;
-  }
-
-  // Tournament browsing mode
-  if (tournamentCode && !matchCode) {
-    console.log('[App] Rendering TournamentBrowser for tournament:', tournamentCode);
-    return (
-      <main className="page">
-        <TournamentBrowser 
-          tournamentCode={tournamentCode}
-          onJoinMatch={(matchId) => {
-            console.log('[App] TournamentBrowser onJoinMatch called with:', matchId);
-            navigate(`/match/${matchId}`);
-          }}
-          onBack={() => {
-            console.log('[App] TournamentBrowser onBack called');
-            navigate('/');
-          }}
-        />
-      </main>
-    );
-  }
 
   if (loading || !tournamentContext) {
     return <main className="page"><div className="panel"><p>Connecting to {matchCode?.toUpperCase() || 'match'}...</p></div></main>;
@@ -282,7 +365,6 @@ function AppContent() {
   const activeMatch = meta?.matchTitle;
   const teamColors = favoriteTeam ? getTeamColor(favoriteTeam) : { primary: '#6366f1', secondary: '#8b5cf6' };
 
-  // Convert hex to RGB for rgba usage
   const hexToRgb = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {
@@ -309,22 +391,9 @@ function AppContent() {
         '--team-secondary': teamColors.secondary,
       } as React.CSSProperties}
     >
-      {!isAuthed && (
-        <UserAuth clientId={clientId} onAuthSuccess={handleAuthSuccess} />
-      )}
-      
-      {isAuthed && !favoriteTeam && (
-        <FavoriteTeamModal onSelectTeam={handleSelectFavoriteTeam} teamChangeCount={teamChangeCount} />
-      )}
-      
       <div id="audienceApp" className="audience-app-container">
-        {/* Header with back button */}
         <header className="audience-header">
-          <button 
-            onClick={() => navigate('/')}
-            className="back-btn"
-            title="Return to home"
-          >
+          <button onClick={() => navigate('/')} className="back-btn" title="Return to home">
             ← Back
           </button>
           <div className="audience-header-title">
@@ -385,17 +454,13 @@ function AppContent() {
             <div className="favorite-team-display">
               {getTeamLogoUrl(favoriteTeam) && (
                 <div className="favorite-team-logo-wrapper">
-                  <img 
-                    src={getTeamLogoUrl(favoriteTeam)!} 
-                    alt={favoriteTeam}
-                    className="favorite-team-logo"
-                  />
+                  <img src={getTeamLogoUrl(favoriteTeam)!} alt={favoriteTeam} className="favorite-team-logo" />
                 </div>
               )}
               <div className="favorite-team-info">
                 <p className="favorite-team-label">Supporting</p>
                 <h3 className="favorite-team-name">{favoriteTeam}</h3>
-                <button onClick={() => setFavoriteTeam(null)} className="ghost-link-xs" disabled={teamChangeCount >= 3}>
+                <button onClick={() => handleSelectFavoriteTeam(favoriteTeam)} className="ghost-link-xs" disabled={teamChangeCount >= 3}>
                   Change {teamChangeCount >= 3 ? '(Limit reached)' : `(${3 - teamChangeCount} left)`}
                 </button>
               </div>
@@ -424,57 +489,6 @@ function AppContent() {
           )}
         </div>
       </div>
-
-      {isAuthed && passkey && (
-        <div className="passkey-footer">
-          <div className="passkey-footer-content">
-            <span className="passkey-footer-label">Your Passkey:</span>
-            <div className="passkey-footer-value">
-              {showPasskey ? passkey : '••••••'}
-            </div>
-            <button 
-              className="passkey-toggle-btn"
-              onClick={() => setShowPasskey(!showPasskey)}
-              title={showPasskey ? 'Hide passkey' : 'Show passkey'}
-            >
-              {showPasskey ? '👁️' : '👁️‍🗨️'}
-            </button>
-            <button 
-              className="passkey-rotate-btn"
-              onClick={handleRotatePasskey}
-              title="Generate new passkey"
-            >
-              🔄
-            </button>
-            <button 
-              className="passkey-view-btn"
-              onClick={() => setShowPasscodeViewer(true)}
-              title="View passcode with QR and share link"
-            >
-              View Passcode
-            </button>
-            <button 
-              className="firebase-mode-btn"
-              onClick={handleToggleFirebaseMode}
-              title={`Switch to ${firebaseMode === 'local' ? 'PROD' : 'LOCAL'} mode`}
-              style={{
-                background: firebaseMode === 'prod' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                color: firebaseMode === 'prod' ? '#ef4444' : '#10b981',
-              }}
-            >
-              {firebaseMode.toUpperCase()}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showPasscodeViewer && username && passkey && (
-        <PasscodeViewer
-          username={username}
-          passkey={passkey}
-          onClose={() => setShowPasscodeViewer(false)}
-        />
-      )}
     </main>
   );
 }
@@ -483,9 +497,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AppContent />} />
-        <Route path="/match/:matchCode" element={<AppContent />} />
-        <Route path="/tournament/:tournamentCode" element={<AppContent />} />
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/match/:matchCode" element={<MatchPage />} />
+          <Route path="/tournament/:tournamentCode" element={<TournamentPage />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

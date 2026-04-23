@@ -28,9 +28,13 @@
   --team-a-alt: #8b5cf6;
   --team-b: #ef4444;
   --team-b-alt: #f59e0b;
-  --team-gradient: linear-gradient(135deg, var(--team-a), var(--team-a-alt), var(--team-b-alt), var(--team-b));
-  --team-a-text: #ffffff;
-  --team-b-text: #ffffff;
+}
+
+.app-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 
 * {
@@ -600,7 +604,70 @@ body.desktop-embed {
 }
 
 .gate-form {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+}
+
+.passkey-input-container {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.passkey-input {
+  width: 40px;
+  height: 48px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #ffffff !important;
+  outline: none;
+  transition: all 0.2s ease;
+  caret-color: #ffffff;
+}
+
+.passkey-input:focus {
+  border-color: var(--accent-blue);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  transform: translateY(-1px);
+}
+
+.passkey-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 1rem;
+}
+
+.passkey-separator {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0 4px;
+  user-select: none;
+}
+
+@media (max-width: 600px) {
+  .passkey-input {
+    width: 32px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+
+  .passkey-separator {
+    font-size: 1.2rem;
+    margin: 0 2px;
+  }
+
+  .passkey-input-container {
+    gap: 6px;
+  }
 }
 
 .gate-label {
@@ -811,6 +878,17 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
+.readonly-input {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.readonly-input:focus {
+  box-shadow: none !important;
+}
+
 .primary-btn,
 .secondary-btn,
 .ghost-btn {
@@ -918,6 +996,27 @@ button:disabled {
 
 .chat-message.own-message strong {
   display: none; /* Hide name for own messages like iMessage/Slack */
+}
+
+.chat-message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.chat-message-username {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.chat-message-timestamp {
+  font-size: 0.7rem;
+  color: var(--muted);
+  opacity: 0.6;
+  font-weight: 400;
 }
 
 .chat-message p,
@@ -2705,8 +2804,16 @@ body.desktop-embed .join-card {
 
 /* User Auth Modal */
 .user-auth-modal {
-  max-width: 420px;
+  max-width: 520px;
   padding: 40px;
+  width: 90%;
+}
+
+@media (max-width: 600px) {
+  .user-auth-modal {
+    max-width: 95%;
+    padding: 24px;
+  }
 }
 
 .user-auth-modal .modal-header h2 {

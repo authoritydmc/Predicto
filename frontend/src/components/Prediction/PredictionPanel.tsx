@@ -120,6 +120,8 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             maxLength={30}
             required
             placeholder="Display name..."
+            readOnly
+            className="readonly-input"
           />
         </label>
 
