@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { onValue, ref, get } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
-import TournamentLeaderboardModal from '../Leaderboard/TournamentLeaderboardModal';
 
 interface TournamentBrowserProps {
   tournamentCode: string;
@@ -67,12 +67,12 @@ const getSportIcon = (sport: string) => {
 };
 
 export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack }: TournamentBrowserProps) {
+  const navigate = useNavigate();
   const [tournamentInfo, setTournamentInfo] = useState<TournamentInfo | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [schedule, setSchedule] = useState<ScheduledMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   useEffect(() => {
     const loadTournament = async () => {
@@ -287,7 +287,7 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
           <button
             onClick={() => {
               console.log('[TournamentBrowser] Leaderboard button clicked, tournamentInfo:', tournamentInfo);
-              setShowLeaderboard(true);
+              navigate(`/tournament/${tournamentCode}/leaderboard`);
             }}
             className="link-btn"
             style={{ fontSize: '0.85rem', padding: '6px 12px' }}
@@ -491,15 +491,6 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
         <div style={{ textAlign: 'center', padding: 40 }}>
           <p style={{ color: 'var(--muted)' }}>No matches in this tournament</p>
         </div>
-      )}
-
-      {/* Leaderboard Modal */}
-      {showLeaderboard && tournamentInfo && (
-        <TournamentLeaderboardModal
-          sport={tournamentInfo.sport}
-          tournamentId={tournamentInfo.tournamentId}
-          onClose={() => setShowLeaderboard(false)}
-        />
       )}
     </section>
   );

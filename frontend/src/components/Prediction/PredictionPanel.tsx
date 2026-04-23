@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef, matchPredictionsRef } from '../../firebase/services';
 import { onValue, get } from 'firebase/database';
 import CricketPrediction from './CricketPrediction';
@@ -15,13 +16,13 @@ interface PredictionPanelProps {
 }
 
 export default function PredictionPanel({ sport, id, matchId, clientId }: PredictionPanelProps) {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
-  const [teamA, setTeamA] = useState('Team A');
-  const [teamB, setTeamB] = useState('Team B');
-  const [loading, setLoading] = useState(false);
-  const [battingFirst, setBattingFirst] = useState<'teamA' | 'teamB' | null>(null);
-  const [currentInnings, setCurrentInnings] = useState<number>(1);
-  const [matchStatus, setMatchStatus] = useState<string>('scheduled');
+  const [teamA, setTeamA] = useState('');
+  const [teamB, setTeamB] = useState('');
+  const [battingFirst, setBattingFirst] = useState('');
+  const [currentInnings, setCurrentInnings] = useState(1);
+  const [matchStatus, setMatchStatus] = useState('');
   const [isMatchCompleted, setIsMatchCompleted] = useState(false);
   const [predictionsEnabled, setPredictionsEnabled] = useState(true);
   const [predictionsPaused, setPredictionsPaused] = useState(false);
@@ -31,6 +32,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
   const [allowReprediction, setAllowReprediction] = useState(false);
   const [hasPredicted, setHasPredicted] = useState(false);
   const [previousPrediction, setPreviousPrediction] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [showOtherPredictionsModal, setShowOtherPredictionsModal] = useState(false);
 
@@ -289,7 +291,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             📊 Other Predictions
           </button>
           <button
-            onClick={() => setShowLeaderboardModal(true)}
+            onClick={() => navigate(`/tournament/${id}/leaderboard`)}
             className="link-btn"
             style={{ fontSize: '0.85rem', padding: '6px 12px' }}
           >

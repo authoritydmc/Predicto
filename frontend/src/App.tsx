@@ -7,6 +7,8 @@ import AppHeader from './components/Layout/AppHeader';
 import TournamentBrowser from './components/Tournament/TournamentBrowser';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
+import PredictionPage from './components/Prediction/PredictionPage';
+import LeaderboardPage from './components/Leaderboard/LeaderboardPage';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
 import UserAuth from './components/Auth/UserAuth';
 import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
@@ -34,6 +36,8 @@ function useAppContext() {
   if (!context) throw new Error('useAppContext must be used within AppLayout');
   return context;
 }
+
+export { AppContext, useAppContext };
 
 // Layout component with persistent footer
 function AppLayout() {
@@ -654,15 +658,15 @@ function MatchPage() {
         <div className="grid-two">
           {activeMatch ? (
             <>
-               <PredictionPanel 
-                 sport={tournamentContext.sport} 
-                 id={tournamentContext.id} 
+               <PredictionPanel
+                 sport={tournamentContext.sport}
+                 id={tournamentContext.id}
                  matchId={tournamentContext.matchId}
                  clientId={clientId}
                />
-               <ChatPanel 
-                 sport={tournamentContext.sport} 
-                 id={tournamentContext.id} 
+               <ChatPanel
+                 sport={tournamentContext.sport}
+                 id={tournamentContext.id}
                  matchId={tournamentContext.matchId}
                  clientId={clientId}
                />
@@ -671,6 +675,15 @@ function MatchPage() {
             <div className="panel"><p>Match setup in progress. Please wait...</p></div>
           )}
         </div>
+
+        {/* Full screen prediction button */}
+        <button
+          onClick={() => navigate(`/match/${matchCode}/prediction`)}
+          className="fullscreen-prediction-btn"
+          title="Open predictions in full screen"
+        >
+          📊 Full Screen Predictions
+        </button>
       </div>
     </main>
   );
@@ -683,7 +696,9 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/match/:matchCode" element={<MatchPage />} />
+          <Route path="/match/:matchCode/prediction" element={<PredictionPage />} />
           <Route path="/tournament/:tournamentCode" element={<TournamentPage />} />
+          <Route path="/tournament/:tournamentCode/leaderboard" element={<LeaderboardPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

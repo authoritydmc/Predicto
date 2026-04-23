@@ -89,6 +89,41 @@ class ResultProcessor:
                     'reconciledBy': 'scheduler'
                 }
             )
+
+            # Update live_score to reflect match completion
+            print(f"[ResultProcessor] Meta data for live_score update: {meta}")
+            live_score_update = {
+                'status': 'done',
+                'matchEnded': True,
+                'endedAt': self.client.get_timestamp()
+            }
+            if meta.get('actualWinner'):
+                live_score_update['actualWinner'] = meta.get('actualWinner')
+                print(f"[ResultProcessor] Adding actualWinner to live_score: {meta.get('actualWinner')}")
+            if meta.get('actual2ndInningsResult'):
+                live_score_update['actual2ndInningsResult'] = meta.get('actual2ndInningsResult')
+                print(f"[ResultProcessor] Adding actual2ndInningsResult to live_score: {meta.get('actual2ndInningsResult')}")
+
+            print(f"[ResultProcessor] Updating live_score with: {live_score_update}")
+            self.client.update(
+                f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/live_score",
+                live_score_update
+            )
+            print(f"[ResultProcessor] Updated live_score for match completion")
+
+        # Update live_score for 1st innings completion
+        if innings == '1':
+            live_score_update = {
+                'currentInnings': 2
+            }
+            if meta.get('actual1stInningsScore'):
+                live_score_update['actual1stInningsScore'] = meta.get('actual1stInningsScore')
+
+            self.client.update(
+                f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/live_score",
+                live_score_update
+            )
+            print(f"[ResultProcessor] Updated live_score for 1st innings completion")
         
         return {
             'success': True,
