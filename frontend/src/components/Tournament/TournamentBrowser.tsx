@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { onValue, ref, get } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import TournamentLeaderboardModal from '../Leaderboard/TournamentLeaderboardModal';
 
 interface TournamentBrowserProps {
   tournamentCode: string;
@@ -71,6 +72,7 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
   const [schedule, setSchedule] = useState<ScheduledMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   useEffect(() => {
     const loadTournament = async () => {
@@ -281,13 +283,25 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
             <p className="tournament-meta">{tournamentInfo?.sport?.toUpperCase()}</p>
           </div>
         </div>
-        <button 
-          onClick={copyTournamentUrl}
-          className="share-btn"
-          title="Copy tournament link"
-        >
-          🔗
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => {
+              console.log('[TournamentBrowser] Leaderboard button clicked, tournamentInfo:', tournamentInfo);
+              setShowLeaderboard(true);
+            }}
+            className="link-btn"
+            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+          >
+            🏆 Leaderboard
+          </button>
+          <button 
+            onClick={copyTournamentUrl}
+            className="share-btn"
+            title="Copy tournament link"
+          >
+            🔗
+          </button>
+        </div>
       </div>
 
       {/* Live Matches */}
@@ -477,6 +491,15 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
         <div style={{ textAlign: 'center', padding: 40 }}>
           <p style={{ color: 'var(--muted)' }}>No matches in this tournament</p>
         </div>
+      )}
+
+      {/* Leaderboard Modal */}
+      {showLeaderboard && tournamentInfo && (
+        <TournamentLeaderboardModal
+          sport={tournamentInfo.sport}
+          tournamentId={tournamentInfo.tournamentId}
+          onClose={() => setShowLeaderboard(false)}
+        />
       )}
     </section>
   );

@@ -9,7 +9,8 @@ import {
   matchLiveScoreRef,
   setTournamentDiscovery, setMatchDiscovery, generateMatchId, getMergedMeta,
   saveTournamentSchedule, getTournamentSchedule, addMatchToSchedule,
-  getTournamentsBySport, updateTournamentStatus, deleteTournament, deleteMatch, getMatchesByTournament
+  getTournamentsBySport, updateTournamentStatus, deleteTournament, deleteMatch, getMatchesByTournament,
+  getUserByUsername, adminResetPasskey, adminBlockUser, adminSetUserRole
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
@@ -232,7 +233,8 @@ const ControlPanel: React.FC = () => {
     liveScore: false,
     windowEngine: false,
     history: true,
-    scheduler: false
+    scheduler: false,
+    userManagement: true
   });
 
   // ── Tab State
@@ -284,6 +286,8 @@ const ControlPanel: React.FC = () => {
   const [fActualScore, setFActualScore] = useState('');
   const [fChaserWon, setFChaserWon] = useState<'yes' | 'no'>('no');
   const [fActualResult, setFActualResult] = useState('');
+  const [resolutionStatus, setResolutionStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [resolutionMessage, setResolutionMessage] = useState('');
 
   // ── Win Prob
   const [googleUrl, setGoogleUrl] = useState('');
@@ -362,6 +366,13 @@ const ControlPanel: React.FC = () => {
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
     return getDbRoot() as 'local' | 'prod';
   });
+
+  // ── User Management State
+  const [userSearchUsername, setUserSearchUsername] = useState('');
+  const [userSearchResult, setUserSearchResult] = useState<any>(null);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [userSearchError, setUserSearchError] = useState('');
+  const [showUserManagement, setShowUserManagement] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Init
@@ -940,6 +951,86 @@ const ControlPanel: React.FC = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // User Management Handlers
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleSearchUser = async () => {
+    if (!userSearchUsername.trim()) {
+      setUserSearchError('Please enter a username');
+      return;
+    }
+
+    setUserSearchLoading(true);
+    setUserSearchError('');
+    setUserSearchResult(null);
+
+    try {
+      const userData = await getUserByUsername(userSearchUsername.trim());
+      if (userData) {
+        setUserSearchResult(userData);
+      } else {
+        setUserSearchError('User not found');
+      }
+    } catch (err) {
+      console.error('Error searching user:', err);
+      setUserSearchError('Error searching for user');
+    } finally {
+      setUserSearchLoading(false);
+    }
+  };
+
+  const handleResetPasskey = async () => {
+    if (!userSearchResult || !userSearchUsername) return;
+
+    if (!confirm(`Are you sure you want to reset the passkey for "${userSearchUsername}"?`)) return;
+
+    try {
+      const newPasskey = await adminResetPasskey(userSearchUsername);
+      alert(`Passkey reset successfully! New passkey: ${newPasskey}`);
+      // Refresh user data
+      const userData = await getUserByUsername(userSearchUsername);
+      setUserSearchResult(userData);
+    } catch (err) {
+      console.error('Error resetting passkey:', err);
+      alert('Error resetting passkey');
+    }
+  };
+
+  const handleBlockUser = async (block: boolean) => {
+    if (!userSearchResult || !userSearchUsername) return;
+
+    const action = block ? 'block' : 'unblock';
+    if (!confirm(`Are you sure you want to ${action} "${userSearchUsername}"?`)) return;
+
+    try {
+      await adminBlockUser(userSearchUsername, block);
+      alert(`User ${action}ed successfully`);
+      // Refresh user data
+      const userData = await getUserByUsername(userSearchUsername);
+      setUserSearchResult(userData);
+    } catch (err) {
+      console.error(`Error ${action}ing user:`, err);
+      alert(`Error ${action}ing user`);
+    }
+  };
+
+  const handleSetUserRole = async (role: 'user' | 'admin' | 'moderator') => {
+    if (!userSearchResult || !userSearchUsername) return;
+
+    if (!confirm(`Are you sure you want to set role for "${userSearchUsername}" to "${role}"?`)) return;
+
+    try {
+      await adminSetUserRole(userSearchUsername, role);
+      alert(`User role updated successfully to ${role}`);
+      // Refresh user data
+      const userData = await getUserByUsername(userSearchUsername);
+      setUserSearchResult(userData);
+    } catch (err) {
+      console.error('Error setting user role:', err);
+      alert('Error setting user role');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // CSV Upload Handler
   // ─────────────────────────────────────────────────────────────────────────────
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1496,6 +1587,45 @@ const ControlPanel: React.FC = () => {
     } catch (err) { console.error(err); alert('Error finalizing stage.'); }
   };
 
+  const triggerPythonResolution = async () => {
+    if (!matchId || !tournamentId) return;
+    
+    // Check if running in Electron
+    if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
+      setResolutionStatus('running');
+      setResolutionMessage('Starting Python resolution script...');
+      
+      try {
+        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId);
+        if (result.success) {
+          setResolutionStatus('success');
+          setResolutionMessage(`Match processed successfully. ${result.lineCount || 0} lines of output.`);
+          setTimeout(() => {
+            setResolutionStatus('idle');
+            setResolutionMessage('');
+          }, 5000);
+        } else {
+          setResolutionStatus('error');
+          setResolutionMessage(`Error: ${result.error}`);
+          setTimeout(() => {
+            setResolutionStatus('idle');
+            setResolutionMessage('');
+          }, 10000);
+        }
+      } catch (err) {
+        console.error('Error triggering Python resolution:', err);
+        setResolutionStatus('error');
+        setResolutionMessage('Failed to trigger Python resolution');
+        setTimeout(() => {
+          setResolutionStatus('idle');
+          setResolutionMessage('');
+        }, 10000);
+      }
+    } else {
+      alert('Python resolution only available in Electron app');
+    }
+  };
+
   const viewFinalStandings = async () => {
     if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     try {
@@ -1511,21 +1641,36 @@ const ControlPanel: React.FC = () => {
 
   const handleEndMatch = async () => {
     if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
-    if (!confirm('End match? Standings archived and live room cleared.')) return;
+    if (!confirm('End match? This will trigger Python resolution to calculate scores and update leaderboard.')) return;
+    
+    // First, mark match as done
     try {
-      const h1Snap = await getOnce(matchRef(fSport, tournamentId, matchId, 'innings_history/1st'));
-      const h2Snap = await getOnce(matchRef(fSport, tournamentId, matchId, 'innings_history/2nd'));
-      const h1 = h1Snap.val() || {}; const h2 = h2Snap.val() || {};
-      const finalStandings = calcMatchFinals(h1, h2);
-      const dateKey = `${new Date().toISOString().split('T')[0]}_${Date.now()}`;
-      await update(matchRef(fSport, tournamentId, matchId, `history/${dateKey}`), { matchTitle: fMatchTitle || 'Unnamed Match', teamA: fTeamA, teamB: fTeamB, innings1: h1, innings2: h2, finalStandings });
-      await update(matchPredictionsRef(fSport, tournamentId, matchId), {});
-      await update(matchMetaRef(fSport, tournamentId, matchId), { resolved: true, status: 'done', endedAt: Date.now() });
-      setOverallOpen(false);
-      setResultsOpen(false);
-      setFActualScore(''); setFActualResult('');
-      alert('Match ended and archived.');
-    } catch (err) { console.error(err); alert('Error ending match.'); }
+      await update(matchMetaRef(fSport, tournamentId, matchId), { status: 'done', endedAt: Date.now() });
+    } catch (err) {
+      console.error(err);
+      alert('Error marking match as done.');
+      return;
+    }
+    
+    // Then trigger Python resolution
+    if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
+      try {
+        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId);
+        if (result.success) {
+          setOverallOpen(false);
+          setResultsOpen(false);
+          setFActualScore(''); setFActualResult('');
+          alert('Match ended and processed successfully. Scores and leaderboard updated.');
+        } else {
+          alert(`Error processing match: ${result.error}`);
+        }
+      } catch (err) {
+        console.error('Error triggering Python resolution:', err);
+        alert('Failed to trigger Python resolution');
+      }
+    } else {
+      alert('Python resolution only available in Electron app');
+    }
   };
 
   const handleRestoreMatch = async (matchIdToRestore: string) => {
@@ -2681,9 +2826,45 @@ const ControlPanel: React.FC = () => {
               <button id="calculatePoints" className="cp-primary-btn" onClick={resolveMatch}>
                 {is2nd ? 'Resolve 2nd Innings' : 'Resolve 1st Innings'}
               </button>
+              <button 
+                id="triggerPythonResolution" 
+                className="cp-action-btn" 
+                onClick={triggerPythonResolution}
+                disabled={resolutionStatus === 'running'}
+                style={{ 
+                  opacity: resolutionStatus === 'running' ? 0.6 : 1,
+                  cursor: resolutionStatus === 'running' ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {resolutionStatus === 'running' ? '⏳ Processing...' : '🐍 Process via Python'}
+              </button>
               <button id="viewFinalStandings" className="cp-action-btn" onClick={viewFinalStandings}>View Final Game Standings</button>
             </div>
-            <p className="cp-panel-note">Resolve the current innings to archive points and prepare for the final report.</p>
+            {resolutionMessage && (
+              <div 
+                className="cp-panel-note" 
+                style={{ 
+                  marginTop: '12px',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  background: resolutionStatus === 'success' ? 'rgba(52, 199, 89, 0.1)' : 
+                             resolutionStatus === 'error' ? 'rgba(255, 59, 48, 0.1)' : 
+                             'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${resolutionStatus === 'success' ? 'rgba(52, 199, 89, 0.3)' : 
+                                    resolutionStatus === 'error' ? 'rgba(255, 59, 48, 0.3)' : 
+                                    'rgba(255, 255, 255, 0.1)'}`,
+                  color: resolutionStatus === 'success' ? '#34c759' : 
+                         resolutionStatus === 'error' ? '#ff3b30' : 
+                         'var(--text-primary)'
+                }}
+              >
+                {resolutionStatus === 'running' && '⏳ '}
+                {resolutionStatus === 'success' && '✅ '}
+                {resolutionStatus === 'error' && '❌ '}
+                {resolutionMessage}
+              </div>
+            )}
+            <p className="cp-panel-note">Resolve the current innings to archive points and prepare for the final report. Python processing handles scoring and leaderboard updates automatically.</p>
           </div>
         </section>
 
@@ -2861,6 +3042,159 @@ const ControlPanel: React.FC = () => {
                 Check Status
               </button>
             </div>
+          </div>
+        </section>
+
+        {/* ── User Management ── */}
+        <section className="cp-panel-group">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('userManagement')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>User Management</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.userManagement ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card" style={{ display: collapsedSections.userManagement ? 'none' : 'block' }}>
+            {/* User Search */}
+            <div className="cp-section-header">
+              <span>Search User</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <input
+                type="text"
+                value={userSearchUsername}
+                onChange={(e) => setUserSearchUsername(e.target.value)}
+                placeholder="Enter username..."
+                style={{ 
+                  flex: 1, 
+                  padding: '8px 12px', 
+                  background: 'rgba(0,0,0,0.2)', 
+                  border: '1px solid var(--panel-border)', 
+                  borderRadius: '6px', 
+                  color: 'var(--text)',
+                  fontSize: '13px'
+                }}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearchUser()}
+              />
+              <button 
+                className="cp-action-btn"
+                onClick={handleSearchUser}
+                disabled={userSearchLoading}
+              >
+                {userSearchLoading ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+            {userSearchError && (
+              <div style={{ 
+                padding: '8px 12px', 
+                background: 'rgba(239, 68, 68, 0.1)', 
+                borderRadius: '6px', 
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                fontSize: '12px',
+                marginBottom: '12px'
+              }}>
+                {userSearchError}
+              </div>
+            )}
+
+            {/* User Result */}
+            {userSearchResult && (
+              <div style={{ 
+                padding: '16px', 
+                background: 'rgba(99, 102, 241, 0.1)', 
+                borderRadius: '8px', 
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                marginBottom: '16px'
+              }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#818cf8' }}>
+                    {userSearchUsername}
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '12px' }}>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Client ID:</span>
+                      <span style={{ marginLeft: '8px', fontFamily: 'monospace', color: 'var(--text)' }}>
+                        {userSearchResult.clientId}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Role:</span>
+                      <span style={{ marginLeft: '8px', color: 'var(--text)' }}>
+                        {userSearchResult.role || 'user'}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Status:</span>
+                      <span style={{ marginLeft: '8px', color: userSearchResult.enabled ? '#34c759' : '#ef4444' }}>
+                        {userSearchResult.enabled ? 'Enabled' : 'Blocked'}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Failed Attempts:</span>
+                      <span style={{ marginLeft: '8px', color: 'var(--text)' }}>
+                        {userSearchResult.failedLoginAttempts || 0}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Passkey:</span>
+                      <span style={{ marginLeft: '8px', fontFamily: 'monospace', color: 'var(--accent-blue)' }}>
+                        {userSearchResult.passkey}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Created:</span>
+                      <span style={{ marginLeft: '8px', color: 'var(--text)' }}>
+                        {userSearchResult.createdAt ? new Date(userSearchResult.createdAt).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      className="cp-action-btn cp-small"
+                      onClick={handleResetPasskey}
+                      style={{ flex: 1, background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8' }}
+                    >
+                      Reset Passkey
+                    </button>
+                    <button 
+                      className={`cp-action-btn cp-small ${userSearchResult.enabled ? 'cp-danger' : ''}`}
+                      onClick={() => handleBlockUser(userSearchResult.enabled)}
+                      style={{ flex: 1, background: userSearchResult.enabled ? 'rgba(239, 68, 68, 0.2)' : 'rgba(52, 199, 89, 0.2)', color: userSearchResult.enabled ? '#ef4444' : '#34c759' }}
+                    >
+                      {userSearchResult.enabled ? 'Block User' : 'Unblock User'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Set Role:</span>
+                    <select
+                      value={userSearchResult.role || 'user'}
+                      onChange={(e) => handleSetUserRole(e.target.value as any)}
+                      style={{ 
+                        flex: 1, 
+                        padding: '6px 8px', 
+                        background: 'rgba(0,0,0,0.2)', 
+                        border: '1px solid var(--panel-border)', 
+                        borderRadius: '4px', 
+                        color: 'var(--text)',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <option value="user">User</option>
+                      <option value="moderator">Moderator</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

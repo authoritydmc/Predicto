@@ -33,6 +33,8 @@ export default function TournamentLeaderboardModal({ sport, tournamentId, onClos
   const [loading, setLoading] = useState(true);
   const [tournamentName, setTournamentName] = useState<string>('');
 
+  console.log('[TournamentLeaderboardModal] Modal rendered with:', { sport, tournamentId });
+
   useEffect(() => {
     const loadLeaderboard = async () => {
       try {

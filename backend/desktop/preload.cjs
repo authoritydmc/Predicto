@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   toggleSchedulerTask: (taskId) => ipcRenderer.invoke("scheduler:toggle-task", taskId),
   updateSchedulerTask: (taskId, config) => ipcRenderer.invoke("scheduler:update-task", taskId, config),
   getSchedulerStatus: () => ipcRenderer.invoke("scheduler:get-status"),
+  processMatchResolution: (sport, tournamentId, matchId) => ipcRenderer.invoke("resolution:process-match", sport, tournamentId, matchId),
 });
 
 // Expose APP_MODE directly on window

@@ -313,3 +313,42 @@ export const matchReactionRef = (sport: string, tournamentId: string, matchId?: 
   if (matchId) return matchRef(sport, tournamentId, matchId, "reactions");
   return schemaRef("reactions", sport, tournamentId);
 };
+
+// ── User Management (Admin) ─────────────────────────────────────────────────────
+export const usernameDataRef = (username: string) =>
+  ref(db, `${getDbRoot()}/username/${username.toLowerCase()}`);
+
+export const getUserByUsername = async (username: string) => {
+  const snap = await get(usernameDataRef(username));
+  return snap.val();
+};
+
+export const adminResetPasskey = async (username: string): Promise<string> => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let passkey = '';
+  for (let i = 0; i < 8; i++) {
+    passkey += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  await update(usernameDataRef(username), {
+    passkey,
+    failedLoginAttempts: 0,
+    updatedAt: serverTimestamp()
+  });
+  
+  return passkey;
+};
+
+export const adminBlockUser = async (username: string, blocked: boolean) => {
+  await update(usernameDataRef(username), {
+    enabled: !blocked,
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const adminSetUserRole = async (username: string, role: 'user' | 'admin' | 'moderator') => {
+  await update(usernameDataRef(username), {
+    role,
+    updatedAt: serverTimestamp()
+  });
+};

@@ -669,3 +669,86 @@ ipcMain.handle("scheduler:update-task", async (_event, taskId, config) => {
   console.log(`[Scheduler] Updating task: ${taskId}`, config);
   return { success: true, taskId };
 });
+
+ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, matchId) => {
+  console.log("=" * 80);
+  console.log(`[Resolution] Starting match resolution process`);
+  console.log(`[Resolution] Sport: ${sport}`);
+  console.log(`[Resolution] Tournament ID: ${tournamentId}`);
+  console.log(`[Resolution] Match ID: ${matchId}`);
+  console.log("=" * 80);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  let scriptPath = '';
+  
+  if (sport === 'cricket') {
+    scriptPath = path.join(__dirname, "..", "automation", "cricket", "run_calculator.py");
+  } else if (sport === 'football') {
+    scriptPath = path.join(__dirname, "..", "automation", "football", "run_calculator.py");
+  } else {
+    console.error(`[Resolution] ERROR: Unsupported sport: ${sport}`);
+    return { success: false, error: 'Unsupported sport' };
+  }
+  
+  console.log(`[Resolution] Python path: ${pythonPath}`);
+  console.log(`[Resolution] Script path: ${scriptPath}`);
+  console.log(`[Resolution] Command: ${pythonPath} ${scriptPath} --tournament ${tournamentId} --match ${matchId}`);
+  console.log(`[Resolution] Spawning Python process...`);
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [scriptPath, '--tournament', tournamentId, '--match', matchId]);
+    
+    let stdout = '';
+    let stderr = '';
+    let lineCount = 0;
+    
+    pythonProcess.stdout.on('data', (data) => {
+      const lines = data.toString().split('\n');
+      lines.forEach(line => {
+        if (line.trim()) {
+          lineCount++;
+          console.log(`[Resolution Output] ${line}`);
+        }
+      });
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      const lines = data.toString().split('\n');
+      lines.forEach(line => {
+        if (line.trim()) {
+          console.error(`[Resolution Error] ${line}`);
+        }
+      });
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      console.log("=" * 80);
+      console.log(`[Resolution] Python process exited with code: ${code}`);
+      console.log(`[Resolution] Total output lines: ${lineCount}`);
+      
+      if (code === 0) {
+        console.log(`[Resolution] SUCCESS: Match processed successfully`);
+        console.log(`[Resolution] Output length: ${stdout.length} characters`);
+        resolve({ success: true, sport, tournamentId, matchId, output: stdout, lineCount });
+      } else {
+        console.error(`[Resolution] ERROR: Match processing failed`);
+        console.error(`[Resolution] Exit code: ${code}`);
+        console.error(`[Resolution] Error output length: ${stderr.length} characters`);
+        resolve({ success: false, error: `Processing failed with code ${code}`, stderr, stdout });
+      }
+      console.log("=" * 80);
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error("=" * 80);
+      console.error(`[Resolution] ERROR: Failed to start Python process`);
+      console.error(`[Resolution] Error details: ${error.message}`);
+      console.error(`[Resolution] Error code: ${error.code}`);
+      console.error(`[Resolution] Error syscall: ${error.syscall}`);
+      console.error("=" * 80);
+      resolve({ success: false, error: 'Failed to start process', details: error.message });
+    });
+  });
+});
