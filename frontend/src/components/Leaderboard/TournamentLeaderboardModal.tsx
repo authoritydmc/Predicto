@@ -78,43 +78,67 @@ export default function TournamentLeaderboardModal({ sport, tournamentId, onClos
   }, [sport, tournamentId]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>🏆 Tournament Leaderboard</h2>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+    <div className="leaderboard-modal-overlay" onClick={onClose}>
+      <div className="leaderboard-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="leaderboard-modal-header">
+          <button className="back-btn" onClick={onClose}>← Back</button>
+          <div className="tournament-info">
+            {tournamentName && (
+              <>
+                <span className="tournament-label">TOURNAMENT</span>
+                <span className="tournament-name">{tournamentName}</span>
+              </>
+            )}
+          </div>
+          <button className="close-btn" onClick={onClose}>✕</button>
         </div>
-        <div className="modal-body">
-          {tournamentName && (
-            <p style={{ color: 'var(--muted)', marginBottom: '16px', fontSize: '0.9rem' }}>
-              {tournamentName}
-            </p>
-          )}
+
+        <div className="leaderboard-modal-body">
+          <div className="leaderboard-header">
+            <h2>Leaderboard</h2>
+            <p>Current standings across all matches</p>
+          </div>
+
           {loading ? (
-            <p style={{ color: 'var(--muted)', textAlign: 'center' }}>Loading leaderboard...</p>
+            <div className="loading-state">Loading leaderboard...</div>
           ) : leaderboard.length === 0 ? (
-            <p style={{ color: 'var(--muted)', textAlign: 'center' }}>No leaderboard data available</p>
+            <div className="empty-state">No leaderboard data available</div>
           ) : (
             <table className="leaderboard-table">
               <thead>
                 <tr>
-                  <th>Rank</th>
-                  <th>Name</th>
-                  <th>Points</th>
-                  <th>Matches</th>
+                  <th>RANK</th>
+                  <th>PLAYER</th>
+                  <th>POINTS</th>
+                  <th>MATCHES</th>
+                  <th>AVG</th>
+                  <th>VISUAL</th>
                 </tr>
               </thead>
               <tbody>
                 {leaderboard.map((entry) => (
                   <tr key={entry.name}>
-                    <td>
+                    <td className="rank-cell">
                       <span className={`rank-badge ${entry.rank === 1 ? 'rank-1' : entry.rank === 2 ? 'rank-2' : entry.rank === 3 ? 'rank-3' : ''}`}>
                         {entry.rank}
                       </span>
                     </td>
-                    <td>{entry.name}</td>
-                    <td style={{ fontWeight: 'bold', color: '#34c759' }}>{entry.totalPoints}</td>
-                    <td>{entry.matchesPlayed}</td>
+                    <td className="player-cell">
+                      <span className="player-name">{entry.name}</span>
+                    </td>
+                    <td className="points-cell">{entry.totalPoints}</td>
+                    <td className="matches-cell">{entry.matchesPlayed}</td>
+                    <td className="avg-cell">
+                      {entry.matchesPlayed > 0 ? (entry.totalPoints / entry.matchesPlayed).toFixed(1) : '0.0'}
+                    </td>
+                    <td className="visual-cell">
+                      <div className="score-bar">
+                        <div 
+                          className="score-bar-fill" 
+                          style={{ width: `${Math.min((entry.totalPoints / (leaderboard[0]?.totalPoints || 1)) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

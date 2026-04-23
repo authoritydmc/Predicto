@@ -11,15 +11,11 @@ interface OtherPredictionsModalProps {
 
 interface PredictionEntry {
   name: string;
-  predictedWinner?: string;
-  scoreA?: string;
-  scoreB?: string;
-  teamABattingFirstScore?: string;
-  teamBBattingFirstScore?: string;
-  secondInningsWinner?: string;
-  secondInningsChasingScore?: string;
-  secondInningsWinOvers?: string;
-  timestamp?: number;
+  firstInningsCall?: string;
+  secondInningsCall?: string;
+  penalty?: number;
+  totalScore?: number;
+  rank?: number;
 }
 
 const getDbRoot = () => {
@@ -38,7 +34,7 @@ const getDbRoot = () => {
 export default function OtherPredictionsModal({ sport, tournamentId, matchId, onClose }: OtherPredictionsModalProps) {
   const [predictions, setPredictions] = useState<PredictionEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentInnings, setCurrentInnings] = useState<number>(1);
+  const [matchInfo, setMatchInfo] = useState<any>(null);
 
   useEffect(() => {
     const loadPredictions = async () => {
@@ -46,53 +42,55 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
         setLoading(true);
         const dbRoot = getDbRoot();
 
-        // Get match meta to determine current innings
+        // Get match meta
         const matchMetaPath = `${dbRoot}/tournaments/${sport}/${tournamentId}/matches/${matchId}/meta`;
-        const matchMetaSnap = await get(rtdb.ref(rtdb, matchMetaPath));
+        const matchMetaSnap = await get(ref(rtdb, matchMetaPath));
         const matchMeta = matchMetaSnap.val();
-        if (matchMeta?.secondInnings !== undefined) {
-          setCurrentInnings(matchMeta.secondInnings ? 2 : 1);
-        }
+        setMatchInfo(matchMeta);
 
         // Listen to predictions
         const predictionsPath = `${dbRoot}/tournaments/${sport}/${tournamentId}/matches/${matchId}/predictions`;
-        const unsub = onValue(rtdb.ref(rtdb, predictionsPath), (snap) => {
+        const unsub = onValue(ref(rtdb, predictionsPath), (snap) => {
           const data = snap.val();
           if (data) {
             const entries = Object.entries(data).map(([name, userData]: [string, any]) => {
-              let prediction: PredictionEntry = { name, timestamp: userData.timestamp };
-              
-              // Get prediction based on current innings
-              if (currentInnings === 2 && userData.second_inn) {
-                prediction = {
-                  ...prediction,
-                  predictedWinner: userData.second_inn.secondInningsWinner,
-                  secondInningsWinner: userData.second_inn.secondInningsWinner,
-                  secondInningsChasingScore: userData.second_inn.secondInningsChasingScore,
-                  secondInningsWinOvers: userData.second_inn.secondInningsWinOvers,
-                  timestamp: userData.second_inn.timestamp
-                };
-              } else if (currentInnings === 1 && userData.first_inn) {
-                prediction = {
-                  ...prediction,
-                  predictedWinner: userData.first_inn.predictedWinner,
-                  scoreA: userData.first_inn.scoreA,
-                  scoreB: userData.first_inn.scoreB,
-                  timestamp: userData.first_inn.timestamp
-                };
+              let firstCall = 'no call';
+              let secondCall = 'no call';
+              let penalty = 0;
+
+              // Parse first innings prediction
+              if (userData.first_inn) {
+                const winner = userData.first_inn.predictedWinner === 'teamA' ? matchMeta?.teamA : matchMeta?.teamB;
+                firstCall = `${winner} ${userData.first_inn.scoreA || 0}+${userData.first_inn.scoreB || 0}`;
               } else if (userData.early_predict?.first) {
-                prediction = {
-                  ...prediction,
-                  predictedWinner: userData.early_predict.first.predictedWinner,
-                  teamABattingFirstScore: userData.early_predict.first.teamABattingFirstScore,
-                  teamBBattingFirstScore: userData.early_predict.first.teamBBattingFirstScore,
-                  timestamp: userData.early_predict.first.timestamp
-                };
+                const winner = userData.early_predict.first.predictedWinner === 'teamA' ? matchMeta?.teamA : matchMeta?.teamB;
+                firstCall = `${winner} ${userData.early_predict.first.teamABattingFirstScore || 0}+${userData.early_predict.first.teamBBattingFirstScore || 0}`;
               }
-              
-              return prediction;
-            }).filter(p => p.predictedWinner || p.scoreA || p.scoreB || p.teamABattingFirstScore);
-            
+
+              // Parse second innings prediction
+              if (userData.second_inn) {
+                const winner = userData.second_inn.secondInningsWinner === 'teamA' ? matchMeta?.teamA : matchMeta?.teamB;
+                if (userData.second_inn.secondInningsWinOvers) {
+                  secondCall = `${winner} in ${userData.second_inn.secondInningsWinOvers}`;
+                } else if (userData.second_inn.secondInningsChasingScore) {
+                  secondCall = `${winner} chase ${userData.second_inn.secondInningsChasingScore}`;
+                }
+              }
+
+              // Calculate penalty
+              if (userData.penalties && Array.isArray(userData.penalties)) {
+                penalty = userData.penalties.reduce((sum: number, p: any) => sum + (p.penaltyPoints || 0), 0);
+              }
+
+              return {
+                name,
+                firstInningsCall: firstCall,
+                secondInningsCall: secondCall,
+                penalty,
+                totalScore: 0 // Will be calculated after reconciliation
+              };
+            });
+
             setPredictions(entries);
           } else {
             setPredictions([]);
@@ -108,86 +106,80 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
     };
 
     loadPredictions();
-  }, [sport, tournamentId, matchId, currentInnings]);
-
-  const formatTime = (timestamp?: number) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  };
+  }, [sport, tournamentId, matchId]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>📊 Predictions by Others</h2>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+    <div className="predictions-modal-overlay" onClick={onClose}>
+      <div className="predictions-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="predictions-modal-header">
+          <button className="back-btn" onClick={onClose}>← Back</button>
+          <div className="match-info">
+            {matchInfo && (
+              <>
+                <span className="match-date">{new Date(matchInfo.date || Date.now()).toLocaleDateString()}</span>
+                <span className="match-teams">{matchInfo.teamA} vs {matchInfo.teamB}</span>
+              </>
+            )}
+          </div>
+          <button className="close-btn" onClick={onClose}>✕</button>
         </div>
-        <div className="modal-body">
-          <p style={{ color: 'var(--muted)', marginBottom: '16px', fontSize: '0.9rem' }}>
-            {currentInnings === 2 ? 'Second Innings Predictions' : 'First Innings Predictions'}
-          </p>
+
+        <div className="predictions-modal-body">
+          <div className="predictions-header">
+            <h2>Player predictions</h2>
+            <p>How each person scored across both innings.</p>
+          </div>
+
+          <div className="predictions-legend">
+            <span className="legend-item positive">POSITIVE PTS</span>
+            <span className="legend-item penalty">PENALTY</span>
+          </div>
+
           {loading ? (
-            <p style={{ color: 'var(--muted)', textAlign: 'center' }}>Loading predictions...</p>
+            <div className="loading-state">Loading predictions...</div>
           ) : predictions.length === 0 ? (
-            <p style={{ color: 'var(--muted)', textAlign: 'center' }}>No predictions yet</p>
+            <div className="empty-state">No predictions yet</div>
           ) : (
-            <div className="predictions-list">
-              {predictions.map((prediction, index) => (
-                <div key={index} className="prediction-card">
-                  <div className="prediction-header">
-                    <span className="prediction-name">{prediction.name}</span>
-                    {prediction.timestamp && (
-                      <span className="prediction-time">{formatTime(prediction.timestamp)}</span>
-                    )}
-                  </div>
-                  <div className="prediction-details">
-                    {prediction.predictedWinner && (
-                      <div className="prediction-detail">
-                        <span className="detail-label">Winner:</span>
-                        <span className="detail-value">{prediction.predictedWinner === 'teamA' ? 'Team A' : 'Team B'}</span>
+            <table className="predictions-table">
+              <thead>
+                <tr>
+                  <th>PLAYER</th>
+                  <th>1ST INNINGS CALL</th>
+                  <th>2ND INNINGS CALL</th>
+                  <th>PENALTY</th>
+                  <th>TOTAL</th>
+                  <th>VISUAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {predictions.map((prediction, index) => (
+                  <tr key={index}>
+                    <td className="player-cell">
+                      <span className="rank">{index + 1}</span>
+                      <span className="player-name">{prediction.name}</span>
+                    </td>
+                    <td className="call-cell">{prediction.firstInningsCall}</td>
+                    <td className="call-cell">{prediction.secondInningsCall}</td>
+                    <td className="penalty-cell">
+                      {prediction.penalty > 0 ? (
+                        <span className="penalty-value">-{prediction.penalty}</span>
+                      ) : (
+                        <span className="no-penalty">-</span>
+                      )}
+                    </td>
+                    <td className="total-cell">{prediction.totalScore || 0}</td>
+                    <td className="visual-cell">
+                      <div className="score-bar">
+                        <div 
+                          className="score-bar-fill" 
+                          style={{ width: `${Math.min((prediction.totalScore || 0) / 5, 100)}%` }}
+                        />
                       </div>
-                    )}
-                    {currentInnings === 1 && prediction.scoreA && (
-                      <div className="prediction-detail">
-                        <span className="detail-label">Score A:</span>
-                        <span className="detail-value">{prediction.scoreA}</span>
-                      </div>
-                    )}
-                    {currentInnings === 1 && prediction.scoreB && (
-                      <div className="prediction-detail">
-                        <span className="detail-label">Score B:</span>
-                        <span className="detail-value">{prediction.scoreB}</span>
-                      </div>
-                    )}
-                    {prediction.teamABattingFirstScore && (
-                      <div className="prediction-detail">
-                        <span className="detail-label">If Team A bats first:</span>
-                        <span className="detail-value">{prediction.teamABattingFirstScore}</span>
-                      </div>
-                    )}
-                    {prediction.teamBBattingFirstScore && (
-                      <div className="prediction-detail">
-                        <span className="detail-label">If Team B bats first:</span>
-                        <span className="detail-value">{prediction.teamBBattingFirstScore}</span>
-                      </div>
-                    )}
-                    {currentInnings === 2 && prediction.secondInningsChasingScore && (
-                      <div className="prediction-detail">
-                        <span className="detail-label">Chasing Score:</span>
-                        <span className="detail-value">{prediction.secondInningsChasingScore}</span>
-                      </div>
-                    )}
-                    {currentInnings === 2 && prediction.secondInningsWinOvers && (
-                      <div className="prediction-detail">
-                        <span className="detail-label">Win in:</span>
-                        <span className="detail-value">{prediction.secondInningsWinOvers} overs</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       </div>
