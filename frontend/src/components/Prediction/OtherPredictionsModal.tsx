@@ -175,7 +175,7 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
                     <td className="call-cell">{prediction.firstInningsCall}</td>
                     <td className="call-cell">{prediction.secondInningsCall}</td>
                     <td className="penalty-cell">
-                      {prediction.penalty > 0 ? (
+                      {(prediction.penalty || 0) > 0 ? (
                         <span className="penalty-value">-{prediction.penalty}</span>
                       ) : (
                         <span className="no-penalty">-</span>

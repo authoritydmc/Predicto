@@ -204,11 +204,11 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
 
   const handlePredictionSubmit = async (e: FormEvent, formData: any) => {
     e.preventDefault();
-    if (clientId && name.trim()) {
+    if (clientId && name.trim() && matchId) {
       setLoading(true);
       try {
         console.log('[PredictionPanel] Submitting prediction:', { name, formData, matchStatus, currentInnings });
-        
+
         // 1. Save global profile (to remember name for chat/other matches)
         await saveUserGlobalProfile(clientId, { username: name });
 
@@ -309,7 +309,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           teamB={teamB}
           name={name}
           matchStatus={matchStatus}
-          battingFirst={battingFirst}
+          battingFirst={battingFirst as 'teamA' | 'teamB' | null}
           currentInnings={currentInnings}
           isMatchCompleted={isMatchCompleted}
           predictionsEnabled={predictionsEnabled}
@@ -322,7 +322,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           previousPrediction={previousPrediction}
           sport={sport}
           id={id}
-          matchId={matchId}
+          matchId={matchId || ''}
           onNameChange={setName}
           onSubmit={handlePredictionSubmit}
           loading={loading}
