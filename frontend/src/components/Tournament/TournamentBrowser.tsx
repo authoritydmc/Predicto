@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onValue, ref, get } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
-import { tournamentDiscoveryRef } from '../../firebase/services';
 
 interface TournamentBrowserProps {
   tournamentCode: string;
@@ -59,12 +58,20 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
         setLoading(true);
         setError(null);
 
+        const dbRoot = getDbRoot();
+        console.log('[TournamentBrowser] Loading tournament:', tournamentCode, 'from dbRoot:', dbRoot);
+
         // Get tournament info from discovery
-        const tournamentSnap = await get(tournamentDiscoveryRef(tournamentCode));
+        const tournamentDiscoveryPath = `${dbRoot}/discovery/tournaments/${tournamentCode.toLowerCase()}`;
+        console.log('[TournamentBrowser] Tournament discovery path:', tournamentDiscoveryPath);
+        
+        const tournamentSnap = await get(ref(rtdb, tournamentDiscoveryPath));
         const tournamentData = tournamentSnap.val();
 
+        console.log('[TournamentBrowser] Tournament data:', tournamentData);
+
         if (!tournamentData) {
-          setError('Tournament not found');
+          setError('Tournament not found. Check the tournament code.');
           setLoading(false);
           return;
         }
@@ -72,31 +79,37 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
         setTournamentInfo(tournamentData);
 
         // Fetch all matches
-        const dbRoot = getDbRoot();
-        const matchesRef = ref(rtdb, `${dbRoot}/tournaments/${tournamentData.sport}/${tournamentData.tournamentId}/matches`);
+        const matchesPath = `${dbRoot}/tournaments/${tournamentData.sport}/${tournamentData.tournamentId}/matches`;
+        console.log('[TournamentBrowser] Matches path:', matchesPath);
+        
+        const matchesRef = ref(rtdb, matchesPath);
         
         const unsub = onValue(matchesRef, (snap) => {
           const matchesData = snap.val();
+          console.log('[TournamentBrowser] Matches data:', matchesData);
+          
           if (matchesData) {
             const allMatches = Object.entries(matchesData).map(([matchId, data]: [string, any]) => ({
               matchId,
               meta: data.meta
             }));
+            console.log('[TournamentBrowser] Parsed matches:', allMatches);
             setMatches(allMatches);
           } else {
+            console.log('[TournamentBrowser] No matches found');
             setMatches([]);
           }
           setLoading(false);
         }, (err) => {
           console.error('[TournamentBrowser] Error fetching matches:', err);
-          setError('Failed to load matches');
+          setError('Failed to load matches: ' + err.message);
           setLoading(false);
         });
 
         return () => unsub();
       } catch (err) {
         console.error('[TournamentBrowser] Error loading tournament:', err);
-        setError('Failed to load tournament');
+        setError('Failed to load tournament: ' + (err as Error).message);
         setLoading(false);
       }
     };
@@ -150,6 +163,25 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
+  const getShareUrl = (matchId: string) => {
+    return `${window.location.origin}/match/${matchId}`;
+  };
+
+  const copyShareUrl = (matchId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = getShareUrl(matchId);
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Link copied to clipboard!');
+    });
+  };
+
+  const copyTournamentUrl = () => {
+    const url = `${window.location.origin}/tournament/${tournamentCode}`;
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Tournament link copied to clipboard!');
+    });
+  };
+
   if (loading) {
     return (
       <section className="panel tournament-browser">
@@ -187,6 +219,13 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
             <p className="tournament-meta">{tournamentInfo?.sport?.toUpperCase()}</p>
           </div>
         </div>
+        <button 
+          onClick={copyTournamentUrl}
+          className="share-btn"
+          title="Copy tournament link"
+        >
+          🔗
+        </button>
       </div>
 
       {/* Live Matches */}
@@ -208,6 +247,13 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
               >
                 <div className="match-card-header">
                   <span className="match-status live">LIVE</span>
+                  <button 
+                    onClick={(e) => copyShareUrl(match.matchId, e)}
+                    className="share-btn"
+                    title="Copy link"
+                  >
+                    🔗
+                  </button>
                 </div>
                 <div className="match-card-content">
                   <h4 className="match-title">{match.meta?.matchTitle || match.matchId}</h4>
@@ -237,6 +283,13 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
               >
                 <div className="match-card-header">
                   <span className="match-date">{formatDate(match.meta?.date)}</span>
+                  <button 
+                    onClick={(e) => copyShareUrl(match.matchId, e)}
+                    className="share-btn"
+                    title="Copy link"
+                  >
+                    🔗
+                  </button>
                 </div>
                 <div className="match-card-content">
                   <h4 className="match-title">{match.meta?.matchTitle || match.matchId}</h4>
@@ -267,6 +320,13 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
                 <div className="match-card-header">
                   <span className="match-status done">DONE</span>
                   <span className="match-date">{formatDate(match.meta?.date)}</span>
+                  <button 
+                    onClick={(e) => copyShareUrl(match.matchId, e)}
+                    className="share-btn"
+                    title="Copy link"
+                  >
+                    🔗
+                  </button>
                 </div>
                 <div className="match-card-content">
                   <h4 className="match-title">{match.meta?.matchTitle || match.matchId}</h4>

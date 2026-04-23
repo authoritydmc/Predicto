@@ -100,8 +100,10 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
     e.preventDefault();
     if (code.trim()) {
       if (inputType === 'match') {
+        console.log('[AudienceGate] Joining match:', code.trim().toLowerCase());
         onJoinMatch(code.trim().toLowerCase());
       } else {
+        console.log('[AudienceGate] Joining tournament:', code.trim().toLowerCase());
         onJoinTournament(code.trim().toLowerCase());
       }
     }

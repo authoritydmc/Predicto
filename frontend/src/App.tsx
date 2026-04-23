@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { onValue, get } from 'firebase/database';
 import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
@@ -10,9 +11,13 @@ import UserAuth from './components/Auth/UserAuth';
 import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
 import './styles/App.css';
 
-function App() {
-  const [matchCode, setMatchCode] = useState<string | null>(null);
-  const [tournamentCode, setTournamentCode] = useState<string | null>(null);
+function AppContent() {
+  const navigate = useNavigate();
+  const params = useParams();
+  
+  const matchCode = params.matchCode || null;
+  const tournamentCode = params.tournamentCode || null;
+  
   const [tournamentContext, setTournamentContext] = useState<{ sport: string; id: string; matchId: string } | null>(null);
   const [meta, setMeta] = useState<any>(null);
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
@@ -42,17 +47,6 @@ function App() {
       console.log('[App] Found auth state in localStorage:', storedUsername);
       setUsername(storedUsername);
       setIsAuthed(true);
-    }
-  }, []);
-
-  // Load match code from URL on mount (for direct links)
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const matchCodeFromUrl = urlParams.get('match');
-    
-    if (matchCodeFromUrl) {
-      console.log('[App] Found match code in URL:', matchCodeFromUrl);
-      setMatchCode(matchCodeFromUrl);
     }
   }, []);
 
@@ -153,7 +147,7 @@ function App() {
       } else {
         console.error('[App] Match not found or not active for match:', matchCode);
         alert('Match not found or not active. Check the code.');
-        setMatchCode(null);
+        navigate('/');
       }
       setLoading(false);
     }, (error) => {
@@ -161,7 +155,7 @@ function App() {
       setLoading(false);
     });
     return () => unsub();
-  }, [matchCode]);
+  }, [matchCode, navigate]);
 
   // 2. Check match status
   useEffect(() => {
@@ -178,7 +172,7 @@ function App() {
           // Only block if match is done, allow live and scheduled matches
           if (matchMeta.status === 'done') {
             alert('This match has ended. You cannot join completed matches.');
-            setMatchCode(null);
+            navigate('/');
             setTournamentContext(null);
           }
         } else {
@@ -194,7 +188,7 @@ function App() {
     };
     
     checkMatchStatus();
-  }, [tournamentContext]);
+  }, [tournamentContext, navigate]);
 
   // 3. Subscribe to Match Meta (not Tournament Meta)
   useEffect(() => {
@@ -211,24 +205,35 @@ function App() {
     return () => unsubMatch();
   }, [tournamentContext]);
 
-  if (!matchCode) {
+  if (!matchCode && !tournamentCode) {
+    console.log('[App] Rendering AudienceGate');
     return <AudienceGate 
-      onJoinMatch={(code) => setMatchCode(code)}
-      onJoinTournament={(code) => setTournamentCode(code)}
+      onJoinMatch={(code) => {
+        console.log('[App] onJoinMatch called with:', code);
+        navigate(`/match/${code}`);
+      }}
+      onJoinTournament={(code) => {
+        console.log('[App] onJoinTournament called with:', code);
+        navigate(`/tournament/${code}`);
+      }}
     />;
   }
 
   // Tournament browsing mode
   if (tournamentCode && !matchCode) {
+    console.log('[App] Rendering TournamentBrowser for tournament:', tournamentCode);
     return (
       <main className="page">
         <TournamentBrowser 
           tournamentCode={tournamentCode}
           onJoinMatch={(matchId) => {
-            setTournamentCode(null);
-            setMatchCode(matchId);
+            console.log('[App] TournamentBrowser onJoinMatch called with:', matchId);
+            navigate(`/match/${matchId}`);
           }}
-          onBack={() => setTournamentCode(null)}
+          onBack={() => {
+            console.log('[App] TournamentBrowser onBack called');
+            navigate('/');
+          }}
         />
       </main>
     );
@@ -280,7 +285,7 @@ function App() {
         {/* Header with back button */}
         <header className="audience-header">
           <button 
-            onClick={() => setMatchCode(null)}
+            onClick={() => navigate('/')}
             className="back-btn"
             title="Return to home"
           >
@@ -290,6 +295,18 @@ function App() {
             <span className="audience-header-kicker">Live Match</span>
             <span className="audience-header-code">{matchCode.toUpperCase()}</span>
           </div>
+          <button 
+            onClick={() => {
+              const url = `${window.location.origin}/match/${matchCode}`;
+              navigator.clipboard.writeText(url).then(() => {
+                alert('Link copied to clipboard!');
+              });
+            }}
+            className="share-btn"
+            title="Copy link"
+          >
+            🔗
+          </button>
         </header>
 
         <section className="hero audience-hero audience-hero-compact">
@@ -390,6 +407,18 @@ function App() {
         </div>
       )}
     </main>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<AppContent />} />
+        <Route path="/match/:matchCode" element={<AppContent />} />
+        <Route path="/tournament/:tournamentCode" element={<AppContent />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
