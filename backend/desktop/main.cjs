@@ -705,9 +705,9 @@ ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, m
   
   console.log(`[Resolution] Python path: ${pythonPath}`);
   console.log(`[Resolution] Script path: ${scriptPath}`);
-  console.log(`[Resolution] Command: ${pythonPath} ${scriptPath} --tournament ${tournamentId} --match ${matchId} --innings ${innings}${force ? ' --force' : ''}`);
+  console.log(`[Resolution] Command: ${pythonPath} ${scriptPath} --tournament ${tournamentId} --match ${matchId} --innings ${innings} --env ${firebaseMode}${force ? ' --force' : ''}`);
   console.log(`[Resolution] Spawning Python process...`);
-  
+
   // Firebase config from environment variables
   const firebaseEnv = {
     FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
@@ -720,9 +720,9 @@ ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, m
     FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID,
     APP_MODE: firebaseMode
   };
-  
+
   return new Promise((resolve) => {
-    const pythonArgs = [scriptPath, '--tournament', tournamentId, '--match', matchId, '--innings', innings];
+    const pythonArgs = [scriptPath, '--tournament', tournamentId, '--match', matchId, '--innings', innings, '--env', firebaseMode];
     if (force) {
       pythonArgs.push('--force');
     }

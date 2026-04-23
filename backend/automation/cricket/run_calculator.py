@@ -24,13 +24,15 @@ def main():
                        help='Which innings to process: 1 (first only), 2 (second only), or both (default)')
     parser.add_argument('--force', action='store_true',
                        help='Force reprocessing even if match is already reconciled')
+    parser.add_argument('--env', type=str, choices=['local', 'prod'], default=None,
+                       help='Environment mode: local or prod (overrides APP_MODE env var)')
     args = parser.parse_args()
-    
+
     print("=" * 80)
     print("[Cricket Calculator] Starting...")
-    print(f"[Cricket Calculator] Arguments: tournament={args.tournament}, match={args.match}, innings={args.innings}, force={args.force}")
+    print(f"[Cricket Calculator] Arguments: tournament={args.tournament}, match={args.match}, innings={args.innings}, force={args.force}, env={args.env}")
     print("=" * 80)
-    
+
     # Initialize Firebase client
     print("[Cricket Calculator] Initializing Firebase client...")
     try:
@@ -39,11 +41,11 @@ def main():
     except Exception as e:
         print(f"[Cricket Calculator] ERROR initializing Firebase: {e}")
         sys.exit(1)
-    
-    # Get environment from APP_MODE (default to prod)
-    app_mode = os.environ.get('APP_MODE', 'prod')
+
+    # Get environment from argument or APP_MODE (default to prod)
+    app_mode = args.env if args.env else os.environ.get('APP_MODE', 'prod')
     db_root = 'local' if app_mode == 'local' else 'prod'
-    print(f"[Cricket Calculator] APP_MODE environment variable: {app_mode}")
+    print(f"[Cricket Calculator] Environment mode: {app_mode} (from {'--env arg' if args.env else 'APP_MODE env var'})")
     print(f"[Cricket Calculator] Using database environment: {db_root}")
     
     # Initialize cricket calculator
