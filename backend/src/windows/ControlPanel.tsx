@@ -13,6 +13,7 @@ import {
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
+import initLogger from '../utils/logger';
 
 // ── LocalStorage Helpers ────────────────────────────────────────────────────────
 const STORAGE_KEY = 'controlpanel_ui_state';
@@ -335,10 +336,18 @@ const ControlPanel: React.FC = () => {
   const unsubMetaRef = useRef<any>(null);
   const winProbIntervalRef = useRef<any>(null);
 
+  // ── Firebase Mode State
+  const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
+    return getDbRoot() as 'local' | 'prod';
+  });
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Init
   // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Initialize websocket logger
+    initLogger('ControlPanel');
+
     const init = async () => {
       // @ts-ignore
       const s = await window.overlayDesktop.getSettings();
@@ -515,6 +524,27 @@ const ControlPanel: React.FC = () => {
       }
     }
   }, [schedule, matchId]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Firebase Mode Switch Handler
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleFirebaseModeSwitch = async (newMode: 'local' | 'prod') => {
+    if (firebaseMode === newMode) return;
+    
+    console.log(`[ControlPanel] Switching Firebase mode from ${firebaseMode} to ${newMode}`);
+    
+    try {
+      localStorage.setItem('firebase_mode', newMode);
+      // @ts-ignore
+      await window.overlayDesktop.setFirebaseMode(newMode);
+      setFirebaseModeState(newMode);
+      console.log(`[ControlPanel] Successfully switched to ${newMode.toUpperCase()} mode`);
+    } catch (error) {
+      console.error('[ControlPanel] Error switching Firebase mode:', error);
+      // Revert on error
+      localStorage.setItem('firebase_mode', firebaseMode);
+    }
+  };
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Firebase Meta Subscription
@@ -1366,14 +1396,8 @@ const ControlPanel: React.FC = () => {
               </span>
               <div className="firebase-mode-toggle">
                 <button 
-                  className={`mode-btn ${getDbRoot() === 'local' ? 'active' : ''}`}
-                  onClick={() => {
-                    if (getDbRoot() !== 'local') {
-                      localStorage.setItem('firebase_mode', 'local');
-                      // @ts-ignore
-                      window.overlayDesktop.setFirebaseMode('local');
-                    }
-                  }}
+                  className={`mode-btn ${firebaseMode === 'local' ? 'active' : ''}`}
+                  onClick={() => handleFirebaseModeSwitch('local')}
                 >
                   <div className="mode-btn-content">
                     <span className="mode-name">Local</span>
@@ -1382,14 +1406,8 @@ const ControlPanel: React.FC = () => {
                   <span className="mode-indicator"></span>
                 </button>
                 <button 
-                  className={`mode-btn ${getDbRoot() === 'prod' ? 'active' : ''}`}
-                  onClick={() => {
-                    if (getDbRoot() !== 'prod') {
-                      localStorage.setItem('firebase_mode', 'prod');
-                      // @ts-ignore
-                      window.overlayDesktop.setFirebaseMode('prod');
-                    }
-                  }}
+                  className={`mode-btn ${firebaseMode === 'prod' ? 'active' : ''}`}
+                  onClick={() => handleFirebaseModeSwitch('prod')}
                 >
                   <div className="mode-btn-content">
                     <span className="mode-name">Production</span>
