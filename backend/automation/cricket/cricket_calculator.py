@@ -4,8 +4,8 @@ Implements cricket scoring rules
 """
 
 from typing import Dict, Any
-from ..base.score_calculator import ScoreCalculator
-from .cricket_config import CRICKET_CONFIG, overs_to_balls, balls_to_overs_display
+from base.score_calculator import ScoreCalculator
+from cricket.cricket_config import CRICKET_CONFIG, overs_to_balls, balls_to_overs_display
 
 
 class CricketCalculator(ScoreCalculator):

@@ -9,7 +9,7 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address" ^| fin
 set LOCAL_IP=%LOCAL_IP: =%
 
 echo ==========================================
-echo    OverlayChat Management Console
+echo    Predictor Manager Management Console
 echo ==========================================
 echo.
 echo Local Network IP: %LOCAL_IP%
@@ -21,8 +21,9 @@ echo  [1]  Broadcaster App Only (Local)
 echo  [2]  Audience App Only (Local)
 echo.
 echo  [3]  Deploy Frontend to Firebase
-echo  [4]  Maintenance (Clean node_modules)
-echo  [5]  Exit
+echo  [4]  Setup Python Virtual Environment
+echo  [5]  Maintenance (Clean node_modules)
+echo  [6]  Exit
 echo.
 set /p opt="Select an option: "
 
@@ -65,6 +66,47 @@ if "%opt%"=="3" (
 )
 
 if "%opt%"=="4" (
+    echo Setting up Python Virtual Environment...
+    echo.
+    if exist venv (
+        echo Virtual environment already exists at venv\
+        set /p recreate="Do you want to recreate it? (y/n): "
+        if /i not "%recreate%"=="y" (
+            echo Setup cancelled.
+            pause
+            goto :eof
+        )
+        rmdir /s /q venv
+    )
+    echo Creating virtual environment...
+    python -m venv venv
+    if errorlevel 1 (
+        echo ERROR: Failed to create virtual environment.
+        echo Make sure Python 3.10+ is installed and in PATH.
+        pause
+        goto :eof
+    )
+    echo Virtual environment created successfully.
+    echo.
+    echo Installing Python dependencies...
+    call venv\Scripts\activate
+    pip install -r backend\requirements.txt
+    if errorlevel 1 (
+        echo ERROR: Failed to install dependencies.
+        pause
+        goto :eof
+    )
+    echo.
+    echo Python setup completed successfully!
+    echo.
+    echo IMPORTANT: To use Python scripts, activate the virtual environment first:
+    echo   venv\Scripts\activate
+    echo.
+    pause
+    goto :eof
+)
+
+if "%opt%"=="5" (
     echo Attempting to clean root artifacts...
     taskkill /F /IM electron.exe /T 2>nul
     rmdir /s /q backend\node_modules 2>nul
@@ -74,7 +116,7 @@ if "%opt%"=="4" (
     goto :eof
 )
 
-if "%opt%"=="5" exit
+if "%opt%"=="6" exit
 goto :eof
 
 :PROD_CONFIRM

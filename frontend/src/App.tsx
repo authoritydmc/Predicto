@@ -255,7 +255,7 @@ function AppLayout() {
       <div className="loading-screen">
         <div className="loading-content">
           <div className="loading-spinner"></div>
-          <h2>Loading OverlayChat</h2>
+          <h2>Loading Predicto</h2>
           <p>Connecting to server...</p>
         </div>
       </div>

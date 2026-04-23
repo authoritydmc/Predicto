@@ -51,13 +51,14 @@ class LeaderboardUpdater:
             
             for username, user_data in predictions.items():
                 if isinstance(user_data, dict) and 'predictions' in user_data:
-                    # Array structure
+                    # Array structure (standard predictions)
                     for prediction in user_data['predictions']:
                         if prediction.get('reconciled', False):
                             self._add_score(user_scores, username, prediction)
-                elif isinstance(user_data, dict) and user_data.get('reconciled', False):
-                    # Legacy structure
-                    self._add_score(user_scores, username, user_data)
+                elif isinstance(user_data, dict) and 'second_inn' in user_data:
+                    # Nested second_inn structure (live 2nd innings predictions)
+                    if user_data.get('reconciled', False):
+                        self._add_score(user_scores, username, user_data)
         
         # Convert to sorted leaderboard
         leaderboard = self._create_leaderboard(user_scores)

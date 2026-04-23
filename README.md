@@ -1,4 +1,4 @@
-# OverlayChat 
+# Predictor Manager 
 
 A premium sports broadcasting tool for live audience predictions and interactive chat overlays. 
 
@@ -15,6 +15,7 @@ The project is split into two specialized applications:
 - **Node.js**: v18+ recommended.
 - **Python 3.10+**: For automated scoring scripts.
 - **Firebase Project**: You need a Realtime Database instance.
+- **Firebase Service Account Key**: For Python automation scripts (see setup below).
 
 ### 2. Initial Setup
 
@@ -53,8 +54,46 @@ The project is split into two specialized applications:
 - `FIREBASE_DATABASE_URL` - Firebase database URL
 - `FIREBASE_PROJECT_ID` - Firebase project ID
 - `FIREBASE_STORAGE_BUCKET` - Firebase storage bucket
+- `FIREBASE_SERVICE_ACCOUNT_KEY` - Path to Firebase service account JSON file (for Python scripts)
 - `APP_MODE` - Application mode (prod/local)
 - `NODE_ENV` - Node environment (production/development)
+
+### 4. Python Setup for Automation Scripts
+
+The project includes Python automation scripts for automated match scoring. These scripts use the Firebase Admin SDK for secure database access.
+
+#### Setting Up Firebase Service Account Key
+
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Select your project
+3. Navigate to **Project Settings** > **Service Accounts**
+4. Click **Generate New Private Key**
+5. Download the JSON file and rename it to `firebase-service-account.json`
+6. Place it in the project root directory (same level as `.env`)
+7. Add the path to your `.env` file:
+   ```
+   FIREBASE_SERVICE_ACCOUNT_KEY=firebase-service-account.json
+   ```
+
+**⚠️ IMPORTANT**: Never commit the service account key file to git. It's already in `.gitignore`.
+
+#### Setting Up Python Virtual Environment
+
+```bash
+# Create virtual environment (from project root)
+python -m venv venv
+
+# Activate virtual environment
+# Windows:
+venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate
+
+# Install Python dependencies
+pip install -r backend/requirements.txt
+```
+
+The virtual environment is pre-configured in `.gitignore` so it won't be committed.
 
 ### 3. Running the Apps
 We recommend using the root **`run.bat`** (Windows) or **`run.sh`** (Mac/Linux) as it manages all cross-app dependencies.
@@ -163,7 +202,7 @@ The Audience App must be hosted on Firebase to be accessible via the internet.
 To create a standalone `.exe` for yourself or other broadcasters:
 1. Navigate to `backend/`.
 2. Run `npm run dist:win`.
-3. Find your installer in `backend/dist/OverlayChat Setup 1.0.9.exe`.
+3. Find your installer in `backend/dist/Predictor Manager Setup 1.0.9.exe`.
 
 ---
 

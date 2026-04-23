@@ -1,5 +1,5 @@
 /**
- * Shared utilities for the OverlayChat desktop app
+ * Shared utilities for the Predictor Manager desktop app
  */
 
 export const getAppMode = () => {

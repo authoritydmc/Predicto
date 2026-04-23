@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "=========================================="
-echo "   OverlayChat Management Console"
+echo "   Predictor Manager Management Console"
 echo "=========================================="
 echo ""
 echo "[1] Start Host App (Broadcaster Electron + Python)"

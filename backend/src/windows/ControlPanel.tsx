@@ -22,6 +22,8 @@ import { FootballLiveScore } from '../components/sports/FootballLiveScore';
 
 // ── LocalStorage Helpers ────────────────────────────────────────────────────────
 const STORAGE_KEY = 'controlpanel_ui_state';
+const WINDOW_VISIBILITY_KEY = 'window_visibility_defaults';
+
 const loadUIState = () => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -30,11 +32,41 @@ const loadUIState = () => {
     return null;
   }
 };
+
 const saveUIState = (state: any) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (err) {
     console.error('Failed to save UI state:', err);
+  }
+};
+
+const loadWindowVisibility = () => {
+  try {
+    const saved = localStorage.getItem(WINDOW_VISIBILITY_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    // Default values
+    return {
+      overlayVisible: true,
+      tickerVisible: false,
+      reactionVisible: false
+    };
+  } catch {
+    return {
+      overlayVisible: true,
+      tickerVisible: false,
+      reactionVisible: false
+    };
+  }
+};
+
+const saveWindowVisibility = (visibility: any) => {
+  try {
+    localStorage.setItem(WINDOW_VISIBILITY_KEY, JSON.stringify(visibility));
+  } catch (err) {
+    console.error('Failed to save window visibility:', err);
   }
 };
 
@@ -208,6 +240,27 @@ const ControlPanel: React.FC = () => {
   const [tournamentId, setTournamentId] = useState(savedUIState?.lastTournamentId || '');
   const [matchId, setMatchId] = useState('');
   const [viewMode, setViewMode] = useState<'tournament' | 'match'>('match');
+  
+  // ── Window Visibility State
+  const [windowVisibility, setWindowVisibility] = useState(loadWindowVisibility());
+
+  // Send window visibility to main process on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
+      (window as any).overlayDesktop.setWindowVisibilityDefaults(windowVisibility);
+    }
+  }, []);
+
+  // Handle window visibility changes
+  const handleWindowVisibilityChange = (key: keyof typeof windowVisibility, value: boolean) => {
+    const newVisibility = { ...windowVisibility, [key]: value };
+    setWindowVisibility(newVisibility);
+    saveWindowVisibility(newVisibility);
+    
+    if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
+      (window as any).overlayDesktop.setWindowVisibilityDefaults(newVisibility);
+    }
+  };
 
   // ── Tournament Form State
   const [fTournamentCode, setFTournamentCode] = useState('');
@@ -1539,9 +1592,10 @@ const ControlPanel: React.FC = () => {
   // Resolution
   // ─────────────────────────────────────────────────────────────────────────────
   const resolveMatch = async () => {
-    if (!isFirebaseConfigured || !db) return;
-    const rid = normalizeRoomId(fRoomId || roomId);
-    let actualVal: any; let actualWinner = '';
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
+    
+    let actualVal: any;
+    let actualWinner = '';
 
     if (is2nd) {
       const tA = (fTeamA || 'Team A').toLowerCase();
@@ -1559,9 +1613,58 @@ const ControlPanel: React.FC = () => {
     }
 
     try {
-      // @ts-ignore
-      setResultsOpen(true);
-    } catch (err) { console.error(err); alert('Error resolving match.'); }
+      // Save actual result to Firebase meta
+      if (is2nd) {
+        // Mark match as done when resolving 2nd innings (final resolution)
+        await update(matchMetaRef(fSport, tournamentId, matchId), {
+          actual2ndInningsResult: actualVal,
+          actualWinner: actualWinner,
+          isOversFormat: fChaserWon === 'yes',
+          status: 'done',
+          endedAt: Date.now()
+        });
+      } else {
+        await update(matchMetaRef(fSport, tournamentId, matchId), {
+          actual1stInningsScore: actualVal
+        });
+      }
+
+      // Trigger Python resolution
+      if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
+        setResolutionStatus('running');
+        setResolutionMessage('Calculating scores via Python...');
+        
+        // Pass innings parameter to Python script
+        const inningsParam = is2nd ? '2' : '1';
+        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId, inningsParam);
+        
+        if (result.success) {
+          setResolutionStatus('success');
+          setResolutionMessage(`Scores calculated successfully. ${result.lineCount || 0} lines processed.`);
+          
+          // Refresh predictions to show reconciled results
+          // @ts-ignore
+          setResultsOpen(true);
+          
+          setTimeout(() => {
+            setResolutionStatus('idle');
+            setResolutionMessage('');
+          }, 5000);
+        } else {
+          setResolutionStatus('error');
+          setResolutionMessage(`Error: ${result.error}`);
+          setTimeout(() => {
+            setResolutionStatus('idle');
+            setResolutionMessage('');
+          }, 10000);
+        }
+      } else {
+        alert('Python resolution only available in Electron app');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error resolving match.');
+    }
   };
 
   const handlePrepNext = async () => {
@@ -1585,45 +1688,6 @@ const ControlPanel: React.FC = () => {
       setLastResults([]);
       setFActualScore(''); setFActualResult('');
     } catch (err) { console.error(err); alert('Error finalizing stage.'); }
-  };
-
-  const triggerPythonResolution = async () => {
-    if (!matchId || !tournamentId) return;
-    
-    // Check if running in Electron
-    if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
-      setResolutionStatus('running');
-      setResolutionMessage('Starting Python resolution script...');
-      
-      try {
-        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId);
-        if (result.success) {
-          setResolutionStatus('success');
-          setResolutionMessage(`Match processed successfully. ${result.lineCount || 0} lines of output.`);
-          setTimeout(() => {
-            setResolutionStatus('idle');
-            setResolutionMessage('');
-          }, 5000);
-        } else {
-          setResolutionStatus('error');
-          setResolutionMessage(`Error: ${result.error}`);
-          setTimeout(() => {
-            setResolutionStatus('idle');
-            setResolutionMessage('');
-          }, 10000);
-        }
-      } catch (err) {
-        console.error('Error triggering Python resolution:', err);
-        setResolutionStatus('error');
-        setResolutionMessage('Failed to trigger Python resolution');
-        setTimeout(() => {
-          setResolutionStatus('idle');
-          setResolutionMessage('');
-        }, 10000);
-      }
-    } else {
-      alert('Python resolution only available in Electron app');
-    }
   };
 
   const viewFinalStandings = async () => {
@@ -1655,7 +1719,8 @@ const ControlPanel: React.FC = () => {
     // Then trigger Python resolution
     if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
       try {
-        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId);
+        // Use 'both' innings for final resolution to calculate total and update tournament leaderboard
+        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId, 'both');
         if (result.success) {
           setOverallOpen(false);
           setResultsOpen(false);
@@ -1937,6 +2002,47 @@ const ControlPanel: React.FC = () => {
                     <span className="mode-code">prod</span>
                   </div>
                   <span className="mode-indicator"></span>
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginLeft: 16 }}>
+                <button 
+                  className={`cp-glass-btn cp-small ${windowVisibility.overlayVisible ? 'active' : ''}`}
+                  onClick={() => handleWindowVisibilityChange('overlayVisible', !windowVisibility.overlayVisible)}
+                  title="Toggle Overlay Window"
+                  style={{ 
+                    padding: '4px 8px', 
+                    fontSize: '10px',
+                    background: windowVisibility.overlayVisible ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.05)',
+                    border: windowVisibility.overlayVisible ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  Overlay
+                </button>
+                <button 
+                  className={`cp-glass-btn cp-small ${windowVisibility.tickerVisible ? 'active' : ''}`}
+                  onClick={() => handleWindowVisibilityChange('tickerVisible', !windowVisibility.tickerVisible)}
+                  title="Toggle Ticker Window"
+                  style={{ 
+                    padding: '4px 8px', 
+                    fontSize: '10px',
+                    background: windowVisibility.tickerVisible ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.05)',
+                    border: windowVisibility.tickerVisible ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  Ticker
+                </button>
+                <button 
+                  className={`cp-glass-btn cp-small ${windowVisibility.reactionVisible ? 'active' : ''}`}
+                  onClick={() => handleWindowVisibilityChange('reactionVisible', !windowVisibility.reactionVisible)}
+                  title="Toggle Reaction Window"
+                  style={{ 
+                    padding: '4px 8px', 
+                    fontSize: '10px',
+                    background: windowVisibility.reactionVisible ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.05)',
+                    border: windowVisibility.reactionVisible ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  Reaction
                 </button>
               </div>
             </div>
@@ -2825,18 +2931,6 @@ const ControlPanel: React.FC = () => {
             <div className="cp-input-action-group">
               <button id="calculatePoints" className="cp-primary-btn" onClick={resolveMatch}>
                 {is2nd ? 'Resolve 2nd Innings' : 'Resolve 1st Innings'}
-              </button>
-              <button 
-                id="triggerPythonResolution" 
-                className="cp-action-btn" 
-                onClick={triggerPythonResolution}
-                disabled={resolutionStatus === 'running'}
-                style={{ 
-                  opacity: resolutionStatus === 'running' ? 0.6 : 1,
-                  cursor: resolutionStatus === 'running' ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {resolutionStatus === 'running' ? '⏳ Processing...' : '🐍 Process via Python'}
               </button>
               <button id="viewFinalStandings" className="cp-action-btn" onClick={viewFinalStandings}>View Final Game Standings</button>
             </div>

@@ -113,7 +113,7 @@ const TickerWindow: React.FC = () => {
       items.push(
         <span key="empty" className="ticker-item">
           <span className="ticker-badge">Live</span>
-          <span className="ticker-msg">{meta.matchTitle || 'OverlayChat'} is live! Waiting for predictions...</span>
+          <span className="ticker-msg">{meta.matchTitle || 'Predictor Manager'} is live! Waiting for predictions...</span>
         </span>
       );
     }
@@ -139,7 +139,7 @@ const TickerWindow: React.FC = () => {
             {meta.teamA} {stats.pA}% vs {stats.pB}% {meta.teamB}
           </span>
         ) : (
-          <span>OverlayChat Live</span>
+          <span>Predictor Manager Live</span>
         )}
       </div>
       <div className="ticker-track">

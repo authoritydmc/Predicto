@@ -1,9 +1,9 @@
 {
-  "name": "overlaychat-desktop",
+  "name": "predictor-manager-desktop",
   "version": "1.0.9",
   "type": "module",
-  "description": "Windows overlay app for OverlayChat",
-  "author": "OverlayChat",
+  "description": "Windows overlay app for Predictor Manager",
+  "author": "Predictor Manager",
   "main": "desktop/main.cjs",
   "scripts": {
     "dev": "concurrently \"vite --port 5174\" \"cross-env NODE_ENV=development APP_MODE=local electron desktop/main.cjs\"",
@@ -16,8 +16,8 @@
     "monitor": "cross-env APP_MODE=prod python monitor.py"
   },
   "build": {
-    "appId": "com.overlaychat.desktop",
-    "productName": "OverlayChat",
+    "appId": "com.predictor-manager.desktop",
+    "productName": "Predictor Manager",
     "directories": {
       "buildResources": "desktop",
       "output": "dist"
@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "dotenv": "^17.4.2",
     "firebase": "^12.12.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

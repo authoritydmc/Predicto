@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the Firebase Realtime Database schema used by OverlayChat, a sports prediction platform. The schema is designed to support multiple environments (local/production), multiple sports, multiple tournaments, and multiple matches per tournament with proper data isolation and security.
+This document describes the Firebase Realtime Database schema used by Predictor Manager, a sports prediction platform. The schema is designed to support multiple environments (local/production), multiple sports, multiple tournaments, and multiple matches per tournament with proper data isolation and security.
 
 ## Environment-Based Routing
 

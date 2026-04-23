@@ -4,6 +4,7 @@ const path = require("path");
 const { WebSocketServer } = require("ws");
 const { spawn } = require("child_process");
 const { version: APP_VERSION } = require("../package.json");
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 // ── Environment Detection ───────────────────────────────────────────────────
 const getAppModeFromArgs = () => {
@@ -428,6 +429,15 @@ ipcMain.handle("debug:show", () => {
   return true;
 });
 
+ipcMain.handle("settings:set-window-visibility", (_event, visibility) => {
+  console.log('[Settings] Setting window visibility defaults:', visibility);
+  settings.overlayVisible = visibility.overlayVisible;
+  settings.tickerVisible = visibility.tickerVisible;
+  settings.reactionVisible = visibility.reactionVisible;
+  saveSettings();
+  return settings;
+});
+
 ipcMain.handle("external:open", (_event, url) => shell.openExternal(url));
 ipcMain.handle("clipboard:write-text", (_event, value) => { clipboard.writeText(value || ""); return true; });
 
@@ -670,12 +680,13 @@ ipcMain.handle("scheduler:update-task", async (_event, taskId, config) => {
   return { success: true, taskId };
 });
 
-ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, matchId) => {
+ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, matchId, innings = 'both') => {
   console.log("=" * 80);
   console.log(`[Resolution] Starting match resolution process`);
   console.log(`[Resolution] Sport: ${sport}`);
   console.log(`[Resolution] Tournament ID: ${tournamentId}`);
   console.log(`[Resolution] Match ID: ${matchId}`);
+  console.log(`[Resolution] Innings: ${innings}`);
   console.log("=" * 80);
   
   const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
@@ -692,11 +703,30 @@ ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, m
   
   console.log(`[Resolution] Python path: ${pythonPath}`);
   console.log(`[Resolution] Script path: ${scriptPath}`);
-  console.log(`[Resolution] Command: ${pythonPath} ${scriptPath} --tournament ${tournamentId} --match ${matchId}`);
+  console.log(`[Resolution] Command: ${pythonPath} ${scriptPath} --tournament ${tournamentId} --match ${matchId} --innings ${innings}`);
   console.log(`[Resolution] Spawning Python process...`);
   
+  // Firebase config from environment variables
+  const firebaseEnv = {
+    FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
+    FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
+    FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL,
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+    FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
+    FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    FIREBASE_APP_ID: process.env.FIREBASE_APP_ID,
+    FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID
+  };
+  
   return new Promise((resolve) => {
-    const pythonProcess = spawn(pythonPath, [scriptPath, '--tournament', tournamentId, '--match', matchId]);
+    const pythonProcess = spawn(pythonPath, [scriptPath, '--tournament', tournamentId, '--match', matchId, '--innings', innings], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, ".."),
+        ...firebaseEnv
+      }
+    });
     
     let stdout = '';
     let stderr = '';

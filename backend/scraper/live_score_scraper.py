@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Live Score Scraper for OverlayChat
+Live Score Scraper for Predictor Manager
 Supports cricket and football live score fetching from various sources
 """
 

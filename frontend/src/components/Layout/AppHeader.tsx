@@ -85,7 +85,7 @@ export default function AppHeader({
       >
         <div className="app-header-content">
           <div className="app-header-brand">
-            <h1 className="app-header-title">OverlayChat</h1>
+            <h1 className="app-header-title">Predicto</h1>
             <span className="app-header-subtitle">Live Sports Chat</span>
           </div>
 

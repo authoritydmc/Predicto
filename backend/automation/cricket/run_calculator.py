@@ -20,11 +20,13 @@ def main():
     parser = argparse.ArgumentParser(description='Cricket score calculator')
     parser.add_argument('--tournament', type=str, help='Specific tournament ID to process')
     parser.add_argument('--match', type=str, help='Specific match ID to process')
+    parser.add_argument('--innings', type=str, choices=['1', '2', 'both'], default='both',
+                       help='Which innings to process: 1 (first only), 2 (second only), or both (default)')
     args = parser.parse_args()
     
     print("=" * 80)
     print("[Cricket Calculator] Starting...")
-    print(f"[Cricket Calculator] Arguments: tournament={args.tournament}, match={args.match}")
+    print(f"[Cricket Calculator] Arguments: tournament={args.tournament}, match={args.match}, innings={args.innings}")
     print("=" * 80)
     
     # Initialize Firebase client
@@ -43,7 +45,7 @@ def main():
     
     # Initialize result processor
     print("[Cricket Calculator] Initializing result processor...")
-    processor = ResultProcessor(firebase_client, calculator)
+    processor = ResultProcessor(firebase_client, calculator, db_root)
     print("[Cricket Calculator] Result processor initialized")
     
     # Initialize leaderboard updater
@@ -51,9 +53,14 @@ def main():
     leaderboard_updater = LeaderboardUpdater(firebase_client)
     print("[Cricket Calculator] Leaderboard updater initialized")
     
+    # Get environment from APP_MODE (default to prod)
+    app_mode = os.environ.get('APP_MODE', 'prod')
+    db_root = 'local' if app_mode == 'local' else 'prod'
+    print(f"[Cricket Calculator] Using database environment: {db_root}")
+    
     # Get all cricket tournaments
     print("[Cricket Calculator] Fetching cricket tournaments from Firebase...")
-    tournaments = firebase_client.get('cricket')
+    tournaments = firebase_client.get(f'{db_root}/tournaments/cricket')
     
     if not tournaments:
         print("[Cricket Calculator] WARNING: No cricket tournaments found")
@@ -137,7 +144,7 @@ def main():
             
             try:
                 print(f"[Cricket Calculator] Fetching predictions for match {match_id}...")
-                result = processor.process_match('cricket', tournament_id, match_id)
+                result = processor.process_match('cricket', tournament_id, match_id, innings=args.innings)
                 
                 if result.get('success'):
                     processed = result.get('processed', 0)
@@ -146,15 +153,18 @@ def main():
                     print(f"[Cricket Calculator] SUCCESS: Match {match_id} processed")
                     print(f"[Cricket Calculator] - Predictions processed: {processed}/{total}")
                     
-                    # Update tournament leaderboard after processing match
-                    print(f"[Cricket Calculator] Updating tournament leaderboard...")
-                    leaderboard_result = leaderboard_updater.update_tournament_leaderboard('cricket', tournament_id)
-                    if leaderboard_result.get('success'):
-                        updated_count = leaderboard_result.get('updated', 0)
-                        print(f"[Cricket Calculator] SUCCESS: Leaderboard updated for tournament {tournament_id}")
-                        print(f"[Cricket Calculator] - Participants updated: {updated_count}")
+                    # Only update tournament leaderboard on final resolution (both innings or 2nd innings)
+                    if args.innings in ['both', '2']:
+                        print(f"[Cricket Calculator] Updating tournament leaderboard...")
+                        leaderboard_result = leaderboard_updater.update_tournament_leaderboard('cricket', tournament_id)
+                        if leaderboard_result.get('success'):
+                            updated_count = leaderboard_result.get('updated', 0)
+                            print(f"[Cricket Calculator] SUCCESS: Leaderboard updated for tournament {tournament_id}")
+                            print(f"[Cricket Calculator] - Participants updated: {updated_count}")
+                        else:
+                            print(f"[Cricket Calculator] WARNING: Leaderboard update failed: {leaderboard_result.get('error')}")
                     else:
-                        print(f"[Cricket Calculator] WARNING: Leaderboard update failed: {leaderboard_result.get('error')}")
+                        print(f"[Cricket Calculator] Skipping tournament leaderboard update (partial innings processing)")
                 else:
                     print(f"[Cricket Calculator] ERROR: Match {match_id} processing failed")
                     print(f"[Cricket Calculator] - Error: {result.get('error')}")

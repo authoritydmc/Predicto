@@ -18,7 +18,7 @@ else:
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
-print(f"Starting OverlayChat backend server in {APP_MODE} mode")
+print(f"Starting Predictor Manager backend server in {APP_MODE} mode")
 
 if __name__ == "__main__":
     import uvicorn

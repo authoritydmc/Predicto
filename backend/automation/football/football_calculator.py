@@ -4,8 +4,8 @@ Implements football scoring rules
 """
 
 from typing import Dict, Any
-from ..base.score_calculator import ScoreCalculator
-from .football_config import FOOTBALL_CONFIG
+from base.score_calculator import ScoreCalculator
+from football.football_config import FOOTBALL_CONFIG
 
 
 class FootballCalculator(ScoreCalculator):
