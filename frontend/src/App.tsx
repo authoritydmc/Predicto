@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams, Outlet } from 'react-router-dom';
 import { onValue, get } from 'firebase/database';
-import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey } from './firebase/services';
+import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey, generatePasskey } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import AppHeader from './components/Layout/AppHeader';
 import TournamentBrowser from './components/Tournament/TournamentBrowser';
@@ -44,7 +44,6 @@ function AppLayout() {
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
   const [teamChangeCount, setTeamChangeCount] = useState(0);
   const [showPasskey, setShowPasskey] = useState(false);
-  const [showPasscodeViewer, setShowPasscodeViewer] = useState(false);
   const [forceShowAuth, setForceShowAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
@@ -58,12 +57,12 @@ function AppLayout() {
     return next;
   });
 
-  // Load auth state from localStorage on mount and check for login URL parameter
+  // Check for login URL parameter (for QR code login)
   useEffect(() => {
     const checkLoginParam = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const loginParam = urlParams.get('login');
-      
+
       if (loginParam) {
         const [username, passkey] = loginParam.split(':');
         if (username && passkey) {
@@ -72,36 +71,24 @@ function AppLayout() {
             const result = await verifyUserPasskey(username, passkey);
             if (result.valid) {
               console.log('[App] Auto-login successful for:', username);
-              localStorage.setItem('ovr_username', username);
-              localStorage.setItem('ovr_is_authed', 'true');
               localStorage.setItem('ovr_client_id', result.clientId);
-              setUsername(username);
-              setIsAuthed(true);
+              // Firebase will handle the rest via onValue listener
               window.history.replaceState({}, '', window.location.pathname);
-              return;
             }
           } catch (error) {
             console.error('[App] Auto-login error:', error);
           }
         }
       }
-      
-      const storedUsername = localStorage.getItem('ovr_username');
-      const storedIsAuthed = localStorage.getItem('ovr_is_authed');
-      if (storedUsername && storedIsAuthed === 'true') {
-        console.log('[App] Found auth state in localStorage:', storedUsername);
-        setUsername(storedUsername);
-        setIsAuthed(true);
-      }
     };
-    
+
     checkLoginParam();
   }, []);
 
   // Load user profile from Firebase
   useEffect(() => {
     console.log('[App] Loading user profile for client:', clientId);
-    const unsub = onValue(userRef(clientId), (snap) => {
+    const unsub = onValue(userRef(clientId), async (snap) => {
       const data = snap.val();
       console.log('[App] User profile data:', data);
       if (data?.username) {
@@ -111,16 +98,23 @@ function AppLayout() {
       if (data?.passkey) {
         setPasskey(data.passkey);
         console.log('[App] Passkey set:', data.passkey);
-      } else {
-        console.log('[App] No passkey found in profile data');
+      } else if (data?.username) {
+        // User exists but no passkey - generate one
+        console.log('[App] No passkey found, generating new one');
+        const newPasskey = generatePasskey();
+        try {
+          await saveUserGlobalProfile(clientId, { passkey: newPasskey });
+          setPasskey(newPasskey);
+          console.log('[App] New passkey generated and saved:', newPasskey);
+        } catch (error) {
+          console.error('[App] Error saving new passkey:', error);
+        }
       }
       if (data?.favoriteTeam) {
         setFavoriteTeam(data.favoriteTeam);
-        localStorage.setItem('ovr_favorite_team', data.favoriteTeam);
       }
       if (data?.teamChangeCount !== undefined) {
         setTeamChangeCount(data.teamChangeCount);
-        localStorage.setItem('ovr_team_change_count', data.teamChangeCount.toString());
       }
       setLoading(false);
     }, (error) => {
@@ -132,11 +126,8 @@ function AppLayout() {
 
   const handleAuthSuccess = (authUsername: string, authClientId: string) => {
     console.log('[App] Auth successful:', { authUsername, authClientId });
-    setUsername(authUsername);
-    setIsAuthed(true);
-    localStorage.setItem('ovr_username', authUsername);
-    localStorage.setItem('ovr_is_authed', 'true');
     localStorage.setItem('ovr_client_id', authClientId);
+    // Firebase will handle the rest via onValue listener
   };
 
   const handleRotatePasskey = async () => {
@@ -168,14 +159,11 @@ function AppLayout() {
     
     try {
       const newCount = favoriteTeam ? teamChangeCount + 1 : teamChangeCount;
-      await saveUserGlobalProfile(clientId, { 
+      await saveUserGlobalProfile(clientId, {
         favoriteTeam: team,
         teamChangeCount: newCount
       });
-      setFavoriteTeam(team);
-      setTeamChangeCount(newCount);
-      localStorage.setItem('ovr_favorite_team', team);
-      localStorage.setItem('ovr_team_change_count', newCount.toString());
+      // Firebase will update via onValue listener
     } catch (error) {
       console.error('[App] Error saving favorite team:', error);
     }
@@ -239,7 +227,7 @@ function AppLayout() {
           }} />
         )}
         
-        {isAuthed && !favoriteTeam && (
+        {!loading && isAuthed && !favoriteTeam && (
           <FavoriteTeamModal onSelectTeam={handleSelectFavoriteTeam} teamChangeCount={teamChangeCount} />
         )}
 
@@ -257,21 +245,14 @@ function AppLayout() {
               >
                 {showPasskey ? '👁️' : '👁️‍🗨️'}
               </button>
-              <button 
+              <button
                 className="passkey-rotate-btn"
                 onClick={handleRotatePasskey}
                 title="Generate new passkey"
               >
                 🔄
               </button>
-              <button 
-                className="passkey-view-btn"
-                onClick={() => setShowPasscodeViewer(true)}
-                title="View passcode with QR and share link"
-              >
-                View Passcode
-              </button>
-              <button 
+              <button
                 className="firebase-mode-btn"
                 onClick={handleToggleFirebaseMode}
                 title={`Switch to ${firebaseMode === 'local' ? 'PROD' : 'LOCAL'} mode`}

@@ -43,8 +43,6 @@ export default function AppHeader({
 
   const handleLogout = () => {
     if (confirm('Are you sure you want to logout? This will clear your session.')) {
-      localStorage.removeItem(STORAGE_KEYS.USERNAME);
-      localStorage.removeItem(STORAGE_KEYS.IS_AUTHED);
       localStorage.removeItem(STORAGE_KEYS.CLIENT_ID);
       window.location.reload();
     }

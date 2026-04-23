@@ -54,9 +54,9 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
     return onValue(userRef(clientId), (snap) => {
       const data = snap.val();
       console.log('[PredictionPanel] User profile data received:', data);
-      if (data?.name) {
-        setName(data.name);
-        console.log('[PredictionPanel] Set name from profile:', data.name);
+      if (data?.username) {
+        setName(data.username);
+        console.log('[PredictionPanel] Set name from profile:', data.username);
       }
     }, (error) => {
       console.error('[PredictionPanel] Error fetching user profile:', error);

@@ -165,6 +165,15 @@ export const checkUsernameAvailability = async (username: string): Promise<boole
   }
 };
 
+export const generatePasskey = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let passkey = '';
+  for (let i = 0; i < 8; i++) {
+    passkey += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return passkey;
+};
+
 export const createUserWithPasskey = async (username: string, clientId: string): Promise<string> => {
   try {
     console.log('[Firebase] Creating user with passkey:', { username, clientId });

@@ -6,8 +6,6 @@ export const CHAT_MESSAGE_LIMIT = 50;
 // Local Storage Keys
 export const STORAGE_KEYS = {
   CLIENT_ID: 'ovr_client_id',
-  USERNAME: 'ovr_username',
-  IS_AUTHED: 'ovr_is_authed',
   FIREBASE_MODE: 'firebase_mode',
 } as const;
 
