@@ -170,9 +170,17 @@ export const savePrediction = async (sport: string, id: string, clientId: string
       updateData.early_predict = {
         first: {
           ...basePrediction,
-          teamABattingFirstScore: payload.teamABattingFirstScore,
-          teamBBattingFirstScore: payload.teamBBattingFirstScore,
-          predictedWinner: payload.winner
+          winnerTeam: payload.winnerTeam,
+          runs: payload.runs
+        }
+      };
+    } else if (payload.predictionType === 'early_second_innings') {
+      // Store in early_predict/second
+      updateData.early_predict = {
+        second: {
+          ...basePrediction,
+          winnerTeam: payload.winnerTeam,
+          runsOrOvers: payload.runsOrOvers
         }
       };
     } else if (payload.predictionType === 'live_first_innings') {
@@ -180,24 +188,17 @@ export const savePrediction = async (sport: string, id: string, clientId: string
       updateData.first_inn = {
         ...basePrediction,
         battingFirst: payload.battingFirst,
-        predictedWinner: payload.winner,
-        scoreA: payload.scoreA,
-        scoreB: payload.scoreB
+        winnerTeam: payload.winnerTeam,
+        runs: payload.runs
       };
     } else if (payload.predictionType === 'live_second_innings') {
       // Store in second_inn
       const secondInnData: any = {
         ...basePrediction,
         battingFirst: payload.battingFirst,
-        secondInningsWinner: payload.secondInningsWinner
+        winnerTeam: payload.winnerTeam,
+        runsOrOvers: payload.runsOrOvers
       };
-      // Only include fields that have values
-      if (payload.secondInningsChasingScore !== undefined && payload.secondInningsChasingScore !== null) {
-        secondInnData.secondInningsChasingScore = payload.secondInningsChasingScore;
-      }
-      if (payload.secondInningsWinOvers !== undefined && payload.secondInningsWinOvers !== null) {
-        secondInnData.secondInningsWinOvers = payload.secondInningsWinOvers;
-      }
       updateData.second_inn = secondInnData;
     }
 

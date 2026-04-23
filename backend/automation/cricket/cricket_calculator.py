@@ -24,31 +24,8 @@ class CricketCalculator(ScoreCalculator):
         """
         config = CRICKET_CONFIG['innings1']
         
-        # Determine which score to use based on disableScore flags
-        use_a = not meta.get('disableScoreA', False) and meta.get('disableScoreB', False)
-        use_b = not meta.get('disableScoreB', False) and meta.get('disableScoreA', False)
-        
-        pred_score = 0
-        if use_a:
-            pred_score = self._get_score(prediction, 'scoreA')
-        elif use_b:
-            pred_score = self._get_score(prediction, 'scoreB')
-        else:
-            # Use predicted winner to determine which score to use
-            winner = (prediction.get('predictedWinner') or '').lower()
-            team_a = (meta.get('teamA') or '').lower()
-            team_b = (meta.get('teamB') or '').lower()
-            
-            if winner == team_a:
-                pred_score = self._get_score(prediction, 'scoreA')
-            elif winner == team_b:
-                pred_score = self._get_score(prediction, 'scoreB')
-            else:
-                # Use max of both scores
-                pred_score = max(
-                    self._get_score(prediction, 'scoreA'),
-                    self._get_score(prediction, 'scoreB')
-                )
+        # Get predicted runs from simplified schema
+        pred_score = self._get_score(prediction, 'runs')
         
         diff = abs(actual_score - pred_score)
         print(f"[CricketCalculator] 1st innings: predicted={pred_score}, actual={actual_score}, diff={diff}")
@@ -97,34 +74,23 @@ class CricketCalculator(ScoreCalculator):
         """
         config = CRICKET_CONFIG['innings2']
         
-        # Determine chasing team
-        team_a = (meta.get('teamA') or 'Team A').lower()
-        team_b = (meta.get('teamB') or 'Team B').lower()
+        # Get predicted winner and value from simplified schema
+        pred_winner = (prediction.get('winnerTeam') or '').lower()
+        pred_val_str = str(prediction.get('runsOrOvers', '0'))
         
-        chasing_team = team_b
-        if meta.get('disableScoreA') and not meta.get('disableScoreB'):
-            chasing_team = team_b
-        elif meta.get('disableScoreB') and not meta.get('disableScoreA'):
-            chasing_team = team_a
+        # Determine if prediction is overs format (contains decimal point)
+        pred_is_overs = '.' in pred_val_str
         
-        pred_winner = (prediction.get('predictedWinner') or '').lower()
-        pred_val = self._get_chasing_prediction(prediction, chasing_team, team_a, team_b)
-        
-        print(f"[CricketCalculator] 2nd innings: predicted_winner={pred_winner}, actual_winner={actual_winner}, predicted_val={pred_val}, actual_result={actual_result}, is_overs={is_overs}")
+        print(f"[CricketCalculator] 2nd innings: predicted_winner={pred_winner}, actual_winner={actual_winner}, predicted_val={pred_val_str}, actual_result={actual_result}, is_overs={is_overs}, pred_is_overs={pred_is_overs}")
         
         # Wrong winner prediction
         if pred_winner != actual_winner.lower():
-            if is_overs:
-                wrong_diff = abs(overs_to_balls(actual_result) - overs_to_balls(str(pred_val or 0)))
-            else:
-                wrong_diff = abs(int(actual_result) - int(pred_val or 0))
-            
-            print(f"[CricketCalculator]   Wrong winner! 0 points (diff: {wrong_diff})")
+            print(f"[CricketCalculator]   Wrong winner! 0 points")
             return {
                 'points': 0,
                 'diff': '---',
-                'rawDiff': wrong_diff,
-                'guess': pred_val or '---',
+                'rawDiff': 0,
+                'guess': pred_val_str,
                 'isExact': False,
                 'mode': 'Wrong Winner'
             }
@@ -132,7 +98,7 @@ class CricketCalculator(ScoreCalculator):
         # Correct winner - calculate based on format
         if is_overs:
             actual_balls = overs_to_balls(actual_result)
-            pred_balls = overs_to_balls(str(pred_val or 0))
+            pred_balls = overs_to_balls(pred_val_str)
             diff = abs(actual_balls - pred_balls)
             
             accuracy = max(0, round(config['base_points'] - diff * config['diff_multiplier_overs']))
@@ -152,12 +118,12 @@ class CricketCalculator(ScoreCalculator):
                 'points': accuracy + near_3 + near_9 + exact,
                 'diff': balls_to_overs_display(diff),
                 'rawDiff': diff,
-                'guess': pred_val,
+                'guess': pred_val_str,
                 'isExact': diff == 0,
                 'mode': 'Overs'
             }
         else:
-            diff = abs(int(actual_result) - int(pred_val or 0))
+            diff = abs(int(actual_result) - int(pred_val_str or 0))
             
             base = max(0, round(config['base_points'] - diff * config['diff_multiplier_score']))
             near_5 = config['near_5_points'] if diff <= config['near_5_threshold'] else 0
@@ -165,7 +131,7 @@ class CricketCalculator(ScoreCalculator):
             exact = config['exact_match_points'] if diff == 0 else 0
             
             print(f"[CricketCalculator]   Correct winner (score format)")
-            print(f"[CricketCalculator]   Actual: {actual_result}, Predicted: {pred_val}, Diff: {diff}")
+            print(f"[CricketCalculator]   Actual: {actual_result}, Predicted: {pred_val_str}, Diff: {diff}")
             print(f"[CricketCalculator]   Base: {base} (120 - {diff}*1.2)")
             print(f"[CricketCalculator]   Near 5 bonus: {near_5}")
             print(f"[CricketCalculator]   Near 12 bonus: {near_12}")
@@ -176,7 +142,7 @@ class CricketCalculator(ScoreCalculator):
                 'points': base + near_5 + near_12 + exact,
                 'diff': f"{diff} runs",
                 'rawDiff': diff,
-                'guess': int(pred_val or 0),
+                'guess': int(pred_val_str or 0),
                 'isExact': diff == 0,
                 'mode': 'Score'
             }
@@ -205,15 +171,11 @@ class CricketCalculator(ScoreCalculator):
         total = 0
         
         # Check for inconsistent winner prediction (if both innings have predictions)
-        winner1 = (prediction.get('predictedWinner') or '').lower()
-        winner2 = (prediction.get('secondInningsWinner') or '').lower()
+        # Note: winnerTeam now stores real team names
+        winner1 = (prediction.get('winnerTeam') or '').lower()
         
-        if winner1 and winner2 and winner1 != winner2:
-            if 'inconsistent_winner' not in existing_penalties:
-                penalty = config['inconsistent_winner_penalty']
-                penalties['inconsistent_winner'] = penalty
-                applied.append('inconsistent_winner')
-                total += penalty
+        # The penalty is applied on the frontend when user changes their prediction
+        # Backend just checks if penalty was already applied
         
         # Check for first innings over-based penalties
         # This would need to be determined from prediction data - placeholder for now
@@ -235,11 +197,3 @@ class CricketCalculator(ScoreCalculator):
             return int(prediction.get(key, 0) or 0)
         except (ValueError, TypeError):
             return 0
-    
-    def _get_chasing_prediction(self, prediction: Dict[str, Any], chasing_team: str,
-                                team_a: str, team_b: str) -> int:
-        """Get prediction for chasing team"""
-        if chasing_team == team_a:
-            return self._get_score(prediction, 'scoreA')
-        else:
-            return self._get_score(prediction, 'scoreB')

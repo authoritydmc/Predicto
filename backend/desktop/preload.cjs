@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   toggleSchedulerTask: (taskId) => ipcRenderer.invoke("scheduler:toggle-task", taskId),
   updateSchedulerTask: (taskId, config) => ipcRenderer.invoke("scheduler:update-task", taskId, config),
   getSchedulerStatus: () => ipcRenderer.invoke("scheduler:get-status"),
-  processMatchResolution: (sport, tournamentId, matchId, innings = 'both', force = false) => ipcRenderer.invoke("resolution:process-match", sport, tournamentId, matchId, innings, force),
+  processMatchResolution: (sport, tournamentId, matchId, innings = 'both', force = false, firebaseMode = 'prod') => ipcRenderer.invoke("resolution:process-match", sport, tournamentId, matchId, innings, force, firebaseMode),
   setWindowVisibilityDefaults: (visibility) => ipcRenderer.invoke("settings:set-window-visibility", visibility),
 });
 

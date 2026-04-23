@@ -1638,7 +1638,7 @@ const ControlPanel: React.FC = () => {
         
         // Pass innings parameter to Python script
         const inningsParam = is2nd ? '2' : '1';
-        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId, inningsParam, forceReprocess);
+        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId, inningsParam, forceReprocess, firebaseMode);
         
         if (result.success) {
           setResolutionStatus('success');
@@ -3461,11 +3461,13 @@ const ControlPanel: React.FC = () => {
             <footer className="cp-results-footer">
               <div className="cp-footer-actions">
                 <button className="cp-secondary-btn" onClick={downloadCSV}>Export to CSV</button>
-                <button className="cp-primary-btn" onClick={handlePrepNext}>
-                  {is2nd ? 'Final Resolve & Clear Room' : 'Clear All & Prep 2nd Innings'}
-                </button>
+                {!is2nd && (
+                  <button className="cp-primary-btn" onClick={handlePrepNext}>
+                    Clear All & Prep 2nd Innings
+                  </button>
+                )}
               </div>
-              <p className="cp-footer-note">Prep handles archiving this innings and switching teams.</p>
+              {!is2nd && <p className="cp-footer-note">Prep handles archiving this innings and switching teams.</p>}
             </footer>
           </div>
         </div>

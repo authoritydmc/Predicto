@@ -233,33 +233,26 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         };
 
         // Handle different prediction types based on form data
-        if (formData.secondInningsWinner) {
-          // Second innings prediction
+        if (formData.runsOrOvers) {
+          // Second innings prediction (has runsOrOvers field)
           predictionData.predictionType = 'live_second_innings';
           predictionData.battingFirst = battingFirst;
-          predictionData.secondInningsWinner = formData.secondInningsWinner;
-          if (formData.secondInningsChasingScore) {
-            predictionData.secondInningsChasingScore = formData.secondInningsChasingScore;
-          }
-          if (formData.secondInningsWinOvers) {
-            predictionData.secondInningsWinOvers = formData.secondInningsWinOvers;
-          }
+          predictionData.winnerTeam = formData.winnerTeam;
+          predictionData.runsOrOvers = formData.runsOrOvers;
         } else if (matchStatus === 'scheduled') {
           // Early first innings prediction
           predictionData.predictionType = 'early_first_innings';
-          predictionData.teamABattingFirstScore = formData.teamABattingFirstScore;
-          predictionData.teamBBattingFirstScore = formData.teamBBattingFirstScore;
-          predictionData.predictedWinner = formData.winner;
+          predictionData.winnerTeam = formData.winnerTeam;
+          predictionData.runs = formData.runs;
         } else if (matchStatus === 'live' && battingFirst) {
           // Live first innings prediction
           predictionData.predictionType = 'live_first_innings';
           predictionData.battingFirst = battingFirst;
-          predictionData.scoreA = battingFirst === 'teamA' ? formData.scoreA : '';
-          predictionData.scoreB = battingFirst === 'teamB' ? formData.scoreB : '';
-          predictionData.predictedWinner = formData.winner;
+          predictionData.winnerTeam = formData.winnerTeam;
+          predictionData.runs = formData.runs;
         } else {
           // Football or other sports
-          predictionData.predictedWinner = formData.winner;
+          predictionData.winnerTeam = formData.winnerTeam;
           predictionData.scoreA = formData.scoreA;
           predictionData.scoreB = formData.scoreB;
         }

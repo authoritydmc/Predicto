@@ -680,7 +680,7 @@ ipcMain.handle("scheduler:update-task", async (_event, taskId, config) => {
   return { success: true, taskId };
 });
 
-ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, matchId, innings = 'both', force = false) => {
+ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, matchId, innings = 'both', force = false, firebaseMode = 'prod') => {
   console.log("=" * 80);
   console.log(`[Resolution] Starting match resolution process`);
   console.log(`[Resolution] Sport: ${sport}`);
@@ -688,6 +688,7 @@ ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, m
   console.log(`[Resolution] Match ID: ${matchId}`);
   console.log(`[Resolution] Innings: ${innings}`);
   console.log(`[Resolution] Force: ${force} (type: ${typeof force})`);
+  console.log(`[Resolution] Firebase Mode: ${firebaseMode}`);
   console.log("=" * 80);
   
   const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
@@ -716,7 +717,8 @@ ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, m
     FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
     FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID,
     FIREBASE_APP_ID: process.env.FIREBASE_APP_ID,
-    FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID
+    FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID,
+    APP_MODE: firebaseMode
   };
   
   return new Promise((resolve) => {

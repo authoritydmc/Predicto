@@ -50,35 +50,47 @@ export default function CricketPrediction({
   onSubmit,
   loading
 }: CricketPredictionProps) {
-  const [winner, setWinner] = useState('');
-  const [scoreA, setScoreA] = useState('');
-  const [scoreB, setScoreB] = useState('');
-  const [teamABattingFirstScore, setTeamABattingFirstScore] = useState('');
-  const [teamBBattingFirstScore, setTeamBBattingFirstScore] = useState('');
-  const [secondInningsWinner, setSecondInningsWinner] = useState<'teamA' | 'teamB' | ''>('');
-  const [secondInningsChasingScore, setSecondInningsChasingScore] = useState('');
-  const [secondInningsWinOvers, setSecondInningsWinOvers] = useState('');
+  const [winnerTeam, setWinnerTeam] = useState('');
+  const [runs, setRuns] = useState('');
+  const [secondInningsWinnerTeam, setSecondInningsWinnerTeam] = useState<'teamA' | 'teamB' | ''>('');
+  const [secondInningsRunsOrOvers, setSecondInningsRunsOrOvers] = useState('');
 
   // Pre-select winner based on previous prediction
   useEffect(() => {
     if (previousPrediction) {
-      if (previousPrediction.predictedWinner) {
-        setWinner(previousPrediction.predictedWinner);
+      if (previousPrediction.winnerTeam) {
+        // Convert real team name back to teamA/teamB for the select input
+        const winnerTeamLower = previousPrediction.winnerTeam.toLowerCase();
+        const winnerValue = winnerTeamLower === teamA.toLowerCase() ? 'teamA' : 'teamB';
+        setWinnerTeam(winnerValue);
+        setRuns(previousPrediction.runs || '');
       }
-      if (previousPrediction.secondInningsWinner) {
-        setSecondInningsWinner(previousPrediction.secondInningsWinner);
+      if (previousPrediction.winnerTeam) {
+        // Use same winner for 2nd innings
+        const winnerTeamLower = previousPrediction.winnerTeam.toLowerCase();
+        const winnerValue = winnerTeamLower === teamA.toLowerCase() ? 'teamA' : 'teamB';
+        setSecondInningsWinnerTeam(winnerValue);
+        setSecondInningsRunsOrOvers(previousPrediction.runsOrOvers || '');
       }
     }
-  }, [previousPrediction]);
+  }, [previousPrediction, teamA, teamB]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    
+    if (!winnerTeam) {
+      alert('Please select a winner.');
+      return;
+    }
+    
+    if (!runs.trim()) {
+      alert('Please enter predicted runs.');
+      return;
+    }
+    
     const data: any = {
-      winner,
-      scoreA,
-      scoreB,
-      teamABattingFirstScore,
-      teamBBattingFirstScore
+      winnerTeam: winnerTeam === 'teamA' ? teamA : teamB,
+      runs
     };
     onSubmit(e, data);
   };
@@ -97,46 +109,20 @@ export default function CricketPrediction({
     e.preventDefault();
     
     // Validation
-    if (!secondInningsWinner) {
+    if (!secondInningsWinnerTeam) {
       alert('Please select who you think will win.');
       return;
     }
     
-    const chasingTeam = battingFirst === 'teamA' ? 'teamB' : 'teamA';
-    
-    if (secondInningsWinner === chasingTeam) {
-      // Chasing team wins - need overs
-      if (!secondInningsWinOvers.trim()) {
-        alert(`Please enter in how many overs ${secondInningsWinner === 'teamA' ? teamA : teamB} will win (e.g., 18.2).`);
-        return;
-      }
-      const oversRegex = /^\d+\.\d$/;
-      if (!oversRegex.test(secondInningsWinOvers.trim())) {
-        alert('Invalid format. Please enter overs as "overs.balls" (e.g., 18.2).');
-        return;
-      }
-    } else {
-      // First batting team wins - need chasing team's final score
-      if (!secondInningsChasingScore.trim()) {
-        alert(`Please enter ${chasingTeam === 'teamA' ? teamA : teamB}'s final score (e.g., 180).`);
-        return;
-      }
-      const scoreRegex = /^\d+$/;
-      if (!scoreRegex.test(secondInningsChasingScore.trim())) {
-        alert('Invalid format. Please enter score as a number (e.g., 180).');
-        return;
-      }
+    if (!secondInningsRunsOrOvers.trim()) {
+      alert('Please enter the prediction value (runs or overs).');
+      return;
     }
     
     const data: any = {
-      secondInningsWinner
+      winnerTeam: secondInningsWinnerTeam === 'teamA' ? teamA : teamB,
+      runsOrOvers: secondInningsRunsOrOvers
     };
-    // Only include the relevant field based on who is predicted to win
-    if (secondInningsWinner === chasingTeam) {
-      data.secondInningsWinOvers = secondInningsWinOvers;
-    } else {
-      data.secondInningsChasingScore = secondInningsChasingScore;
-    }
     onSubmit(e, data);
   };
 
@@ -217,7 +203,7 @@ export default function CricketPrediction({
               </p>
             </div>
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
-              Predict both scenarios: if {teamA} bats first and if {teamB} bats first
+              Predict the winner and runs for the first innings
             </p>
           </div>
 
@@ -243,41 +229,26 @@ export default function CricketPrediction({
                 <span>🏆</span>
                 Predicted winner
               </span>
-              <select value={winner} onChange={e => setWinner(e.target.value)} required>
+              <select value={winnerTeam} onChange={e => setWinnerTeam(e.target.value)} required>
                 <option value="">Choose winner...</option>
                 <option value="teamA">{teamA}</option>
                 <option value="teamB">{teamB}</option>
               </select>
             </label>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <label>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>📊</span>
-                  If {teamA} bats first
-                </span>
-                <input
-                  type="text"
-                  value={teamABattingFirstScore}
-                  onChange={e => setTeamABattingFirstScore(e.target.value)}
-                  placeholder="e.g. 185/4"
-                  required
-                />
-              </label>
-              <label>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>📊</span>
-                  If {teamB} bats first
-                </span>
-                <input
-                  type="text"
-                  value={teamBBattingFirstScore}
-                  onChange={e => setTeamBBattingFirstScore(e.target.value)}
-                  placeholder="e.g. 180/8"
-                  required
-                />
-              </label>
-            </div>
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📊</span>
+                Predicted runs
+              </span>
+              <input
+                type="text"
+                value={runs}
+                onChange={e => setRuns(e.target.value)}
+                placeholder="e.g. 185"
+                required
+              />
+            </label>
 
             <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
               {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
@@ -329,7 +300,7 @@ export default function CricketPrediction({
                 <span>🏆</span>
                 Predicted winner
               </span>
-              <select value={winner} onChange={e => setWinner(e.target.value)} required>
+              <select value={winnerTeam} onChange={e => setWinnerTeam(e.target.value)} required>
                 <option value="">Choose winner...</option>
                 <option value="teamA">{teamA}</option>
                 <option value="teamB">{teamB}</option>
@@ -343,11 +314,8 @@ export default function CricketPrediction({
               </span>
               <input
                 type="text"
-                value={battingFirst === 'teamA' ? scoreA : scoreB}
-                onChange={e => {
-                  if (battingFirst === 'teamA') setScoreA(e.target.value);
-                  else setScoreB(e.target.value);
-                }}
+                value={runs}
+                onChange={e => setRuns(e.target.value)}
                 placeholder="e.g. 185/4"
                 required
               />
@@ -409,18 +377,18 @@ export default function CricketPrediction({
                 Who will win?
               </span>
               <select
-                value={secondInningsWinner}
+                value={secondInningsWinnerTeam}
                 onChange={async e => {
                   const newValue = e.target.value as 'teamA' | 'teamB';
-                  // Check if user is switching from their previous prediction
-                  if (previousPrediction?.secondInningsWinner && 
-                      previousPrediction.secondInningsWinner !== newValue &&
-                      previousPrediction.secondInningsWinner !== '') {
+                  // Check if user is switching from their previous winnerTeam prediction
+                  if (previousPrediction?.winnerTeam && 
+                      previousPrediction.winnerTeam !== (newValue === 'teamA' ? teamA : teamB) &&
+                      previousPrediction.winnerTeam !== '') {
                     const confirmed = confirm(
-                      `⚠️ Warning: Switching your winner prediction will apply a -20 point penalty.\n\nPrevious: ${previousPrediction.secondInningsWinner === 'teamA' ? teamA : teamB}\nNew: ${newValue === 'teamA' ? teamA : teamB}\n\nDo you want to continue?`
+                      `⚠️ Warning: Switching your winner prediction will apply a -20 point penalty.\n\nPrevious: ${previousPrediction.winnerTeam}\nNew: ${newValue === 'teamA' ? teamA : teamB}\n\nDo you want to continue?`
                     );
                     if (confirmed) {
-                      setSecondInningsWinner(newValue);
+                      setSecondInningsWinnerTeam(newValue);
                       // Apply penalty using consistent constant (backend calculates points)
                       try {
                         await applyPenalty(
@@ -429,14 +397,14 @@ export default function CricketPrediction({
                           name, 
                           matchId, 
                           CRICKET_PENALTIES.INCONSISTENT_WINNER, 
-                          'Switching winner prediction in second innings'
+                          'Switching winner prediction'
                         );
                       } catch (error) {
                         console.error('[CricketPrediction] Error applying penalty:', error);
                       }
                     }
                   } else {
-                    setSecondInningsWinner(newValue);
+                    setSecondInningsWinnerTeam(newValue);
                   }
                 }}
                 required
@@ -447,73 +415,19 @@ export default function CricketPrediction({
               </select>
             </label>
 
-            {secondInningsWinner && (
-              <>
-                {(() => {
-                  const chasingTeam = battingFirst === 'teamA' ? 'teamB' : 'teamA';
-                  const chasingTeamName = chasingTeam === 'teamA' ? teamA : teamB;
-                  const firstBattingTeamName = battingFirst === 'teamA' ? teamA : teamB;
-                  const selectedWinnerName = secondInningsWinner === 'teamA' ? teamA : teamB;
-
-                  console.log('[CricketPrediction] Second innings logic:', {
-                    battingFirst,
-                    chasingTeam,
-                    secondInningsWinner,
-                    isChasingTeamWinner: secondInningsWinner === chasingTeam
-                  });
-
-                  if (secondInningsWinner === chasingTeam) {
-                    // Chasing team wins - ask for overs
-                    return (
-                      <label>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>⏱️</span>
-                          {selectedWinnerName} will chase in
-                        </span>
-                        <input
-                          type="text"
-                          value={secondInningsWinOvers}
-                          onChange={e => setSecondInningsWinOvers(e.target.value)}
-                          placeholder="e.g. 18.2"
-                          required
-                        />
-                        <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                          Format: overs.balls (e.g., 18.2)
-                        </p>
-                      </label>
-                    );
-                  } else {
-                    // First batting team wins - ask for chasing team's final score
-                    const winMargin = targetScore && secondInningsChasingScore 
-                      ? targetScore - parseInt(secondInningsChasingScore) 
-                      : null;
-                    return (
-                      <label>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>📊</span>
-                          {chasingTeamName} Final Score
-                        </span>
-                        <input
-                          type="number"
-                          value={secondInningsChasingScore}
-                          onChange={e => setSecondInningsChasingScore(e.target.value)}
-                          placeholder="e.g. 180"
-                          required
-                        />
-                        {winMargin !== null && winMargin > 0 && (
-                          <p style={{ fontSize: '12px', color: '#34c759', fontWeight: 600, marginTop: '4px' }}>
-                            {selectedWinnerName} will win by {winMargin} runs
-                          </p>
-                        )}
-                        <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                          Target: {targetScore || '-'}
-                        </p>
-                      </label>
-                    );
-                  }
-                })()}
-              </>
-            )}
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📊</span>
+                Predicted runs or overs
+              </span>
+              <input
+                type="text"
+                value={secondInningsRunsOrOvers}
+                onChange={e => setSecondInningsRunsOrOvers(e.target.value)}
+                placeholder="e.g. 180 (runs) or 18.2 (overs)"
+                required
+              />
+            </label>
 
             <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
               {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
