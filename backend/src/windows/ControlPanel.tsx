@@ -1591,6 +1591,8 @@ const ControlPanel: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // Resolution
   // ─────────────────────────────────────────────────────────────────────────────
+  const [forceReprocess, setForceReprocess] = useState(false);
+
   const resolveMatch = async () => {
     if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
     
@@ -1636,7 +1638,7 @@ const ControlPanel: React.FC = () => {
         
         // Pass innings parameter to Python script
         const inningsParam = is2nd ? '2' : '1';
-        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId, inningsParam);
+        const result = await (window as any).overlayDesktop.processMatchResolution(fSport, tournamentId, matchId, inningsParam, forceReprocess);
         
         if (result.success) {
           setResolutionStatus('success');
@@ -2933,6 +2935,17 @@ const ControlPanel: React.FC = () => {
                 {is2nd ? 'Resolve 2nd Innings' : 'Resolve 1st Innings'}
               </button>
               <button id="viewFinalStandings" className="cp-action-btn" onClick={viewFinalStandings}>View Final Game Standings</button>
+            </div>
+            <div className="cp-form-row" style={{ marginTop: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={forceReprocess} 
+                  onChange={(e) => setForceReprocess(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '13px', color: '#999' }}>Force reprocess (skip reconciled check)</span>
+              </label>
             </div>
             {resolutionMessage && (
               <div 

@@ -680,13 +680,14 @@ ipcMain.handle("scheduler:update-task", async (_event, taskId, config) => {
   return { success: true, taskId };
 });
 
-ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, matchId, innings = 'both') => {
+ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, matchId, innings = 'both', force = false) => {
   console.log("=" * 80);
   console.log(`[Resolution] Starting match resolution process`);
   console.log(`[Resolution] Sport: ${sport}`);
   console.log(`[Resolution] Tournament ID: ${tournamentId}`);
   console.log(`[Resolution] Match ID: ${matchId}`);
   console.log(`[Resolution] Innings: ${innings}`);
+  console.log(`[Resolution] Force: ${force} (type: ${typeof force})`);
   console.log("=" * 80);
   
   const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
@@ -703,7 +704,7 @@ ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, m
   
   console.log(`[Resolution] Python path: ${pythonPath}`);
   console.log(`[Resolution] Script path: ${scriptPath}`);
-  console.log(`[Resolution] Command: ${pythonPath} ${scriptPath} --tournament ${tournamentId} --match ${matchId} --innings ${innings}`);
+  console.log(`[Resolution] Command: ${pythonPath} ${scriptPath} --tournament ${tournamentId} --match ${matchId} --innings ${innings}${force ? ' --force' : ''}`);
   console.log(`[Resolution] Spawning Python process...`);
   
   // Firebase config from environment variables
@@ -719,7 +720,12 @@ ipcMain.handle("resolution:process-match", async (_event, sport, tournamentId, m
   };
   
   return new Promise((resolve) => {
-    const pythonProcess = spawn(pythonPath, [scriptPath, '--tournament', tournamentId, '--match', matchId, '--innings', innings], {
+    const pythonArgs = [scriptPath, '--tournament', tournamentId, '--match', matchId, '--innings', innings];
+    if (force) {
+      pythonArgs.push('--force');
+    }
+    
+    const pythonProcess = spawn(pythonPath, pythonArgs, {
       cwd: path.join(__dirname, ".."),
       env: {
         ...process.env,

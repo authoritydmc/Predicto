@@ -22,11 +22,13 @@ def main():
     parser.add_argument('--match', type=str, help='Specific match ID to process')
     parser.add_argument('--innings', type=str, choices=['1', '2', 'both'], default='both',
                        help='Which innings to process: 1 (first only), 2 (second only), or both (default)')
+    parser.add_argument('--force', action='store_true',
+                       help='Force reprocessing even if match is already reconciled')
     args = parser.parse_args()
     
     print("=" * 80)
     print("[Cricket Calculator] Starting...")
-    print(f"[Cricket Calculator] Arguments: tournament={args.tournament}, match={args.match}, innings={args.innings}")
+    print(f"[Cricket Calculator] Arguments: tournament={args.tournament}, match={args.match}, innings={args.innings}, force={args.force}")
     print("=" * 80)
     
     # Initialize Firebase client
@@ -124,9 +126,9 @@ def main():
                 print(f"[Cricket Calculator] Skipping match {match_id}: no metadata found")
                 continue
             
-            # Skip if already reconciled
-            if meta.get('reconciled', False):
-                print(f"[Cricket Calculator] Skipping match {match_id}: already reconciled")
+            # Skip if already reconciled (unless force flag is set)
+            if meta.get('reconciled', False) and not args.force:
+                print(f"[Cricket Calculator] Skipping match {match_id}: already reconciled (use --force to reprocess)")
                 continue
             
             # Skip if match is not completed AND has no actual results
@@ -147,7 +149,7 @@ def main():
             
             try:
                 print(f"[Cricket Calculator] Fetching predictions for match {match_id}...")
-                result = processor.process_match('cricket', tournament_id, match_id, innings=args.innings)
+                result = processor.process_match('cricket', tournament_id, match_id, innings=args.innings, force=args.force)
                 
                 if result.get('success'):
                     processed = result.get('processed', 0)

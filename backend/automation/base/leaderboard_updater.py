@@ -41,6 +41,8 @@ class LeaderboardUpdater:
         # Aggregate scores across all matches
         user_scores = {}
         
+        print(f"[LeaderboardUpdater] Processing {len(matches_data)} matches for leaderboard")
+        
         for match_id, match_data in matches_data.items():
             if not isinstance(match_data, dict):
                 continue
@@ -51,16 +53,22 @@ class LeaderboardUpdater:
             if not predictions:
                 continue
             
+            print(f"[LeaderboardUpdater] Processing match {match_id}: {len(predictions)} predictions")
+            
             for username, user_data in predictions.items():
                 if isinstance(user_data, dict) and 'predictions' in user_data:
                     # Array structure (standard predictions)
                     for prediction in user_data['predictions']:
                         if prediction.get('reconciled', False):
+                            score = prediction.get('score', 0)
                             self._add_score(user_scores, username, prediction)
+                            print(f"[LeaderboardUpdater]   {username}: +{score} points (from {match_id})")
                 elif isinstance(user_data, dict) and 'second_inn' in user_data:
                     # Nested second_inn structure (live 2nd innings predictions)
                     if user_data.get('reconciled', False):
+                        score = user_data.get('score', 0)
                         self._add_score(user_scores, username, user_data)
+                        print(f"[LeaderboardUpdater]   {username}: +{score} points (from {match_id}, 2nd innings)")
         
         # Convert to sorted leaderboard
         leaderboard = self._create_leaderboard(user_scores)

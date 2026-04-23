@@ -28,7 +28,11 @@ CRICKET_CONFIG = {
         'exact_match_points': 70
     },
     'penalty': {
-        'inconsistent_winner_penalty': -20
+        'inconsistent_winner_penalty': -20,
+        'first_inn_1st_over': -5,
+        'first_inn_2nd_over': -10,
+        'first_inn_3rd_over': -30,
+        'second_inn_1st_over': -5
     }
 }
 

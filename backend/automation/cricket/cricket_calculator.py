@@ -51,8 +51,10 @@ class CricketCalculator(ScoreCalculator):
                 )
         
         diff = abs(actual_score - pred_score)
+        print(f"[CricketCalculator] 1st innings: predicted={pred_score}, actual={actual_score}, diff={diff}")
         
         if diff == 0:
+            print(f"[CricketCalculator]   Exact match! {config['exact_match_points']} points")
             return {
                 'points': config['exact_match_points'],
                 'diff': diff,
@@ -65,6 +67,11 @@ class CricketCalculator(ScoreCalculator):
         base = max(0, round(config['base_points'] - diff * config['diff_multiplier']))
         near_5 = config['near_5_points'] if diff <= config['near_5_threshold'] else 0
         near_10 = config['near_10_points'] if diff <= config['near_10_threshold'] else 0
+        
+        print(f"[CricketCalculator]   Base: {base} (120 - {diff}*1.2)")
+        print(f"[CricketCalculator]   Near 5 bonus: {near_5}")
+        print(f"[CricketCalculator]   Near 10 bonus: {near_10}")
+        print(f"[CricketCalculator]   Total: {base + near_5 + near_10}")
         
         return {
             'points': base + near_5 + near_10,
@@ -103,6 +110,8 @@ class CricketCalculator(ScoreCalculator):
         pred_winner = (prediction.get('predictedWinner') or '').lower()
         pred_val = self._get_chasing_prediction(prediction, chasing_team, team_a, team_b)
         
+        print(f"[CricketCalculator] 2nd innings: predicted_winner={pred_winner}, actual_winner={actual_winner}, predicted_val={pred_val}, actual_result={actual_result}, is_overs={is_overs}")
+        
         # Wrong winner prediction
         if pred_winner != actual_winner.lower():
             if is_overs:
@@ -110,6 +119,7 @@ class CricketCalculator(ScoreCalculator):
             else:
                 wrong_diff = abs(int(actual_result) - int(pred_val or 0))
             
+            print(f"[CricketCalculator]   Wrong winner! 0 points (diff: {wrong_diff})")
             return {
                 'points': 0,
                 'diff': '---',
@@ -130,6 +140,14 @@ class CricketCalculator(ScoreCalculator):
             near_9 = config['near_9_points'] if diff <= config['near_9_threshold'] else 0
             exact = config['exact_match_points'] if diff == 0 else 0
             
+            print(f"[CricketCalculator]   Correct winner (overs format)")
+            print(f"[CricketCalculator]   Actual balls: {actual_balls}, Predicted balls: {pred_balls}, Diff: {diff}")
+            print(f"[CricketCalculator]   Base: {accuracy} (120 - {diff}*1.8)")
+            print(f"[CricketCalculator]   Near 3 bonus: {near_3}")
+            print(f"[CricketCalculator]   Near 9 bonus: {near_9}")
+            print(f"[CricketCalculator]   Exact bonus: {exact}")
+            print(f"[CricketCalculator]   Total: {accuracy + near_3 + near_9 + exact}")
+            
             return {
                 'points': accuracy + near_3 + near_9 + exact,
                 'diff': balls_to_overs_display(diff),
@@ -146,6 +164,14 @@ class CricketCalculator(ScoreCalculator):
             near_12 = config['near_12_points'] if diff <= config['near_12_threshold'] else 0
             exact = config['exact_match_points'] if diff == 0 else 0
             
+            print(f"[CricketCalculator]   Correct winner (score format)")
+            print(f"[CricketCalculator]   Actual: {actual_result}, Predicted: {pred_val}, Diff: {diff}")
+            print(f"[CricketCalculator]   Base: {base} (120 - {diff}*1.2)")
+            print(f"[CricketCalculator]   Near 5 bonus: {near_5}")
+            print(f"[CricketCalculator]   Near 12 bonus: {near_12}")
+            print(f"[CricketCalculator]   Exact bonus: {exact}")
+            print(f"[CricketCalculator]   Total: {base + near_5 + near_12 + exact}")
+            
             return {
                 'points': base + near_5 + near_12 + exact,
                 'diff': f"{diff} runs",
@@ -155,21 +181,49 @@ class CricketCalculator(ScoreCalculator):
                 'mode': 'Score'
             }
     
-    def calculate_penalty(self, prediction1: Dict[str, Any], prediction2: Dict[str, Any]) -> int:
+    def calculate_penalty(self, prediction: Dict[str, Any], existing_penalties: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Calculate penalty for inconsistent winner predictions
+        Calculate penalties for various prediction errors
         
-        Penalty: -20 points if winner predictions differ
+        Returns a dict with penalty breakdown:
+        {
+            'total': -30,
+            'breakdown': {
+                'inconsistent_winner': -20,
+                'first_inn_1st_over': -5,
+                'first_inn_2nd_over': -10,
+                ...
+            },
+            'applied': ['inconsistent_winner', 'first_inn_1st_over', ...]
+        }
         """
         config = CRICKET_CONFIG['penalty']
+        existing_penalties = existing_penalties or {}
         
-        winner1 = (prediction1.get('predictedWinner') or '').lower()
-        winner2 = (prediction2.get('predictedWinner') or '').lower()
+        penalties = {}
+        applied = []
+        total = 0
+        
+        # Check for inconsistent winner prediction (if both innings have predictions)
+        winner1 = (prediction.get('predictedWinner') or '').lower()
+        winner2 = (prediction.get('secondInningsWinner') or '').lower()
         
         if winner1 and winner2 and winner1 != winner2:
-            return config['inconsistent_winner_penalty']
+            if 'inconsistent_winner' not in existing_penalties:
+                penalty = config['inconsistent_winner_penalty']
+                penalties['inconsistent_winner'] = penalty
+                applied.append('inconsistent_winner')
+                total += penalty
         
-        return 0
+        # Check for first innings over-based penalties
+        # This would need to be determined from prediction data - placeholder for now
+        # These would be applied based on specific prediction errors
+        
+        return {
+            'total': total,
+            'breakdown': penalties,
+            'applied': applied
+        }
     
     def get_sport_name(self) -> str:
         """Return sport name"""

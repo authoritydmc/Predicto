@@ -250,17 +250,33 @@ export const savePrediction = async (sport: string, id: string, clientId: string
   }
 };
 
-export const applyPenalty = async (sport: string, id: string, username: string, matchId: string, penaltyType: string, penaltyPoints: number, reason: string) => {
+export const applyPenalty = async (sport: string, id: string, username: string, matchId: string, penaltyType: string, reason: string) => {
   try {
-    console.log('[Firebase] Applying penalty:', { sport, id, username, matchId, penaltyType, penaltyPoints, reason });
+    console.log('[Firebase] Applying penalty:', { sport, id, username, matchId, penaltyType, reason });
     const pRef = matchRef(sport, id, matchId, "predictions", username);
     const snap = await get(pRef);
     const existingData = snap.val();
 
+    // Initialize appliedPenalties structure to match backend
+    const existingPenalties = existingData?.appliedPenalties || {};
+    
+    // Check if this penalty type was already applied
+    if (existingPenalties[penaltyType] !== undefined) {
+      console.log('[Firebase] Penalty already applied:', penaltyType);
+      return;
+    }
+
+    // Update appliedPenalties dict (backend structure)
+    // Store the type with a placeholder value - backend will calculate actual points
+    const updatedPenalties = {
+      ...existingPenalties,
+      [penaltyType]: true  // Placeholder - backend calculates actual points
+    };
+
+    // Also keep legacy log for debugging
     const newPenalty = {
       penaltyId: Date.now(),
       penaltyType,
-      penaltyPoints,
       reason,
       timestamp: Date.now(),
       createdAt: serverTimestamp()
@@ -268,17 +284,19 @@ export const applyPenalty = async (sport: string, id: string, username: string, 
 
     if (existingData) {
       // Get existing penalties array or create new one
-      const existingPenalties = existingData.penalties || [];
-      existingPenalties.push(newPenalty);
+      const existingPenaltyLog = existingData.penalties || [];
+      existingPenaltyLog.push(newPenalty);
       
       await update(pRef, {
-        penalties: existingPenalties,
+        appliedPenalties: updatedPenalties,
+        penalties: existingPenaltyLog,
         updatedAt: serverTimestamp()
       });
     } else {
       // Create new structure with penalty
       await set(pRef, {
         username,
+        appliedPenalties: updatedPenalties,
         penalties: [newPenalty],
         updatedAt: serverTimestamp()
       });

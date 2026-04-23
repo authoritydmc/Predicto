@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { applyPenalty } from '../../firebase/services';
+import { CRICKET_PENALTIES } from '../../constants/penalties';
 
 interface CricketPredictionProps {
   teamA: string;
@@ -420,9 +421,16 @@ export default function CricketPrediction({
                     );
                     if (confirmed) {
                       setSecondInningsWinner(newValue);
-                      // Apply penalty
+                      // Apply penalty using consistent constant (backend calculates points)
                       try {
-                        await applyPenalty(sport, id, name, matchId, 'team_switch', -20, 'Switching winner prediction in second innings');
+                        await applyPenalty(
+                          sport, 
+                          id, 
+                          name, 
+                          matchId, 
+                          CRICKET_PENALTIES.INCONSISTENT_WINNER, 
+                          'Switching winner prediction in second innings'
+                        );
                       } catch (error) {
                         console.error('[CricketPrediction] Error applying penalty:', error);
                       }
