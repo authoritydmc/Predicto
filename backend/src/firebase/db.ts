@@ -1,15 +1,29 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, get, update, remove, onValue, query, limitToLast, serverTimestamp, push, DatabaseReference, DataSnapshot } from 'firebase/database';
 
+// Type declaration for process.env to support both Node.js and browser environments
+declare const process: {
+  env: {
+    FIREBASE_API_KEY?: string;
+    FIREBASE_AUTH_DOMAIN?: string;
+    FIREBASE_DATABASE_URL?: string;
+    FIREBASE_PROJECT_ID?: string;
+    FIREBASE_STORAGE_BUCKET?: string;
+    FIREBASE_MESSAGING_SENDER_ID?: string;
+    FIREBASE_APP_ID?: string;
+    FIREBASE_MEASUREMENT_ID?: string;
+  };
+} | undefined;
+
 export const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "scorepredictor-9dd45.firebaseapp.com",
-  databaseURL: process.env.FIREBASE_DATABASE_URL || "https://scorepredictor-9dd45-default-rtdb.firebaseio.com",
-  projectId: process.env.FIREBASE_PROJECT_ID || "scorepredictor-9dd45",
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "scorepredictor-9dd45.firebasestorage.app",
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "555373343943",
-  appId: process.env.FIREBASE_APP_ID || "1:555373343943:web:64e8233090daa9a7043ae2",
-  measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-N10HQR1382"
+  apiKey: (typeof process !== 'undefined' && process.env?.FIREBASE_API_KEY) || "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
+  authDomain: (typeof process !== 'undefined' && process.env?.FIREBASE_AUTH_DOMAIN) || "scorepredictor-9dd45.firebaseapp.com",
+  databaseURL: (typeof process !== 'undefined' && process.env?.FIREBASE_DATABASE_URL) || "https://scorepredictor-9dd45-default-rtdb.firebaseio.com",
+  projectId: (typeof process !== 'undefined' && process.env?.FIREBASE_PROJECT_ID) || "scorepredictor-9dd45",
+  storageBucket: (typeof process !== 'undefined' && process.env?.FIREBASE_STORAGE_BUCKET) || "scorepredictor-9dd45.firebasestorage.app",
+  messagingSenderId: (typeof process !== 'undefined' && process.env?.FIREBASE_MESSAGING_SENDER_ID) || "555373343943",
+  appId: (typeof process !== 'undefined' && process.env?.FIREBASE_APP_ID) || "1:555373343943:web:64e8233090daa9a7043ae2",
+  measurementId: (typeof process !== 'undefined' && process.env?.FIREBASE_MEASUREMENT_ID) || "G-N10HQR1382"
 };
 
 export const isFirebaseConfigured = true;

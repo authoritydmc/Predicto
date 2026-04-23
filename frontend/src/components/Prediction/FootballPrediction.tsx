@@ -5,11 +5,11 @@ interface FootballPredictionProps {
   teamA: string;
   teamB: string;
   name: string;
-  matchStatus: string;
   isMatchCompleted: boolean;
   predictionsEnabled: boolean;
   predictionsPaused: boolean;
   pauseReason: string;
+  disableReason: string;
   onNameChange: (name: string) => void;
   onSubmit: (e: FormEvent, data: any) => void;
   loading: boolean;
@@ -19,11 +19,11 @@ export default function FootballPrediction({
   teamA,
   teamB,
   name,
-  matchStatus,
   isMatchCompleted,
   predictionsEnabled,
   predictionsPaused,
   pauseReason,
+  disableReason,
   onNameChange,
   onSubmit,
   loading
@@ -69,6 +69,11 @@ export default function FootballPrediction({
           <p style={{ margin: 0, fontSize: '14px', color: '#8e8e93', fontWeight: 600 }}>
             🔒 Predictions are disabled for this match.
           </p>
+          {disableReason && (
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+              {disableReason}
+            </p>
+          )}
         </div>
       )}
 

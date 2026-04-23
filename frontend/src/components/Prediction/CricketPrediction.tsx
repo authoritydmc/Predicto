@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 
 interface CricketPredictionProps {
@@ -8,11 +8,12 @@ interface CricketPredictionProps {
   matchStatus: string;
   battingFirst: 'teamA' | 'teamB' | null;
   currentInnings: number;
-  showSecondInningsPrediction: boolean;
   isMatchCompleted: boolean;
   predictionsEnabled: boolean;
   predictionsPaused: boolean;
   pauseReason: string;
+  disableReason: string;
+  targetScore: number | null;
   onNameChange: (name: string) => void;
   onSubmit: (e: FormEvent, data: any) => void;
   loading: boolean;
@@ -25,11 +26,12 @@ export default function CricketPrediction({
   matchStatus,
   battingFirst,
   currentInnings,
-  showSecondInningsPrediction,
   isMatchCompleted,
   predictionsEnabled,
   predictionsPaused,
   pauseReason,
+  disableReason,
+  targetScore,
   onNameChange,
   onSubmit,
   loading
@@ -40,7 +42,7 @@ export default function CricketPrediction({
   const [teamABattingFirstScore, setTeamABattingFirstScore] = useState('');
   const [teamBBattingFirstScore, setTeamBBattingFirstScore] = useState('');
   const [secondInningsWinner, setSecondInningsWinner] = useState<'teamA' | 'teamB' | ''>('');
-  const [secondInningsAllOutScore, setSecondInningsAllOutScore] = useState('');
+  const [secondInningsChasingScore, setSecondInningsChasingScore] = useState('');
   const [secondInningsWinOvers, setSecondInningsWinOvers] = useState('');
 
   const handleSubmit = (e: FormEvent) => {
@@ -55,6 +57,16 @@ export default function CricketPrediction({
     onSubmit(e, data);
   };
 
+  console.log('[CricketPrediction] Render state:', {
+    isMatchCompleted,
+    predictionsEnabled,
+    predictionsPaused,
+    matchStatus,
+    battingFirst,
+    currentInnings,
+    targetScore
+  });
+
   const handleSecondInningsPrediction = (e: FormEvent) => {
     e.preventDefault();
     
@@ -64,21 +76,12 @@ export default function CricketPrediction({
       return;
     }
     
-    const firstTeam = battingFirst;
+    const chasingTeam = battingFirst === 'teamA' ? 'teamB' : 'teamA';
     
-    if (secondInningsWinner === firstTeam) {
-      if (!secondInningsAllOutScore.trim()) {
-        alert('Please enter the chasing team\'s all-out score (e.g., 182/10).');
-        return;
-      }
-      const allOutRegex = /^\d+\/10$/;
-      if (!allOutRegex.test(secondInningsAllOutScore.trim())) {
-        alert('Invalid format. Please enter score as "runs/10" (e.g., 182/10).');
-        return;
-      }
-    } else {
+    if (secondInningsWinner === chasingTeam) {
+      // Chasing team wins - need overs
       if (!secondInningsWinOvers.trim()) {
-        alert('Please enter in how many overs the chasing team will win (e.g., 18.2).');
+        alert(`Please enter in how many overs ${secondInningsWinner === 'teamA' ? teamA : teamB} will win (e.g., 18.2).`);
         return;
       }
       const oversRegex = /^\d+\.\d$/;
@@ -86,11 +89,22 @@ export default function CricketPrediction({
         alert('Invalid format. Please enter overs as "overs.balls" (e.g., 18.2).');
         return;
       }
+    } else {
+      // First batting team wins - need chasing team's final score
+      if (!secondInningsChasingScore.trim()) {
+        alert(`Please enter ${chasingTeam === 'teamA' ? teamA : teamB}'s final score (e.g., 180).`);
+        return;
+      }
+      const scoreRegex = /^\d+$/;
+      if (!scoreRegex.test(secondInningsChasingScore.trim())) {
+        alert('Invalid format. Please enter score as a number (e.g., 180).');
+        return;
+      }
     }
     
     const data: any = {
       secondInningsWinner,
-      secondInningsAllOutScore,
+      secondInningsChasingScore,
       secondInningsWinOvers
     };
     onSubmit(e, data);
@@ -127,6 +141,11 @@ export default function CricketPrediction({
           <p style={{ margin: 0, fontSize: '14px', color: '#8e8e93', fontWeight: 600 }}>
             🔒 Predictions are disabled for this match.
           </p>
+          {disableReason && (
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+              {disableReason}
+            </p>
+          )}
         </div>
       )}
 
@@ -312,7 +331,7 @@ export default function CricketPrediction({
       )}
 
       {/* Second Innings */}
-      {!isMatchCompleted && predictionsEnabled && !predictionsPaused && currentInnings === 2 && showSecondInningsPrediction && (
+      {!isMatchCompleted && predictionsEnabled && !predictionsPaused && currentInnings === 2 && (
         <div className="cricket-prediction-form">
           <div style={{
             padding: '16px',
@@ -327,9 +346,14 @@ export default function CricketPrediction({
                 Second Innings Prediction
               </p>
             </div>
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
-              Update your prediction for the chase
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+                {battingFirst === 'teamA' ? teamA : teamB} batted first (1st innings)
+              </p>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+                {battingFirst === 'teamA' ? teamB : teamA} batting now (2nd innings)
+              </p>
+            </div>
           </div>
 
           <form onSubmit={handleSecondInningsPrediction} className="stack-form">
@@ -367,41 +391,69 @@ export default function CricketPrediction({
 
             {secondInningsWinner && (
               <>
-                {secondInningsWinner === (battingFirst === 'teamA' ? 'teamA' : 'teamB') ? (
-                  <label>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>📊</span>
-                      {battingFirst === 'teamA' ? teamB : teamA} All-Out Score
-                    </span>
-                    <input
-                      type="text"
-                      value={secondInningsAllOutScore}
-                      onChange={e => setSecondInningsAllOutScore(e.target.value)}
-                      placeholder="e.g. 182/10 (must be all out)"
-                      required
-                    />
-                    <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                      Format: runs/10 (e.g., 182/10) - chasing team must be all out
-                    </p>
-                  </label>
-                ) : (
-                  <label>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>⏱️</span>
-                      {battingFirst === 'teamA' ? teamB : teamA} will win in
-                    </span>
-                    <input
-                      type="text"
-                      value={secondInningsWinOvers}
-                      onChange={e => setSecondInningsWinOvers(e.target.value)}
-                      placeholder="e.g. 18.2"
-                      required
-                    />
-                    <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                      Format: overs.balls (e.g., 18.2)
-                    </p>
-                  </label>
-                )}
+                {(() => {
+                  const chasingTeam = battingFirst === 'teamA' ? 'teamB' : 'teamA';
+                  const chasingTeamName = chasingTeam === 'teamA' ? teamA : teamB;
+                  const firstBattingTeamName = battingFirst === 'teamA' ? teamA : teamB;
+                  const selectedWinnerName = secondInningsWinner === 'teamA' ? teamA : teamB;
+
+                  console.log('[CricketPrediction] Second innings logic:', {
+                    battingFirst,
+                    chasingTeam,
+                    secondInningsWinner,
+                    isChasingTeamWinner: secondInningsWinner === chasingTeam
+                  });
+
+                  if (secondInningsWinner === chasingTeam) {
+                    // Chasing team wins - ask for overs
+                    return (
+                      <label>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>⏱️</span>
+                          {selectedWinnerName} will chase in
+                        </span>
+                        <input
+                          type="text"
+                          value={secondInningsWinOvers}
+                          onChange={e => setSecondInningsWinOvers(e.target.value)}
+                          placeholder="e.g. 18.2"
+                          required
+                        />
+                        <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                          Format: overs.balls (e.g., 18.2)
+                        </p>
+                      </label>
+                    );
+                  } else {
+                    // First batting team wins - ask for chasing team's final score
+                    const winMargin = targetScore && secondInningsChasingScore 
+                      ? targetScore - parseInt(secondInningsChasingScore) 
+                      : null;
+                    return (
+                      <label>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>📊</span>
+                          {chasingTeamName} Final Score
+                        </span>
+                        <input
+                          type="number"
+                          value={secondInningsChasingScore}
+                          onChange={e => setSecondInningsChasingScore(e.target.value)}
+                          placeholder="e.g. 180"
+                          required
+                        />
+                        {winMargin !== null && winMargin > 0 && (
+                          <p style={{ fontSize: '12px', color: '#34c759', fontWeight: 600, marginTop: '4px' }}>
+                            {selectedWinnerName} will win by {winMargin} runs
+                          </p>
+                        )}
+                        <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                          Target: {targetScore || '-'}
+                        </p>
+                      </label>
+                    );
+                  }
+                })()}
               </>
             )}
 

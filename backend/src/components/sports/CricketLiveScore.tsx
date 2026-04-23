@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface CricketLiveScoreProps {
   fTeamA: string;
@@ -23,6 +23,7 @@ interface CricketLiveScoreProps {
   setScoreTeamBRuns: (value: string) => void;
   setScoreTeamBWickets: (value: string) => void;
   setScoreTeamBOvers: (value: string) => void;
+  onInstantUpdate?: (data: any) => void;
 }
 
 export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
@@ -48,106 +49,425 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
   setScoreTeamBRuns,
   setScoreTeamBWickets,
   setScoreTeamBOvers,
+  onInstantUpdate,
 }) => {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Debounced instant update
+  useEffect(() => {
+    if (!onInstantUpdate) return;
+
+    const timer = setTimeout(() => {
+      onInstantUpdate({
+        tossWinner: fTossWinner,
+        tossDecision: fTossDecision,
+        battingTeam: fBattingTeam,
+        innings: fInnings,
+        scoreTeamARuns,
+        scoreTeamAWickets,
+        scoreTeamAOvers,
+        scoreTeamBRuns,
+        scoreTeamBWickets,
+        scoreTeamBOvers,
+      });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    fTossWinner,
+    fTossDecision,
+    fBattingTeam,
+    fInnings,
+    scoreTeamARuns,
+    scoreTeamAWickets,
+    scoreTeamAOvers,
+    scoreTeamBRuns,
+    scoreTeamBWickets,
+    scoreTeamBOvers,
+    onInstantUpdate,
+  ]);
+
+  const battingTeamName = fBattingTeam === 'teamA' ? fTeamA : fTeamB;
+  const bowlingTeamName = fBattingTeam === 'teamA' ? fTeamB : fTeamA;
+
+  const battingScore = fBattingTeam === 'teamA' 
+    ? { runs: scoreTeamARuns, wickets: scoreTeamAWickets, overs: scoreTeamAOvers }
+    : { runs: scoreTeamBRuns, wickets: scoreTeamBWickets, overs: scoreTeamBOvers };
+
+  const bowlingScore = fBattingTeam === 'teamA'
+    ? { runs: scoreTeamBRuns, wickets: scoreTeamBWickets, overs: scoreTeamBOvers }
+    : { runs: scoreTeamARuns, wickets: scoreTeamAWickets, overs: scoreTeamAOvers };
+
   return (
-    <>
-      <div className="cp-divider" style={{ margin: '12px 0' }} />
-      
-      {/* Toss Information */}
-      <div className="cp-section-header">
-        <span>Toss Information</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Compact Match Status Bar */}
+      <div style={{
+        display: 'flex',
+        gap: '12px',
+        padding: '12px',
+        background: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+      }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px', display: 'block' }}>Innings</label>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setFInnings('1')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: fInnings === '1' ? '1px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
+                background: fInnings === '1' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              1st
+            </button>
+            <button
+              type="button"
+              onClick={() => setFInnings('2')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: fInnings === '2' ? '1px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
+                background: fInnings === '2' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              2nd
+            </button>
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px', display: 'block' }}>Batting</label>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setFBattingTeam('teamA')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: fBattingTeam === 'teamA' ? '1px solid #34c759' : '1px solid rgba(255,255,255,0.1)',
+                background: fBattingTeam === 'teamA' ? 'rgba(52, 199, 89, 0.2)' : 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {fTeamA || 'A'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFBattingTeam('teamB')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: fBattingTeam === 'teamB' ? '1px solid #34c759' : '1px solid rgba(255,255,255,0.1)',
+                background: fBattingTeam === 'teamB' ? 'rgba(52, 199, 89, 0.2)' : 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {fTeamB || 'B'}
+            </button>
+          </div>
+        </div>
       </div>
-      <div className="cp-dual-row">
-        <div className="cp-form-row">
-          <label>Toss Winner</label>
-          <div className="cp-radio-group">
-            <div className="cp-radio-option">
-              <input type="radio" id="liveTossWinnerA" name="liveTossWinner" value="teamA" checked={fTossWinner === 'teamA'} onChange={() => setFTossWinner('teamA')} />
-              <label className="cp-radio-label" htmlFor="liveTossWinnerA">{fTeamA || 'Team A'}</label>
+
+      {/* Batting Team Score - Prominent */}
+      <div style={{
+        padding: '16px',
+        background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.1) 0%, rgba(52, 199, 89, 0.05) 100%)',
+        borderRadius: '14px',
+        border: '1px solid rgba(52, 199, 89, 0.3)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <span style={{ fontSize: '16px' }}>🏏</span>
+          <span style={{ fontSize: '14px', fontWeight: '700', color: '#34c759' }}>
+            {battingTeamName} (Batting)
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px', display: 'block' }}>Runs</label>
+            <input
+              type="number"
+              value={battingScore.runs}
+              onChange={e => {
+                if (fBattingTeam === 'teamA') setScoreTeamARuns(e.target.value);
+                else setScoreTeamBRuns(e.target.value);
+              }}
+              placeholder="0"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.08)',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: '700',
+                textAlign: 'center',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px', display: 'block' }}>Wickets</label>
+            <input
+              type="number"
+              value={battingScore.wickets}
+              onChange={e => {
+                if (fBattingTeam === 'teamA') setScoreTeamAWickets(e.target.value);
+                else setScoreTeamBWickets(e.target.value);
+              }}
+              placeholder="0"
+              max="10"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.08)',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: '700',
+                textAlign: 'center',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px', display: 'block' }}>Overs</label>
+            <input
+              type="number"
+              step="0.1"
+              value={battingScore.overs}
+              onChange={e => {
+                if (fBattingTeam === 'teamA') setScoreTeamAOvers(e.target.value);
+                else setScoreTeamBOvers(e.target.value);
+              }}
+              placeholder="0.0"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.08)',
+                color: '#fff',
+                fontSize: '16px',
+                fontWeight: '700',
+                textAlign: 'center',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Bowling Team Score - Compact */}
+      <div style={{
+        padding: '12px',
+        background: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <span style={{ fontSize: '14px' }}>🎯</span>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: 'rgba(255,255,255,0.7)' }}>
+            {bowlingTeamName} (Bowling)
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+          <div>
+            <label style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '3px', display: 'block' }}>Runs</label>
+            <input
+              type="number"
+              value={bowlingScore.runs}
+              onChange={e => {
+                if (fBattingTeam === 'teamA') setScoreTeamBRuns(e.target.value);
+                else setScoreTeamARuns(e.target.value);
+              }}
+              placeholder="0"
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: '600',
+                textAlign: 'center',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '3px', display: 'block' }}>Wickets</label>
+            <input
+              type="number"
+              value={bowlingScore.wickets}
+              onChange={e => {
+                if (fBattingTeam === 'teamA') setScoreTeamBWickets(e.target.value);
+                else setScoreTeamAWickets(e.target.value);
+              }}
+              placeholder="0"
+              max="10"
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: '600',
+                textAlign: 'center',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '3px', display: 'block' }}>Overs</label>
+            <input
+              type="number"
+              step="0.1"
+              value={bowlingScore.overs}
+              onChange={e => {
+                if (fBattingTeam === 'teamA') setScoreTeamBOvers(e.target.value);
+                else setScoreTeamAOvers(e.target.value);
+              }}
+              placeholder="0.0"
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: '600',
+                textAlign: 'center',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Toss Info - Collapsible */}
+      <details style={{ marginTop: '8px' }}>
+        <summary style={{
+          cursor: 'pointer',
+          fontSize: '12px',
+          color: 'rgba(255,255,255,0.5)',
+          padding: '8px 0',
+          userSelect: 'none',
+        }}>
+          Toss Information ▼
+        </summary>
+        <div style={{ marginTop: '12px', display: 'flex', gap: '16px' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px', display: 'block' }}>Toss Winner</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setFTossWinner('teamA')}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: fTossWinner === 'teamA' ? '1px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
+                  background: fTossWinner === 'teamA' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
+                  color: '#fff',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                {fTeamA || 'A'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFTossWinner('teamB')}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: fTossWinner === 'teamB' ? '1px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
+                  background: fTossWinner === 'teamB' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
+                  color: '#fff',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                {fTeamB || 'B'}
+              </button>
             </div>
-            <div className="cp-radio-option">
-              <input type="radio" id="liveTossWinnerB" name="liveTossWinner" value="teamB" checked={fTossWinner === 'teamB'} onChange={() => setFTossWinner('teamB')} />
-              <label className="cp-radio-label" htmlFor="liveTossWinnerB">{fTeamB || 'Team B'}</label>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px', display: 'block' }}>Decision</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setFTossDecision('bat')}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: fTossDecision === 'bat' ? '1px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
+                  background: fTossDecision === 'bat' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
+                  color: '#fff',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                Bat
+              </button>
+              <button
+                type="button"
+                onClick={() => setFTossDecision('bowl')}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: fTossDecision === 'bowl' ? '1px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
+                  background: fTossDecision === 'bowl' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
+                  color: '#fff',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                Bowl
+              </button>
             </div>
           </div>
         </div>
-        <div className="cp-form-row">
-          <label>Toss Decision</label>
-          <div className="cp-radio-group">
-            <div className="cp-radio-option">
-              <input type="radio" id="liveTossBat" name="liveTossDecision" value="bat" checked={fTossDecision === 'bat'} onChange={() => setFTossDecision('bat')} />
-              <label className="cp-radio-label" htmlFor="liveTossBat">Bat First</label>
-            </div>
-            <div className="cp-radio-option">
-              <input type="radio" id="liveTossBowl" name="liveTossDecision" value="bowl" checked={fTossDecision === 'bowl'} onChange={() => setFTossDecision('bowl')} />
-              <label className="cp-radio-label" htmlFor="liveTossBowl">Bowl First</label>
-            </div>
-          </div>
+      </details>
+
+      {isUpdating && (
+        <div style={{
+          fontSize: '11px',
+          color: '#34c759',
+          textAlign: 'center',
+          padding: '4px',
+        }}>
+          ✓ Syncing...
         </div>
-      </div>
-      
-      <div className="cp-divider" style={{ margin: '12px 0' }} />
-      
-      {/* Match Status */}
-      <div className="cp-section-header">
-        <span>Match Status</span>
-      </div>
-      <div className="cp-dual-row">
-        <div className="cp-form-row">
-          <label>Current Innings</label>
-          <div className="cp-radio-group">
-            <div className="cp-radio-option">
-              <input type="radio" id="liveInnings1st" name="liveInnings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
-              <label className="cp-radio-label" htmlFor="liveInnings1st">1st Innings</label>
-            </div>
-            <div className="cp-radio-option">
-              <input type="radio" id="liveInnings2nd" name="liveInnings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
-              <label className="cp-radio-label" htmlFor="liveInnings2nd">2nd Innings</label>
-            </div>
-          </div>
-        </div>
-        <div className="cp-form-row">
-          <label>Batting Team</label>
-          <div className="cp-radio-group">
-            <div className="cp-radio-option">
-              <input type="radio" id="liveBattingA" name="liveBattingTeam" value="teamA" checked={fBattingTeam === 'teamA'} onChange={() => setFBattingTeam('teamA')} />
-              <label className="cp-radio-label" htmlFor="liveBattingA">{fTeamA || 'Team A'}</label>
-            </div>
-            <div className="cp-radio-option">
-              <input type="radio" id="liveBattingB" name="liveBattingTeam" value="teamB" checked={fBattingTeam === 'teamB'} onChange={() => setFBattingTeam('teamB')} />
-              <label className="cp-radio-label" htmlFor="liveBattingB">{fTeamB || 'Team B'}</label>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="cp-divider" style={{ margin: '12px 0' }} />
-      <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamA || 'Team A'}</div>
-      <div className="cp-form-row">
-        <label>Runs</label>
-        <input type="number" value={scoreTeamARuns} onChange={e => setScoreTeamARuns(e.target.value)} placeholder="0" />
-      </div>
-      <div className="cp-form-row">
-        <label>Wickets</label>
-        <input type="number" value={scoreTeamAWickets} onChange={e => setScoreTeamAWickets(e.target.value)} placeholder="0" max="10" />
-      </div>
-      <div className="cp-form-row">
-        <label>Overs</label>
-        <input type="number" step="0.1" value={scoreTeamAOvers} onChange={e => setScoreTeamAOvers(e.target.value)} placeholder="0.0" />
-      </div>
-      <div className="cp-divider" style={{ margin: '12px 0' }} />
-      <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamB || 'Team B'}</div>
-      <div className="cp-form-row">
-        <label>Runs</label>
-        <input type="number" value={scoreTeamBRuns} onChange={e => setScoreTeamBRuns(e.target.value)} placeholder="0" />
-      </div>
-      <div className="cp-form-row">
-        <label>Wickets</label>
-        <input type="number" value={scoreTeamBWickets} onChange={e => setScoreTeamBWickets(e.target.value)} placeholder="0" max="10" />
-      </div>
-      <div className="cp-form-row">
-        <label>Overs</label>
-        <input type="number" step="0.1" value={scoreTeamBOvers} onChange={e => setScoreTeamBOvers(e.target.value)} placeholder="0.0" />
-      </div>
-    </>
+      )}
+    </div>
   );
 };

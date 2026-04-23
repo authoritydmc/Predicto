@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef, matchPredictionsRef } from '../../firebase/services';
+import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef } from '../../firebase/services';
 import { onValue, get } from 'firebase/database';
 import CricketPrediction from './CricketPrediction';
 import FootballPrediction from './FootballPrediction';
@@ -19,12 +19,13 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
   const [loading, setLoading] = useState(false);
   const [battingFirst, setBattingFirst] = useState<'teamA' | 'teamB' | null>(null);
   const [currentInnings, setCurrentInnings] = useState<number>(1);
-  const [showSecondInningsPrediction, setShowSecondInningsPrediction] = useState(false);
   const [matchStatus, setMatchStatus] = useState<string>('scheduled');
   const [isMatchCompleted, setIsMatchCompleted] = useState(false);
   const [predictionsEnabled, setPredictionsEnabled] = useState(true);
   const [predictionsPaused, setPredictionsPaused] = useState(false);
   const [pauseReason, setPauseReason] = useState('');
+  const [disableReason, setDisableReason] = useState('');
+  const [targetScore, setTargetScore] = useState<number | null>(null);
 
   console.log('[PredictionPanel] Component mounted with props:', { sport, id, matchId, clientId });
 
@@ -40,6 +41,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         const snap = await get(matchMetaRef(sport, id, matchId));
         const data = snap.val();
         console.log('[PredictionPanel] Match meta data:', data);
+        console.log('[PredictionPanel] Batting info:', { battingTeam: data?.battingTeam, secondInnings: data?.secondInnings, disableScoreA: data?.disableScoreA, disableScoreB: data?.disableScoreB });
         if (data?.teamA) {
           setTeamA(data.teamA);
           console.log('[PredictionPanel] Set teamA:', data.teamA);
@@ -56,8 +58,21 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           setIsMatchCompleted(data.status === 'done' || data.status === 'completed');
         }
         
-        // Determine who is batting first (only if match is live and toss done)
-        if (data?.status === 'live' && data?.disableScoreA !== undefined && data?.disableScoreB !== undefined) {
+        // Set batting team from meta (backend now stores battingFirst explicitly)
+        if (data?.battingFirst) {
+          // Use the explicitly stored battingFirst value
+          setBattingFirst(data.battingFirst);
+        } else if (data?.battingTeam) {
+          // Fallback: infer from battingTeam
+          if (data.secondInnings) {
+            // Second innings: battingTeam is chasing, so the other team batted first
+            setBattingFirst(data.battingTeam === 'teamA' ? 'teamB' : 'teamA');
+          } else {
+            // First innings: battingTeam is batting first
+            setBattingFirst(data.battingTeam);
+          }
+        } else if (data?.disableScoreA !== undefined && data?.disableScoreB !== undefined) {
+          // Final fallback: infer from disableScore flags
           if (data.disableScoreA === false && data.disableScoreB === true) {
             setBattingFirst('teamA');
           } else if (data.disableScoreA === true && data.disableScoreB === false) {
@@ -65,14 +80,30 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           }
         }
         
-        // Set current innings
-        if (data?.innings) {
-          setCurrentInnings(data.innings);
+        // Set current innings (backend uses secondInnings boolean)
+        if (data?.secondInnings !== undefined) {
+          setCurrentInnings(data.secondInnings ? 2 : 1);
+        } else if (data?.innings !== undefined) {
+          setCurrentInnings(Number(data.innings));
+        }
+
+        // Set target score
+        if (data?.targetScore !== undefined) {
+          setTargetScore(Number(data.targetScore));
         }
 
         // Set prediction control settings
+        console.log('[PredictionPanel] Prediction control settings from meta:', {
+          predictionsEnabled: data?.predictionsEnabled,
+          predictionsPaused: data?.predictionsPaused,
+          pauseReason: data?.pauseReason,
+          disableReason: data?.disableReason
+        });
         if (data?.predictionsEnabled !== undefined) {
           setPredictionsEnabled(data.predictionsEnabled);
+        } else {
+          // Default to true if not set
+          setPredictionsEnabled(true);
         }
         if (data?.predictionsPaused !== undefined) {
           setPredictionsPaused(data.predictionsPaused);
@@ -80,43 +111,42 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         if (data?.pauseReason) {
           setPauseReason(data.pauseReason);
         }
+        if (data?.disableReason) {
+          setDisableReason(data.disableReason);
+        }
       } catch (error) {
         console.error('[PredictionPanel] Error loading match meta:', error);
       }
     };
     loadMatchMeta();
     
-    // Listen for live score updates to detect innings change
+    // Listen for live score updates to detect innings change and calculate target
     const liveScoreListener = onValue(matchLiveScoreRef(sport, id, matchId), (snap) => {
       const data = snap.val();
-      if (data?.currentInnings) {
-        setCurrentInnings(data.currentInnings);
-        // Show second innings prediction when entering 2nd innings
-        if (data.currentInnings === 2 && !showSecondInningsPrediction) {
-          setShowSecondInningsPrediction(true);
-          // Load user's first innings prediction to get their predicted winner
-          loadFirstInningsPrediction();
+      if (data?.currentInnings !== undefined) {
+        setCurrentInnings(Number(data.currentInnings));
+      }
+      
+      // Update battingFirst from live score if available (real-time updates)
+      if (data?.battingFirst && data.battingFirst !== battingFirst) {
+        setBattingFirst(data.battingFirst);
+      }
+      
+      // Calculate target score from first innings
+      if (data && battingFirst) {
+        const firstBattingScore = battingFirst === 'teamA' ? data.scoreA : data.scoreB;
+        if (firstBattingScore) {
+          // Extract runs from score format (e.g., "208/6" -> 208)
+          const runs = parseInt(firstBattingScore.split('/')[0]);
+          if (!isNaN(runs)) {
+            setTargetScore(runs + 1);
+          }
         }
       }
     });
     
     return () => liveScoreListener();
-  }, [sport, id, matchId, showSecondInningsPrediction]);
-
-  // Load user's first innings prediction
-  const loadFirstInningsPrediction = async () => {
-    try {
-      const predictionsSnap = await get(matchPredictionsRef(sport, id, matchId));
-      const predictions = predictionsSnap.val();
-      if (predictions && predictions[clientId]) {
-        const userPrediction = predictions[clientId];
-        // Default winner to first innings prediction (handled in child component)
-        console.log('[PredictionPanel] First innings prediction loaded:', userPrediction);
-      }
-    } catch (error) {
-      console.error('[PredictionPanel] Error loading first innings prediction:', error);
-    }
-  };
+  }, [sport, id, matchId, battingFirst, setBattingFirst]);
 
   // Sync with Global Profile
   useEffect(() => {
@@ -157,8 +187,8 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           predictionData.predictionType = 'live_second_innings';
           predictionData.battingFirst = battingFirst;
           predictionData.secondInningsWinner = formData.secondInningsWinner;
-          if (formData.secondInningsAllOutScore) {
-            predictionData.secondInningsAllOutScore = formData.secondInningsAllOutScore;
+          if (formData.secondInningsChasingScore) {
+            predictionData.secondInningsChasingScore = formData.secondInningsChasingScore;
           }
           if (formData.secondInningsWinOvers) {
             predictionData.secondInningsWinOvers = formData.secondInningsWinOvers;
@@ -218,11 +248,12 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           matchStatus={matchStatus}
           battingFirst={battingFirst}
           currentInnings={currentInnings}
-          showSecondInningsPrediction={showSecondInningsPrediction}
           isMatchCompleted={isMatchCompleted}
           predictionsEnabled={predictionsEnabled}
           predictionsPaused={predictionsPaused}
           pauseReason={pauseReason}
+          disableReason={disableReason}
+          targetScore={targetScore}
           onNameChange={setName}
           onSubmit={handlePredictionSubmit}
           loading={loading}
@@ -234,11 +265,11 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           teamA={teamA}
           teamB={teamB}
           name={name}
-          matchStatus={matchStatus}
           isMatchCompleted={isMatchCompleted}
           predictionsEnabled={predictionsEnabled}
           predictionsPaused={predictionsPaused}
           pauseReason={pauseReason}
+          disableReason={disableReason}
           onNameChange={setName}
           onSubmit={handlePredictionSubmit}
           loading={loading}

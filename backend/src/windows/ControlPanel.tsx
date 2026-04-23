@@ -1005,8 +1005,6 @@ const ControlPanel: React.FC = () => {
           matchTitle: fMatchTitle,
           teamA: fTeamA,
           teamB: fTeamB,
-          battingTeam: fBattingTeam,
-          innings: fInnings,
           allowReprediction: fAllowReprediction,
           automationPaused: fAutomationPaused,
           status: fMatchStatus,
@@ -1015,20 +1013,16 @@ const ControlPanel: React.FC = () => {
           pauseReason: fPauseReason,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          disableScoreA: fBattingTeam === 'teamB',
-          disableScoreB: fBattingTeam === 'teamA',
         };
         
-        // Add toss information if provided
-        if (fTossWinner) {
-          metaUpdate.tossWinner = fTossWinner;
-        }
-        if (fTossDecision) {
-          metaUpdate.tossDecision = fTossDecision;
-        }
-        
-        // Remove autoMarked fields when status is manually set to live
+        // Only set batting-related fields when match is live (not scheduled)
         if (fMatchStatus === 'live') {
+          metaUpdate.battingTeam = fBattingTeam;
+          metaUpdate.innings = fInnings;
+          metaUpdate.disableScoreA = fBattingTeam === 'teamB';
+          metaUpdate.disableScoreB = fBattingTeam === 'teamA';
+          metaUpdate.secondInnings = fInnings === '2';
+          // Remove autoMarked fields when status is manually set to live
           metaUpdate.autoMarked = false;
           metaUpdate.autoMarkReason = null;
           metaUpdate.endedAt = null;
@@ -1056,7 +1050,71 @@ const ControlPanel: React.FC = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Live Score Update
+  // Instant Live Score Update (debounced)
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleInstantScoreUpdate = async (scoreData: any) => {
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
+
+    try {
+      const meta = await getOnce(matchMetaRef(fSport, tournamentId, matchId));
+      const metaVal = meta.val() || {};
+
+      // Calculate battingFirst
+      let battingFirst: string | null = null;
+      if (scoreData.innings === '2' && metaVal.innings !== '2') {
+        battingFirst = scoreData.battingTeam === 'teamA' ? 'teamB' : 'teamA';
+      } else if (scoreData.innings === '1' && !metaVal.battingFirst) {
+        battingFirst = scoreData.battingTeam;
+      } else {
+        battingFirst = metaVal.battingFirst || null;
+      }
+
+      // Prepare live score data - use update to preserve existing fields
+      const liveScoreData: any = {
+        currentInnings: Number(scoreData.innings),
+        battingTeam: scoreData.battingTeam,
+        scoreA: `${scoreData.scoreTeamARuns}/${scoreData.scoreTeamAWickets}`,
+        oversA: parseFloat(scoreData.scoreTeamAOvers) || 0,
+        scoreB: `${scoreData.scoreTeamBRuns}/${scoreData.scoreTeamBWickets}`,
+        oversB: parseFloat(scoreData.scoreTeamBOvers) || 0,
+        lastUpdated: Date.now(),
+      };
+
+      if (battingFirst) {
+        liveScoreData.battingFirst = battingFirst;
+      }
+
+      // Update live score instantly (use update to preserve existing data)
+      await update(matchLiveScoreRef(fSport, tournamentId, matchId), liveScoreData);
+
+      // Update match meta
+      const metaUpdate: any = {
+        battingTeam: scoreData.battingTeam,
+        innings: scoreData.innings,
+        secondInnings: scoreData.innings === '2',
+        disableScoreA: scoreData.battingTeam === 'teamB',
+        disableScoreB: scoreData.battingTeam === 'teamA',
+      };
+
+      if (battingFirst) {
+        metaUpdate.battingFirst = battingFirst;
+      }
+
+      if (scoreData.tossWinner) {
+        metaUpdate.tossWinner = scoreData.tossWinner;
+      }
+      if (scoreData.tossDecision) {
+        metaUpdate.tossDecision = scoreData.tossDecision;
+      }
+
+      await update(matchMetaRef(fSport, tournamentId, matchId), metaUpdate);
+    } catch (err) {
+      console.error('Error in instant score update:', err);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Live Score Update (Manual button - kept for compatibility)
   // ─────────────────────────────────────────────────────────────────────────────
   const handleUpdateLiveScore = async () => {
     if (!isFirebaseConfigured || !db || !matchId || !tournamentId) {
@@ -1091,13 +1149,40 @@ const ControlPanel: React.FC = () => {
           scoreData.secondInningsStart = Date.now();
         }
         
+        // Calculate battingFirst
+        let battingFirst: string | null = null;
+        if (fInnings === '2' && meta.innings !== '2') {
+          // When moving to 2nd innings, the team that was batting first is now known
+          // It's the opposite of the current batting team
+          battingFirst = fBattingTeam === 'teamA' ? 'teamB' : 'teamA';
+        } else if (fInnings === '1' && !meta.battingFirst) {
+          // In 1st innings, the current batting team is batting first
+          battingFirst = fBattingTeam;
+        } else {
+          // Use existing value from meta
+          battingFirst = meta.battingFirst || null;
+        }
+        
+        // Store batting information in live score as well
+        scoreData.currentInnings = Number(fInnings);
+        scoreData.battingTeam = fBattingTeam;
+        if (battingFirst) {
+          scoreData.battingFirst = battingFirst;
+        }
+        
         // Update match meta with batting team info and toss information
         const metaUpdate: any = {
           disableScoreA: fBattingTeam === 'teamB',
           disableScoreB: fBattingTeam === 'teamA',
           innings: fInnings,
-          battingTeam: fBattingTeam
+          battingTeam: fBattingTeam,
+          secondInnings: fInnings === '2'
         };
+        
+        // Store battingFirst explicitly
+        if (battingFirst) {
+          metaUpdate.battingFirst = battingFirst;
+        }
         
         // Add toss information if provided
         if (fTossWinner) {
@@ -2299,11 +2384,11 @@ const ControlPanel: React.FC = () => {
                     Match Details
                   </button>
                   <button 
-                    className={`cp-tab ${activeMatchTab === 'live' ? 'active' : ''}`}
+                    className={`cp-tab-btn ${activeMatchTab === 'live' ? 'active' : ''}`}
                     onClick={() => setActiveMatchTab('live')}
                   >
                     <span className="cp-tab-icon">📊</span>
-                    Live Score
+                    Match Control
                   </button>
                 </div>
 
@@ -2411,12 +2496,8 @@ const ControlPanel: React.FC = () => {
                       <CricketMatchDetails
                         fTeamA={fTeamA}
                         fTeamB={fTeamB}
-                        fTossWinner={fTossWinner}
-                        fTossDecision={fTossDecision}
                         fBattingTeam={fBattingTeam}
                         fInnings={fInnings}
-                        setFTossWinner={setFTossWinner}
-                        setFTossDecision={setFTossDecision}
                         setFBattingTeam={setFBattingTeam}
                         setFInnings={setFInnings}
                       />
@@ -2477,6 +2558,7 @@ const ControlPanel: React.FC = () => {
                       setScoreTeamBRuns={setScoreTeamBRuns}
                       setScoreTeamBWickets={setScoreTeamBWickets}
                       setScoreTeamBOvers={setScoreTeamBOvers}
+                      onInstantUpdate={handleInstantScoreUpdate}
                     />
                   )}
                   {fSport === 'football' && (
