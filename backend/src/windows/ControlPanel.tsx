@@ -267,6 +267,7 @@ const ControlPanel: React.FC = () => {
   const [fInnings, setFInnings] = useState<'1' | '2'>('1');
   const [fAllowReprediction, setFAllowReprediction] = useState(false);
   const [fAutomationPaused, setFAutomationPaused] = useState(false);
+  const [fMatchStatus, setFMatchStatus] = useState<'live' | 'done' | 'scheduled'>('live');
 
   // ── Legacy Form State (for backward compatibility)
   const [fRoomId, setFRoomId] = useState('ipl');
@@ -481,6 +482,7 @@ const ControlPanel: React.FC = () => {
     const checkAndMarkDoneMatches = async () => {
       const now = Date.now();
       const sixHours = 6 * 60 * 60 * 1000;
+      const oneHour = 60 * 60 * 1000;
       
       for (const match of schedule) {
         if (!match.matchId) continue;
@@ -490,11 +492,17 @@ const ControlPanel: React.FC = () => {
           const liveScoreSnap = await getOnce(matchLiveScoreRef(fSport, tournamentId, match.matchId));
           const liveScore = liveScoreSnap.val();
           
-          // Check match meta for current status
+          // Check match meta for current status and creation time
           const metaSnap = await getOnce(matchMetaRef(fSport, tournamentId, match.matchId));
           const meta = metaSnap.val();
           
           if (meta && meta.status === 'live') {
+            // Don't auto-mark if match was created recently (within 1 hour)
+            const matchCreatedAt = meta.createdAt || 0;
+            if (now - matchCreatedAt < oneHour) {
+              continue;
+            }
+            
             // If no live score data exists, or if lastUpdated is older than 6 hours
             if (!liveScore || !liveScore.lastUpdated || (now - liveScore.lastUpdated) > sixHours) {
               await update(matchMetaRef(fSport, tournamentId, match.matchId), {
@@ -592,6 +600,8 @@ const ControlPanel: React.FC = () => {
           // Load toss information
           setFTossWinner(merged.tossWinner || null);
           setFTossDecision(merged.tossDecision || null);
+          // Load match status
+          setFMatchStatus(merged.status || 'live');
         });
       });
 
@@ -922,7 +932,7 @@ const ControlPanel: React.FC = () => {
           innings: fInnings,
           allowReprediction: fAllowReprediction,
           automationPaused: fAutomationPaused,
-          status: 'live',
+          status: fMatchStatus,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           disableScoreA: fBattingTeam === 'teamB',
@@ -2080,6 +2090,28 @@ const ControlPanel: React.FC = () => {
                           <div>
                             <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
                             <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.teamA} vs {match.teamB}</div>
+                            <div style={{ marginTop: '4px' }}>
+                              <span 
+                                style={{ 
+                                  fontSize: '10px', 
+                                  padding: '2px 6px', 
+                                  borderRadius: '4px',
+                                  background: matchStatuses[match.matchId] === 'live' 
+                                    ? 'rgba(239, 68, 68, 0.2)' 
+                                    : matchStatuses[match.matchId] === 'done' 
+                                      ? 'rgba(142, 142, 147, 0.2)' 
+                                      : 'rgba(52, 199, 89, 0.2)',
+                                  color: matchStatuses[match.matchId] === 'live' 
+                                    ? '#ef4444' 
+                                    : matchStatuses[match.matchId] === 'done' 
+                                      ? '#8e8e93' 
+                                      : '#34c759',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                {(matchStatuses[match.matchId] || 'scheduled').toUpperCase()}
+                              </span>
+                            </div>
                           </div>
                           <div style={{ display: 'flex', gap: '6px' }}>
                             {matchStatuses[match.matchId] === 'done' && (
@@ -2229,6 +2261,14 @@ const ControlPanel: React.FC = () => {
                     {/* Match Status Section */}
                     <div className="cp-section-header">
                       <span>Match Status</span>
+                    </div>
+                    <div className="cp-form-row">
+                      <label>Status</label>
+                      <select value={fMatchStatus} onChange={e => setFMatchStatus(e.target.value as any)}>
+                        <option value="live">Live</option>
+                        <option value="done">Done</option>
+                        <option value="scheduled">Scheduled</option>
+                      </select>
                     </div>
                     <div className="cp-dual-row">
                       <div className="cp-form-row">

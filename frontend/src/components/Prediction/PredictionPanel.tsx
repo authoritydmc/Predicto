@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef } from '../../firebase/services';
+import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef, matchPredictionsRef } from '../../firebase/services';
 import { onValue, get } from 'firebase/database';
 
 interface PredictionPanelProps {
@@ -20,11 +20,13 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
   const [loading, setLoading] = useState(false);
   const [battingFirst, setBattingFirst] = useState<'teamA' | 'teamB' | null>(null);
   const [currentInnings, setCurrentInnings] = useState<number>(1);
-  const [secondInningsScore, setSecondInningsScore] = useState('');
   const [showSecondInningsPrediction, setShowSecondInningsPrediction] = useState(false);
   const [matchStatus, setMatchStatus] = useState<string>('scheduled');
   const [predictedBattingFirst, setPredictedBattingFirst] = useState<'teamA' | 'teamB'>('teamA');
   const [isMatchCompleted, setIsMatchCompleted] = useState(false);
+  const [secondInningsWinner, setSecondInningsWinner] = useState<'teamA' | 'teamB' | ''>('');
+  const [secondInningsAllOutScore, setSecondInningsAllOutScore] = useState('');
+  const [secondInningsWinOvers, setSecondInningsWinOvers] = useState('');
 
   console.log('[PredictionPanel] Component mounted with props:', { sport, id, matchId, clientId });
 
@@ -83,12 +85,31 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         // Show second innings prediction when entering 2nd innings
         if (data.currentInnings === 2 && !showSecondInningsPrediction) {
           setShowSecondInningsPrediction(true);
+          // Load user's first innings prediction to get their predicted winner
+          loadFirstInningsPrediction();
         }
       }
     });
     
     return () => liveScoreListener();
   }, [sport, id, matchId, showSecondInningsPrediction]);
+
+  // Load user's first innings prediction
+  const loadFirstInningsPrediction = async () => {
+    try {
+      const predictionsSnap = await get(matchPredictionsRef(sport, id, matchId));
+      const predictions = predictionsSnap.val();
+      if (predictions && predictions[clientId]) {
+        const userPrediction = predictions[clientId];
+        // Set default winner to first innings prediction
+        if (userPrediction.predictedWinner) {
+          setSecondInningsWinner(userPrediction.predictedWinner);
+        }
+      }
+    } catch (error) {
+      console.error('[PredictionPanel] Error loading first innings prediction:', error);
+    }
+  };
 
   // Sync with Global Profile
   useEffect(() => {
@@ -146,7 +167,6 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         setWinner('');
         setScoreA('');
         setScoreB('');
-        setSecondInningsScore('');
       } catch (error) {
         console.error('[PredictionPanel] Error submitting prediction:', error);
         alert('Error submitting prediction. Please try again.');
@@ -160,23 +180,74 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
 
   const handleSecondInningsPrediction = async (e: FormEvent) => {
     e.preventDefault();
-    if (clientId && name.trim() && secondInningsScore.trim()) {
+    
+    // Validation
+    if (!secondInningsWinner) {
+      alert('Please select who you think will win.');
+      return;
+    }
+    
+    const chasingTeam = battingFirst === 'teamA' ? 'teamB' : 'teamA';
+    const firstTeam = battingFirst;
+    
+    if (secondInningsWinner === firstTeam) {
+      // First team wins - need all-out score
+      if (!secondInningsAllOutScore.trim()) {
+        alert('Please enter the chasing team\'s all-out score (e.g., 182/10).');
+        return;
+      }
+      // Validate format (should be like "182/10")
+      const allOutRegex = /^\d+\/10$/;
+      if (!allOutRegex.test(secondInningsAllOutScore.trim())) {
+        alert('Invalid format. Please enter score as "runs/10" (e.g., 182/10).');
+        return;
+      }
+    } else {
+      // Chasing team wins - need overs
+      if (!secondInningsWinOvers.trim()) {
+        alert('Please enter in how many overs the chasing team will win (e.g., 18.2).');
+        return;
+      }
+      // Validate format (should be like "18.2")
+      const oversRegex = /^\d+\.\d$/;
+      if (!oversRegex.test(secondInningsWinOvers.trim())) {
+        alert('Invalid format. Please enter overs as "overs.balls" (e.g., 18.2).');
+        return;
+      }
+    }
+    
+    if (clientId && name.trim()) {
       setLoading(true);
       try {
-        console.log('[PredictionPanel] Submitting second innings prediction:', { name, secondInningsScore });
+        console.log('[PredictionPanel] Submitting second innings prediction:', { 
+          name, 
+          secondInningsWinner, 
+          secondInningsAllOutScore, 
+          secondInningsWinOvers 
+        });
         
-        await savePrediction(sport, id, clientId, {
+        const predictionData: any = {
           userId: clientId,
           name: name,
-          secondInningsPrediction: secondInningsScore,
           sportType: sport,
           currentInnings: 2,
-          battingFirst: battingFirst
-        }, matchId);
+          battingFirst: battingFirst,
+          secondInningsWinner: secondInningsWinner
+        };
+        
+        if (secondInningsWinner === firstTeam) {
+          predictionData.secondInningsAllOutScore = secondInningsAllOutScore;
+        } else {
+          predictionData.secondInningsWinOvers = secondInningsWinOvers;
+        }
+        
+        await savePrediction(sport, id, clientId, predictionData, matchId);
         
         console.log('[PredictionPanel] Second innings prediction submitted successfully');
         alert('Second innings prediction submitted!');
-        setSecondInningsScore('');
+        setSecondInningsWinner('');
+        setSecondInningsAllOutScore('');
+        setSecondInningsWinOvers('');
       } catch (error) {
         console.error('[PredictionPanel] Error submitting second innings prediction:', error);
         alert('Error submitting prediction. Please try again.');
@@ -184,7 +255,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         setLoading(false);
       }
     } else {
-      alert('Please enter your prediction score.');
+      alert('Please enter your name to submit a prediction.');
     }
   };
 
@@ -366,7 +437,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             border: '1px solid rgba(52, 199, 89, 0.3)'
           }}>
             <p style={{ margin: 0, fontSize: '13px', color: '#34c759', fontWeight: 600 }}>
-              🎯 Second Innings - Predict chasing team's final score
+              🎯 Second Innings - Update your prediction
             </p>
           </div>
           
@@ -385,15 +456,53 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             </label>
 
             <label>
-              {battingFirst === 'teamA' ? teamB : teamA} Final Score Prediction
-              <input
-                type="text"
-                value={secondInningsScore}
-                onChange={e => setSecondInningsScore(e.target.value)}
-                placeholder="e.g. 182/5"
+              Who will win?
+              <select 
+                value={secondInningsWinner} 
+                onChange={e => setSecondInningsWinner(e.target.value as 'teamA' | 'teamB')}
                 required
-              />
+              >
+                <option value="">Choose winner...</option>
+                <option value="teamA">{teamA}</option>
+                <option value="teamB">{teamB}</option>
+              </select>
             </label>
+
+            {secondInningsWinner && (
+              <>
+                {secondInningsWinner === (battingFirst === 'teamA' ? 'teamA' : 'teamB') ? (
+                  // First team wins - ask for all-out score
+                  <label>
+                    {battingFirst === 'teamA' ? teamB : teamA} All-Out Score
+                    <input
+                      type="text"
+                      value={secondInningsAllOutScore}
+                      onChange={e => setSecondInningsAllOutScore(e.target.value)}
+                      placeholder="e.g. 182/10 (must be all out)"
+                      required
+                    />
+                    <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                      Format: runs/10 (e.g., 182/10) - chasing team must be all out
+                    </p>
+                  </label>
+                ) : (
+                  // Chasing team wins - ask for overs
+                  <label>
+                    {battingFirst === 'teamA' ? teamB : teamA} will win in
+                    <input
+                      type="text"
+                      value={secondInningsWinOvers}
+                      onChange={e => setSecondInningsWinOvers(e.target.value)}
+                      placeholder="e.g. 18.2"
+                      required
+                    />
+                    <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                      Format: overs.balls (e.g., 18.2)
+                    </p>
+                  </label>
+                )}
+              </>
+            )}
 
             <button type="submit" className="primary-btn" disabled={loading}>
               {loading ? 'Submitting...' : 'Send second innings prediction'}
