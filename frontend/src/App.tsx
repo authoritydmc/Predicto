@@ -196,7 +196,12 @@ function AppLayout() {
       alert('You have reached the maximum limit of 3 favorite team changes.');
       return;
     }
-    
+
+    if (!username) {
+      console.error('[App] Cannot save favorite team: username is null');
+      return;
+    }
+
     try {
       const newCount = favoriteTeam ? teamChangeCount + 1 : teamChangeCount;
       await saveUserGlobalProfile(username, {

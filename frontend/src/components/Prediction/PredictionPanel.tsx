@@ -71,7 +71,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         console.log('[PredictionPanel] Submitting prediction:', { name, winner, scoreA, scoreB });
         
         // 1. Save global profile (to remember name for chat/other matches)
-        await saveUserGlobalProfile(clientId, { name });
+        await saveUserGlobalProfile(clientId, { username: name });
 
         // 2. Save prediction for this specific match
         await savePrediction(sport, id, clientId, {
