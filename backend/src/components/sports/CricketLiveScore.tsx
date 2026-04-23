@@ -23,6 +23,7 @@ interface CricketLiveScoreProps {
   setScoreTeamBRuns: (value: string) => void;
   setScoreTeamBWickets: (value: string) => void;
   setScoreTeamBOvers: (value: string) => void;
+  setIsEditingScore: (value: boolean) => void;
 }
 
 export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
@@ -48,6 +49,7 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
   setScoreTeamBRuns,
   setScoreTeamBWickets,
   setScoreTeamBOvers,
+  setIsEditingScore,
 }) => {
 
   const battingTeamName = fBattingTeam === 'teamA' ? fTeamA : fTeamB;
@@ -179,6 +181,8 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
                 if (fBattingTeam === 'teamA') setScoreTeamARuns(e.target.value);
                 else setScoreTeamBRuns(e.target.value);
               }}
+              onFocus={() => setIsEditingScore(true)}
+              onBlur={() => setIsEditingScore(false)}
               placeholder="0"
               style={{
                 width: '100%',
@@ -202,6 +206,8 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
                 if (fBattingTeam === 'teamA') setScoreTeamAWickets(e.target.value);
                 else setScoreTeamBWickets(e.target.value);
               }}
+              onFocus={() => setIsEditingScore(true)}
+              onBlur={() => setIsEditingScore(false)}
               placeholder="0"
               max="10"
               style={{
@@ -227,6 +233,8 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
                 if (fBattingTeam === 'teamA') setScoreTeamAOvers(e.target.value);
                 else setScoreTeamBOvers(e.target.value);
               }}
+              onFocus={() => setIsEditingScore(true)}
+              onBlur={() => setIsEditingScore(false)}
               placeholder="0.0"
               style={{
                 width: '100%',
@@ -267,6 +275,8 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
                 if (fBattingTeam === 'teamA') setScoreTeamBRuns(e.target.value);
                 else setScoreTeamARuns(e.target.value);
               }}
+              onFocus={() => setIsEditingScore(true)}
+              onBlur={() => setIsEditingScore(false)}
               placeholder="0"
               style={{
                 width: '100%',
@@ -290,6 +300,8 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
                 if (fBattingTeam === 'teamA') setScoreTeamBWickets(e.target.value);
                 else setScoreTeamAWickets(e.target.value);
               }}
+              onFocus={() => setIsEditingScore(true)}
+              onBlur={() => setIsEditingScore(false)}
               placeholder="0"
               max="10"
               style={{
@@ -315,6 +327,8 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
                 if (fBattingTeam === 'teamA') setScoreTeamBOvers(e.target.value);
                 else setScoreTeamAOvers(e.target.value);
               }}
+              onFocus={() => setIsEditingScore(true)}
+              onBlur={() => setIsEditingScore(false)}
               placeholder="0.0"
               style={{
                 width: '100%',

@@ -95,6 +95,9 @@ export const userRef = (clientId: string) =>
 export const usernameDataRef = (username: string) =>
   ref(rtdb, `${getDbRoot()}/username/${username.toLowerCase()}`);
 
+export const usernamePredictionLogsRef = (sport: string, tournamentId: string, username: string) =>
+  ref(rtdb, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/predictions/${username.toLowerCase()}/logs`);
+
 // ── Meta Merge Helper ───────────────────────────────────────────────────────────
 export const getMergedMeta = async (sport: string, tournamentId: string, matchId: string) => {
   const [tourneyMetaSnap, matchMetaSnap] = await Promise.all([
@@ -122,10 +125,11 @@ export const sendChatMessage = async (sport: string, id: string, payload: any, m
 };
 
 export const savePrediction = async (sport: string, id: string, clientId: string, payload: any, matchId?: string) => {
+  // Use username as the key instead of clientId
+  const username = payload.name || clientId;
+
   try {
     console.log('[Firebase] Saving prediction:', { sport, id, clientId, matchId, payload });
-    // Use username as the key instead of clientId
-    const username = payload.name || clientId;
     const pRef = matchId
       ? matchRef(sport, id, matchId, "predictions", username)
       : predictionsRef(sport, id, username);
@@ -163,15 +167,17 @@ export const savePrediction = async (sport: string, id: string, clientId: string
     // Handle different prediction types
     if (payload.predictionType === 'early_first_innings') {
       // Store in early_predict/first
-      updateData['early_predict/first'] = {
-        ...basePrediction,
-        teamABattingFirstScore: payload.teamABattingFirstScore,
-        teamBBattingFirstScore: payload.teamBBattingFirstScore,
-        predictedWinner: payload.winner
+      updateData.early_predict = {
+        first: {
+          ...basePrediction,
+          teamABattingFirstScore: payload.teamABattingFirstScore,
+          teamBBattingFirstScore: payload.teamBBattingFirstScore,
+          predictedWinner: payload.winner
+        }
       };
     } else if (payload.predictionType === 'live_first_innings') {
       // Store in first_inn
-      updateData['first_inn'] = {
+      updateData.first_inn = {
         ...basePrediction,
         battingFirst: payload.battingFirst,
         predictedWinner: payload.winner,
@@ -180,13 +186,19 @@ export const savePrediction = async (sport: string, id: string, clientId: string
       };
     } else if (payload.predictionType === 'live_second_innings') {
       // Store in second_inn
-      updateData['second_inn'] = {
+      const secondInnData: any = {
         ...basePrediction,
         battingFirst: payload.battingFirst,
-        secondInningsWinner: payload.secondInningsWinner,
-        secondInningsChasingScore: payload.secondInningsChasingScore,
-        secondInningsWinOvers: payload.secondInningsWinOvers
+        secondInningsWinner: payload.secondInningsWinner
       };
+      // Only include fields that have values
+      if (payload.secondInningsChasingScore !== undefined && payload.secondInningsChasingScore !== null) {
+        secondInnData.secondInningsChasingScore = payload.secondInningsChasingScore;
+      }
+      if (payload.secondInningsWinOvers !== undefined && payload.secondInningsWinOvers !== null) {
+        secondInnData.secondInningsWinOvers = payload.secondInningsWinOvers;
+      }
+      updateData.second_inn = secondInnData;
     }
 
     // Merge with existing data
@@ -196,8 +208,43 @@ export const savePrediction = async (sport: string, id: string, clientId: string
       await set(pRef, updateData);
     }
 
+    // Log prediction to username node for debugging
+    try {
+      const logsRef = usernamePredictionLogsRef(sport, id, username);
+      const logEntry = push(logsRef);
+      await set(logEntry, {
+        timestamp: Date.now(),
+        serverTimestamp: serverTimestamp(),
+        matchId: matchId || null,
+        predictionType: payload.predictionType,
+        predictionData: payload,
+        success: true
+      });
+      console.log('[Firebase] Prediction logged successfully');
+    } catch (logError) {
+      console.error('[Firebase] Error logging prediction (non-critical):', logError);
+      // Don't throw error - logging is for debugging only
+    }
+
     console.log('[Firebase] Prediction saved successfully with new schema');
   } catch (error) {
+    // Log failed prediction attempt
+    try {
+      const logsRef = usernamePredictionLogsRef(sport, id, username);
+      const logEntry = push(logsRef);
+      await set(logEntry, {
+        timestamp: Date.now(),
+        serverTimestamp: serverTimestamp(),
+        matchId: matchId || null,
+        predictionType: payload.predictionType,
+        predictionData: payload,
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    } catch (logError) {
+      console.error('[Firebase] Error logging failed prediction (non-critical):', logError);
+    }
+
     console.error('[Firebase] Error saving prediction:', error);
     throw error;
   }

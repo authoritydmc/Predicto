@@ -128,10 +128,14 @@ export default function CricketPrediction({
     }
     
     const data: any = {
-      secondInningsWinner,
-      secondInningsChasingScore,
-      secondInningsWinOvers
+      secondInningsWinner
     };
+    // Only include the relevant field based on who is predicted to win
+    if (secondInningsWinner === chasingTeam) {
+      data.secondInningsWinOvers = secondInningsWinOvers;
+    } else {
+      data.secondInningsChasingScore = secondInningsChasingScore;
+    }
     onSubmit(e, data);
   };
 

@@ -4,6 +4,8 @@ import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLive
 import { onValue, get } from 'firebase/database';
 import CricketPrediction from './CricketPrediction';
 import FootballPrediction from './FootballPrediction';
+import TournamentLeaderboardModal from '../Leaderboard/TournamentLeaderboardModal';
+import OtherPredictionsModal from './OtherPredictionsModal';
 
 interface PredictionPanelProps {
   sport: string;
@@ -29,6 +31,8 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
   const [allowReprediction, setAllowReprediction] = useState(false);
   const [hasPredicted, setHasPredicted] = useState(false);
   const [previousPrediction, setPreviousPrediction] = useState<any>(null);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  const [showOtherPredictionsModal, setShowOtherPredictionsModal] = useState(false);
 
   console.log('[PredictionPanel] Component mounted with props:', { sport, id, matchId, clientId });
 
@@ -283,9 +287,25 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           <p className="panel-kicker">Predict & Win • {sport.toUpperCase()}</p>
           <h2>Submit your call</h2>
         </div>
-        <span className={`status-pill ${matchStatus === 'live' ? 'status-live' : matchStatus === 'done' || matchStatus === 'completed' ? 'status-done' : 'status-scheduled'}`}>
-          {matchStatus === 'live' ? 'Live' : matchStatus === 'done' || matchStatus === 'completed' ? 'Completed' : 'Scheduled'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={() => setShowOtherPredictionsModal(true)}
+            className="link-btn"
+            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+          >
+            📊 Other Predictions
+          </button>
+          <button
+            onClick={() => setShowLeaderboardModal(true)}
+            className="link-btn"
+            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+          >
+            🏆 Tournament Leaderboard
+          </button>
+          <span className={`status-pill ${matchStatus === 'live' ? 'status-live' : matchStatus === 'done' || matchStatus === 'completed' ? 'status-done' : 'status-scheduled'}`}>
+            {matchStatus === 'live' ? 'Live' : matchStatus === 'done' || matchStatus === 'completed' ? 'Completed' : 'Scheduled'}
+          </span>
+        </div>
       </div>
 
       {sport === 'cricket' && (
@@ -327,6 +347,24 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           onNameChange={setName}
           onSubmit={handlePredictionSubmit}
           loading={loading}
+        />
+      )}
+
+      {/* Modals */}
+      {showLeaderboardModal && (
+        <TournamentLeaderboardModal
+          sport={sport}
+          tournamentId={id}
+          onClose={() => setShowLeaderboardModal(false)}
+        />
+      )}
+
+      {showOtherPredictionsModal && matchId && (
+        <OtherPredictionsModal
+          sport={sport}
+          tournamentId={id}
+          matchId={matchId}
+          onClose={() => setShowOtherPredictionsModal(false)}
         />
       )}
     </section>

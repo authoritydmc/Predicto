@@ -305,6 +305,7 @@ const ControlPanel: React.FC = () => {
   const [scraperStatus, setScraperStatus] = useState('');
   const [scraperOrder, setScraperOrder] = useState('cricbuzz,google,cricapi');
   const [activeMatchTab, setActiveMatchTab] = useState<'details' | 'live'>('details');
+  const [isEditingScore, setIsEditingScore] = useState(false);
 
   // ── Scheduler State
   const [schedulerTasks, setSchedulerTasks] = useState<Record<string, any>>({});
@@ -664,7 +665,8 @@ const ControlPanel: React.FC = () => {
       onValue(matchLiveScoreRef(sport, tournamentId, matchId), snap => {
         const score = snap.val();
         setLiveScore(score);
-        if (score) {
+        // Only update input values if user is not actively editing
+        if (score && !isEditingScore) {
           setScoreTeamARuns(score.teamA?.runs?.toString() || '');
           setScoreTeamAWickets(score.teamA?.wickets?.toString() || '');
           setScoreTeamAOvers(score.teamA?.overs?.toString() || '');
@@ -2581,6 +2583,7 @@ const ControlPanel: React.FC = () => {
                       setScoreTeamBRuns={setScoreTeamBRuns}
                       setScoreTeamBWickets={setScoreTeamBWickets}
                       setScoreTeamBOvers={setScoreTeamBOvers}
+                      setIsEditingScore={setIsEditingScore}
                     />
                   )}
                   {fSport === 'football' && (
