@@ -193,6 +193,24 @@ body.desktop-embed {
   margin-bottom: 28px;
 }
 
+.audience-hero {
+  background: linear-gradient(135deg, rgba(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b), 0.08) 0%, rgba(var(--team-secondary-r), var(--team-secondary-g), var(--team-secondary-b), 0.08) 100%);
+  border: 1px solid rgba(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b), 0.15);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+@media (max-width: 767px) {
+  .hero {
+    margin-bottom: 20px;
+  }
+
+  .audience-hero {
+    padding: 16px;
+    border-radius: 12px;
+  }
+}
+
 .eyebrow,
 .panel-kicker {
   margin: 0 0 8px;
@@ -222,13 +240,63 @@ body.desktop-embed {
 
 .hero-meta {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #a3b3c5;
+}
+
+@media (max-width: 767px) {
+  .hero-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    font-size: 0.85rem;
+  }
 }
 
 #viewLeaderboard {
   margin-left: auto;
+}
+
+.badge-mini {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-mini.sport {
+  background: rgba(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b), 0.15);
+  color: rgb(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b));
+  border-color: rgba(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b), 0.25);
+}
+
+.badge-mini.live {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.badge-mini.done {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+@media (max-width: 767px) {
+  .badge-mini {
+    font-size: 0.65rem;
+    padding: 3px 6px;
+  }
 }
 
 .grid-two {
@@ -303,24 +371,22 @@ body.desktop-embed {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   border-radius: 12px;
 }
 
 @media (max-width: 767px) {
   .audience-header {
-    flex-direction: column;
-    gap: 12px;
-    text-align: center;
-    padding: 12px 16px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
   }
 
   .audience-header-title {
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
   }
 }
 
@@ -328,15 +394,22 @@ body.desktop-embed {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text);
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+@media (max-width: 767px) {
+  .back-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
 }
 
 .back-btn:hover {
@@ -353,7 +426,7 @@ body.desktop-embed {
 }
 
 .audience-header-kicker {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -361,10 +434,20 @@ body.desktop-embed {
 }
 
 .audience-header-code {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--accent-blue);
   letter-spacing: 0.02em;
+}
+
+@media (max-width: 767px) {
+  .audience-header-kicker {
+    font-size: 0.6rem;
+  }
+
+  .audience-header-code {
+    font-size: 0.85rem;
+  }
 }
 
 /* Tournament Browser Styles */
@@ -589,17 +672,68 @@ body.desktop-embed {
   gap: 16px;
 }
 
-@media (max-width: 767px) {
-  .match-teams-display {
-    flex-direction: column;
-    gap: 8px;
-  }
-}
-
 .match-team {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.match-team-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.match-team span {
+  letter-spacing: 0.01em;
+}
+
+.match-team-score {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent-blue);
+  background: rgba(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b), 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b), 0.2);
+}
+
+.vs-divider {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+  opacity: 0.6;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 767px) {
+  .match-teams-display {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .match-team {
+    font-size: 0.9rem;
+    gap: 8px;
+  }
+
+  .match-team-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .match-team-score {
+    font-size: 0.75rem;
+    padding: 1px 6px;
+  }
+
+  .vs-divider {
+    font-size: 0.75rem;
+  }
 }
 
 .match-team-logo {
@@ -607,6 +741,7 @@ body.desktop-embed {
   height: 32px;
   object-fit: contain;
   border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .share-btn {
@@ -2684,7 +2819,11 @@ body.desktop-embed .join-card {
   font-size: 1.1rem;
 }
 
-/* Detail Table specific tweaks */
+.page-audience {
+  background: linear-gradient(135deg, rgba(var(--team-primary-r), var(--team-primary-g), var(--team-primary-b), 0.03) 0%, rgba(var(--team-secondary-r), var(--team-secondary-g), var(--team-secondary-b), 0.03) 100%);
+  min-height: 100vh;
+}
+
 .detail-table th, .detail-table td {
   padding: 12px 10px;
 }
@@ -3316,6 +3455,42 @@ body.desktop-embed .join-card {
   background-clip: text;
 }
 
+@media (max-width: 767px) {
+  .favorite-team-panel {
+    margin-bottom: 16px;
+  }
+
+  .favorite-team-display {
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .favorite-team-logo-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+
+  .favorite-team-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .favorite-team-label {
+    font-size: 0.65rem;
+    margin-bottom: 2px;
+  }
+
+  .favorite-team-name {
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+  }
+
+  .ghost-link-xs {
+    font-size: 0.75rem;
+  }
+}
+
 .ghost-link-xs {
   background: none;
   border: none;
@@ -3339,18 +3514,3 @@ body.desktop-embed .join-card {
   opacity: 0.5;
 }
 
-@media (max-width: 600px) {
-  .favorite-team-display {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .favorite-team-logo {
-    width: 100px;
-    height: 100px;
-  }
-  
-  .favorite-team-name {
-    font-size: 1.4rem;
-  }
-}

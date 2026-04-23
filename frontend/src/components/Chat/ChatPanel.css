@@ -452,4 +452,8 @@
   .chat-message-content {
     max-width: 85%;
   }
+
+  .chat-supporting-banner {
+    padding: 10px 16px;
+  }
 }

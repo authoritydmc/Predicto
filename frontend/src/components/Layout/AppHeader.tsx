@@ -1,27 +1,37 @@
 import { useState, useRef, useEffect } from 'react';
 import { STORAGE_KEYS } from '../../config/constants';
 import PasscodeViewer from '../Auth/PasscodeViewer';
+import { getTeamLogoUrl, getTeamColor } from '../../utils/teamLogos';
 import './AppHeader.css';
 
 interface AppHeaderProps {
   username: string | null;
   isAuthed: boolean;
   passkey: string | null;
+  favoriteTeam: string | null;
+  teamChangeCount: number;
   onLoginClick?: () => void;
   onRotatePasskey?: () => Promise<void>;
+  onSelectFavoriteTeam?: (team: string) => void;
 }
 
 export default function AppHeader({ 
   username, 
   isAuthed, 
   passkey, 
+  favoriteTeam,
+  teamChangeCount,
   onLoginClick,
-  onRotatePasskey 
+  onRotatePasskey,
+  onSelectFavoriteTeam
 }: AppHeaderProps) {
-  console.log('[AppHeader] Props received:', { username, isAuthed, passkey });
+  console.log('[AppHeader] Props received:', { username, isAuthed, passkey, favoriteTeam });
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPasscodeViewer, setShowPasscodeViewer] = useState(false);
+  const [showTeamSelector, setShowTeamSelector] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const teamColors = favoriteTeam ? getTeamColor(favoriteTeam) : { primary: '#6366f1', secondary: '#8b5cf6' };
 
   const handleLoginClick = () => {
     // Dispatch custom event that App.tsx can listen for
@@ -55,9 +65,24 @@ export default function AppHeader({
     console.log('[AppHeader] showPasscodeViewer set to true');
   };
 
+  const handleSelectTeam = () => {
+    setShowDropdown(false);
+    setShowTeamSelector(true);
+  };
+
+  const handleTeamSelect = (team: string) => {
+    onSelectFavoriteTeam?.(team);
+    setShowTeamSelector(false);
+  };
+
   return (
     <>
-      <header className="app-header">
+      <header 
+        className="app-header"
+        style={{
+          background: `linear-gradient(135deg, ${teamColors.primary}22 0%, ${teamColors.secondary}22 100%)`,
+        }}
+      >
         <div className="app-header-content">
           <div className="app-header-brand">
             <h1 className="app-header-title">OverlayChat</h1>
@@ -88,6 +113,29 @@ export default function AppHeader({
                       <span className="dropdown-status">Online</span>
                     </div>
                     <div className="dropdown-divider"></div>
+                    {favoriteTeam && (
+                      <>
+                        <div className="dropdown-team-section">
+                          <span className="dropdown-team-label">Supporting</span>
+                          <div className="dropdown-team-display">
+                            {getTeamLogoUrl(favoriteTeam) && (
+                              <img src={getTeamLogoUrl(favoriteTeam)!} alt={favoriteTeam} className="dropdown-team-logo" />
+                            )}
+                            <span className="dropdown-team-name">{favoriteTeam}</span>
+                          </div>
+                        </div>
+                        <div className="dropdown-divider"></div>
+                      </>
+                    )}
+                    <button
+                      className="dropdown-item"
+                      onClick={handleSelectTeam}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 2C4.69 2 2 4.69 2 8C2 11.31 4.69 14 8 14C11.31 14 14 11.31 14 8C14 4.69 11.31 2 8 2ZM8 12.5C5.52 12.5 3.5 10.48 3.5 8C3.5 5.52 5.52 3.5 8 3.5C10.48 3.5 12.5 5.52 12.5 8C12.5 10.48 10.48 12.5 8 12.5ZM8.5 5H7.5V8.5L10.5 10.25L11 9.4L8.5 7.9V5Z" fill="currentColor"/>
+                      </svg>
+                      {favoriteTeam ? 'Change Team' : 'Select Team'}
+                    </button>
                     <button
                       className="dropdown-item"
                       onClick={handleViewPasscode}
@@ -131,6 +179,54 @@ export default function AppHeader({
             onResetPasskey={onRotatePasskey || (async () => {})}
           />
         </>
+      )}
+
+      {showTeamSelector && (
+        <div className="modal-overlay">
+          <div className="modal-content team-selector-modal">
+            <div className="modal-header">
+              <h2>{favoriteTeam ? 'Change Your Team' : 'Select Your Team'}</h2>
+              <p>
+                {teamChangeCount >= 3 
+                  ? 'You have reached the maximum limit of 3 team changes.'
+                  : `Select your favorite IPL team (${3 - teamChangeCount} change${3 - teamChangeCount !== 1 ? 's' : ''} remaining)`
+                }
+              </p>
+            </div>
+            <div className="team-grid">
+              {["CSK", "MI", "RCB", "KKR", "DC", "PBKS", "RR", "SRH", "LSG", "GT"].map((team) => {
+                const logoUrl = getTeamLogoUrl(team);
+                return (
+                  <button 
+                    key={team} 
+                    className="team-btn" 
+                    onClick={() => handleTeamSelect(team)}
+                    disabled={teamChangeCount >= 3 && favoriteTeam !== team}
+                  >
+                    {logoUrl && (
+                      <img 
+                        src={logoUrl} 
+                        alt={team} 
+                        className="team-logo"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <span className="team-name">{team}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              className="secondary-btn"
+              onClick={() => setShowTeamSelector(false)}
+              style={{ marginTop: '16px' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

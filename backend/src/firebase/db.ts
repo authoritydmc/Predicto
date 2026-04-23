@@ -154,6 +154,9 @@ export const matchPredictionsRef = (sport: string, tournamentId: string, matchId
 export const matchChatRef = (sport: string, tournamentId: string, matchId: string) =>
   matchRef(sport, tournamentId, matchId, "chat");
 
+export const matchLiveScoreRef = (sport: string, tournamentId: string, matchId: string) =>
+  matchRef(sport, tournamentId, matchId, "live_score");
+
 export const matchHistoryRef = (sport: string, tournamentId: string, matchId: string) =>
   matchRef(sport, tournamentId, matchId, "history");
 

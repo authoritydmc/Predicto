@@ -21,6 +21,10 @@ export interface UsernameData {
   passkey: string;
   favoriteTeam: string | null;
   teamChangeCount: number;
+  failedLoginAttempts: number;
+  role: 'user' | 'admin' | 'moderator';
+  enabled: boolean;
+  bannedTournaments: string[];
   createdAt: number;
   updatedAt: number;
 }

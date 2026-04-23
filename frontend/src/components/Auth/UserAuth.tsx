@@ -143,7 +143,7 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
       if (result.valid) {
         onAuthSuccess(username, result.clientId);
       } else {
-        setError('Invalid passkey. Please try again.');
+        setError(result.reason || 'Invalid passkey. Please try again.');
         setPasskey(''); // Clear all fields on invalid passkey
       }
     } catch (err) {

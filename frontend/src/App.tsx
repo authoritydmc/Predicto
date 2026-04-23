@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams, Outlet } from 'react-router-dom';
 import { onValue, get, set } from 'firebase/database';
-import { matchDiscoveryRef, matchMetaRef, userRef, usernameDataRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey, generatePasskey, ensureUsernameDataExists } from './firebase/services';
+import { matchDiscoveryRef, matchMetaRef, matchLiveScoreRef, userRef, usernameDataRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey, generatePasskey, ensureUsernameDataExists } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import AppHeader from './components/Layout/AppHeader';
 import TournamentBrowser from './components/Tournament/TournamentBrowser';
@@ -255,7 +255,10 @@ function AppLayout() {
           username={username}
           isAuthed={isAuthed}
           passkey={passkey}
+          favoriteTeam={favoriteTeam}
+          teamChangeCount={teamChangeCount}
           onRotatePasskey={handleRotatePasskey}
+          onSelectFavoriteTeam={handleSelectFavoriteTeam}
         />
         <div className="app-header-spacer" />
         <Outlet />
@@ -372,6 +375,7 @@ function MatchPage() {
   const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [matchStatus, setMatchStatus] = useState<string | null>(null);
+  const [liveScore, setLiveScore] = useState<any>(null);
 
   // Resolve Tournament Context from Match Code
   useEffect(() => {
@@ -432,9 +436,37 @@ function MatchPage() {
     return () => unsubMatch();
   }, [tournamentContext]);
 
+  // Subscribe to Live Score
+  useEffect(() => {
+    if (!tournamentContext) return;
+    const { sport, id, matchId } = tournamentContext;
+    const unsubScore = onValue(matchLiveScoreRef(sport, id, matchId), (snap) => {
+      setLiveScore(snap.val());
+    }, (error) => {
+      console.error('[App] Error fetching live score:', { sport, id, matchId }, error);
+    });
+    return () => unsubScore();
+  }, [tournamentContext]);
+
   if (loading || !tournamentContext) {
     return <main className="page"><div className="panel"><p>Connecting to {matchCode?.toUpperCase() || 'match'}...</p></div></main>;
   }
+
+  const handleCopyMatchCode = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Match link copied to clipboard!');
+    }).catch(() => {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('Match link copied to clipboard!');
+    });
+  };
 
   const activeMatch = meta?.matchTitle;
   const teamColors = favoriteTeam ? getTeamColor(favoriteTeam) : { primary: '#6366f1', secondary: '#8b5cf6' };
@@ -491,12 +523,18 @@ function MatchPage() {
         <section className="hero audience-hero audience-hero-compact">
           <div className="hero-meta">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-               <span className="badge-mini" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>
+               <span className="badge-mini sport">
                  {tournamentContext.sport.toUpperCase()}
                </span>
-               <span>Room: <strong id="roomBadge">{matchCode}</strong></span>
+               <span style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} onClick={handleCopyMatchCode}>
+                 Room: <strong id="roomBadge">{matchCode}</strong>
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                 </svg>
+               </span>
                {matchStatus && (
-                 <span className="badge-mini" style={{ background: matchStatus === 'live' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: matchStatus === 'live' ? '#10b981' : '#f59e0b', padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 800 }}>
+                 <span className={`badge-mini ${matchStatus}`}>
                    {matchStatus.toUpperCase()}
                  </span>
                )}
@@ -507,14 +545,34 @@ function MatchPage() {
                   {getTeamLogoUrl(meta.teamA) && (
                     <img src={getTeamLogoUrl(meta.teamA)!} alt={meta.teamA} className="match-team-logo" />
                   )}
-                  <span>{meta.teamA}</span>
+                  <div className="match-team-info">
+                    <span>{meta.teamA}</span>
+                    {liveScore?.teamA && (
+                      <span className="match-team-score">
+                        {tournamentContext.sport === 'cricket' 
+                          ? `${liveScore.teamA.runs}/${liveScore.teamA.wickets} (${liveScore.teamA.overs})`
+                          : liveScore.teamA.goals
+                        }
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <span className="vs-divider">vs</span>
                 <div className="match-team">
                   {getTeamLogoUrl(meta.teamB) && (
                     <img src={getTeamLogoUrl(meta.teamB)!} alt={meta.teamB} className="match-team-logo" />
                   )}
-                  <span>{meta.teamB}</span>
+                  <div className="match-team-info">
+                    <span>{meta.teamB}</span>
+                    {liveScore?.teamB && (
+                      <span className="match-team-score">
+                        {tournamentContext.sport === 'cricket' 
+                          ? `${liveScore.teamB.runs}/${liveScore.teamB.wickets} (${liveScore.teamB.overs})`
+                          : liveScore.teamB.goals
+                        }
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

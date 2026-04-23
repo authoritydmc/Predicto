@@ -55,6 +55,9 @@ export const matchPredictionsRef = (sport: string, tournamentId: string, matchId
 export const matchChatRef = (sport: string, tournamentId: string, matchId: string) =>
   matchRef(sport, tournamentId, matchId, "chat");
 
+export const matchLiveScoreRef = (sport: string, tournamentId: string, matchId: string) =>
+  matchRef(sport, tournamentId, matchId, "live_score");
+
 export const matchHistoryRef = (sport: string, tournamentId: string, matchId: string) =>
   matchRef(sport, tournamentId, matchId, "history");
 
@@ -163,6 +166,10 @@ export const ensureUsernameDataExists = async (username: string, clientId: strin
         passkey,
         favoriteTeam: null,
         teamChangeCount: 0,
+        failedLoginAttempts: 0,
+        role: 'user',
+        enabled: true,
+        bannedTournaments: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -210,6 +217,10 @@ export const createUserWithPasskey = async (username: string, clientId: string):
       passkey,
       favoriteTeam: null,
       teamChangeCount: 0,
+      failedLoginAttempts: 0,
+      role: 'user',
+      enabled: true,
+      bannedTournaments: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -227,7 +238,7 @@ export const createUserWithPasskey = async (username: string, clientId: string):
   }
 };
 
-export const verifyUserPasskey = async (username: string, passkey: string): Promise<{ clientId: string, valid: boolean }> => {
+export const verifyUserPasskey = async (username: string, passkey: string): Promise<{ clientId: string, valid: boolean, reason?: string }> => {
   try {
     console.log('[Firebase] Verifying user passkey:', { username, passkey });
 
@@ -237,16 +248,53 @@ export const verifyUserPasskey = async (username: string, passkey: string): Prom
 
     if (!userData) {
       console.log('[Firebase] Username not found');
-      return { clientId: '', valid: false };
+      return { clientId: '', valid: false, reason: 'Username not found' };
+    }
+
+    // Check if account is enabled
+    if (userData.enabled === false) {
+      console.log('[Firebase] Account is disabled');
+      return { clientId: '', valid: false, reason: 'Account is disabled' };
     }
 
     const isValid = userData.passkey === passkey;
     console.log('[Firebase] Passkey valid:', isValid);
 
-    return {
-      clientId: userData.clientId,
-      valid: isValid,
-    };
+    if (isValid) {
+      // Reset failed attempts on successful login
+      if (userData.failedLoginAttempts > 0) {
+        await update(usernameDataRef(username), {
+          failedLoginAttempts: 0,
+          updatedAt: Date.now(),
+        });
+      }
+      return {
+        clientId: userData.clientId,
+        valid: true,
+      };
+    } else {
+      // Increment failed attempts
+      const newAttempts = (userData.failedLoginAttempts || 0) + 1;
+      console.log('[Firebase] Failed login attempts:', newAttempts);
+
+      if (newAttempts >= 3) {
+        // Reset passkey after 3 failed attempts
+        const newPasskey = generatePasskey();
+        console.log('[Firebase] Resetting passkey after 3 failed attempts');
+        await update(usernameDataRef(username), {
+          passkey: newPasskey,
+          failedLoginAttempts: 0,
+          updatedAt: Date.now(),
+        });
+        return { clientId: '', valid: false, reason: 'Too many failed attempts. Passkey has been reset.' };
+      } else {
+        await update(usernameDataRef(username), {
+          failedLoginAttempts: newAttempts,
+          updatedAt: Date.now(),
+        });
+        return { clientId: '', valid: false, reason: 'Invalid passkey' };
+      }
+    }
   } catch (error) {
     console.error('[Firebase] Error verifying user passkey:', error);
     throw error;

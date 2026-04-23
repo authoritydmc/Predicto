@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
-  db, isFirebaseConfigured, onValue, query, ref, schemaRef, update,
+  db, isFirebaseConfigured, onValue, query, ref, schemaRef, update, set,
   saveRoomMeta, clearRoomNode, getOnce, setDiscovery,
   saveInningsHistory, getInningsHistory, archiveToHistory,
   getHistory, wipeMatchData, saveSeasonLeaderboard, updateActiveSession, getDbRoot,
   matchPredictionsRef, tournamentMetaRef, matchMetaRef, matchPredictionsRef as newMatchPredictionsRef,
   matchChatRef, matchHistoryRef, matchInningsHistoryRef, tournamentLeaderboardRef, matchRef,
+  matchLiveScoreRef,
   setTournamentDiscovery, setMatchDiscovery, generateMatchId, getMergedMeta,
   saveTournamentSchedule, getTournamentSchedule, addMatchToSchedule,
   getTournamentsBySport, updateTournamentStatus, deleteTournament, deleteMatch, getMatchesByTournament
@@ -223,6 +224,7 @@ const ControlPanel: React.FC = () => {
     match: false,
     resolution: false,
     winProb: false,
+    liveScore: false,
     windowEngine: false,
     history: true
   });
@@ -276,6 +278,17 @@ const ControlPanel: React.FC = () => {
   const [autoFetch, setAutoFetch] = useState(false);
   const [showWinProb, setShowWinProb] = useState(false);
   const [fetchStatus, setFetchStatus] = useState('Status: Not started');
+
+  // ── Live Score
+  const [liveScore, setLiveScore] = useState<any>(null);
+  const [scoreTeamARuns, setScoreTeamARuns] = useState('');
+  const [scoreTeamAWickets, setScoreTeamAWickets] = useState('');
+  const [scoreTeamAOvers, setScoreTeamAOvers] = useState('');
+  const [scoreTeamBRuns, setScoreTeamBRuns] = useState('');
+  const [scoreTeamBWickets, setScoreTeamBWickets] = useState('');
+  const [scoreTeamBOvers, setScoreTeamBOvers] = useState('');
+  const [scoreMatchStatus, setScoreMatchStatus] = useState<'live' | 'completed' | 'scheduled'>('live');
+  const [scoreSource, setScoreSource] = useState<'manual' | 'scraper' | 'api'>('manual');
 
   // ── Opacity
   const [opacity, setOpacity] = useState(1);
@@ -536,6 +549,22 @@ const ControlPanel: React.FC = () => {
           else if (!merged.disableScoreB && merged.disableScoreA) setFBattingTeam('away');
           setFInnings(merged.secondInnings ? '2' : '1');
         });
+      });
+
+      // Subscribe to live score
+      onValue(matchLiveScoreRef(sport, tournamentId, matchId), snap => {
+        const score = snap.val();
+        setLiveScore(score);
+        if (score) {
+          setScoreTeamARuns(score.teamA?.runs?.toString() || '');
+          setScoreTeamAWickets(score.teamA?.wickets?.toString() || '');
+          setScoreTeamAOvers(score.teamA?.overs?.toString() || '');
+          setScoreTeamBRuns(score.teamB?.runs?.toString() || '');
+          setScoreTeamBWickets(score.teamB?.wickets?.toString() || '');
+          setScoreTeamBOvers(score.teamB?.overs?.toString() || '');
+          setScoreMatchStatus(score.matchStatus || 'live');
+          setScoreSource(score.source || 'manual');
+        }
       });
     } else {
       // Subscribe to tournament meta only
@@ -871,6 +900,55 @@ const ControlPanel: React.FC = () => {
       await window.overlayDesktop.reloadOverlay();
       alert(`Match [${fMatchTitle || `${fTeamA} vs ${fTeamB}`}] created with code: ${mId}`);
     } catch (err) { console.error(err); }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Live Score Update
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleUpdateLiveScore = async () => {
+    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) {
+      alert('Please select a match first');
+      return;
+    }
+
+    try {
+      const scoreData: any = {
+        matchStatus: scoreMatchStatus,
+        source: scoreSource,
+        lastUpdated: Date.now()
+      };
+
+      if (fSport === 'cricket') {
+        scoreData.teamA = {
+          runs: parseInt(scoreTeamARuns) || 0,
+          wickets: parseInt(scoreTeamAWickets) || 0,
+          overs: parseFloat(scoreTeamAOvers) || 0,
+          battingTeam: true
+        };
+        scoreData.teamB = {
+          runs: parseInt(scoreTeamBRuns) || 0,
+          wickets: parseInt(scoreTeamBWickets) || 0,
+          overs: parseFloat(scoreTeamBOvers) || 0,
+          battingTeam: false
+        };
+        scoreData.currentInnings = fInnings === '2' ? 2 : 1;
+      } else if (fSport === 'football') {
+        scoreData.teamA = {
+          goals: parseInt(scoreTeamARuns) || 0,
+          battingTeam: false
+        };
+        scoreData.teamB = {
+          goals: parseInt(scoreTeamBRuns) || 0,
+          battingTeam: true
+        };
+      }
+
+      await set(matchLiveScoreRef(fSport, tournamentId, matchId), scoreData);
+      alert('Live score updated successfully');
+    } catch (err) {
+      console.error(err);
+      alert('Error updating live score');
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -2005,6 +2083,85 @@ const ControlPanel: React.FC = () => {
             </div>
             <div className="cp-divider" />
             <p className="cp-panel-note">Slider updates automatically if Auto-Fetch is on. You can also fetch manually.</p>
+          </div>
+        </section>
+
+        {/* ── Live Score Update ── */}
+        <section className="cp-panel-group">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('liveScore')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Live Score Update</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.liveScore ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.liveScore ? 'none' : 'block' }}>
+            <div className="cp-form-row">
+              <label>Match Status</label>
+              <select value={scoreMatchStatus} onChange={e => setScoreMatchStatus(e.target.value as any)}>
+                <option value="live">Live</option>
+                <option value="completed">Completed</option>
+                <option value="scheduled">Scheduled</option>
+              </select>
+            </div>
+            <div className="cp-form-row">
+              <label>Source</label>
+              <select value={scoreSource} onChange={e => setScoreSource(e.target.value as any)}>
+                <option value="manual">Manual</option>
+                <option value="scraper">Scraper</option>
+                <option value="api">API</option>
+              </select>
+            </div>
+            {fSport === 'cricket' && (
+              <>
+                <div className="cp-divider" style={{ margin: '12px 0' }} />
+                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamA || 'Team A'}</div>
+                <div className="cp-form-row">
+                  <label>Runs</label>
+                  <input type="number" value={scoreTeamARuns} onChange={e => setScoreTeamARuns(e.target.value)} placeholder="0" />
+                </div>
+                <div className="cp-form-row">
+                  <label>Wickets</label>
+                  <input type="number" value={scoreTeamAWickets} onChange={e => setScoreTeamAWickets(e.target.value)} placeholder="0" max="10" />
+                </div>
+                <div className="cp-form-row">
+                  <label>Overs</label>
+                  <input type="number" step="0.1" value={scoreTeamAOvers} onChange={e => setScoreTeamAOvers(e.target.value)} placeholder="0.0" />
+                </div>
+                <div className="cp-divider" style={{ margin: '12px 0' }} />
+                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamB || 'Team B'}</div>
+                <div className="cp-form-row">
+                  <label>Runs</label>
+                  <input type="number" value={scoreTeamBRuns} onChange={e => setScoreTeamBRuns(e.target.value)} placeholder="0" />
+                </div>
+                <div className="cp-form-row">
+                  <label>Wickets</label>
+                  <input type="number" value={scoreTeamBWickets} onChange={e => setScoreTeamBWickets(e.target.value)} placeholder="0" max="10" />
+                </div>
+                <div className="cp-form-row">
+                  <label>Overs</label>
+                  <input type="number" step="0.1" value={scoreTeamBOvers} onChange={e => setScoreTeamBOvers(e.target.value)} placeholder="0.0" />
+                </div>
+              </>
+            )}
+            {fSport === 'football' && (
+              <>
+                <div className="cp-form-row">
+                  <label>{fTeamA || 'Team A'} Goals</label>
+                  <input type="number" value={scoreTeamARuns} onChange={e => setScoreTeamARuns(e.target.value)} placeholder="0" />
+                </div>
+                <div className="cp-form-row">
+                  <label>{fTeamB || 'Team B'} Goals</label>
+                  <input type="number" value={scoreTeamBRuns} onChange={e => setScoreTeamBRuns(e.target.value)} placeholder="0" />
+                </div>
+              </>
+            )}
+            <div className="cp-divider" />
+            <button className="cp-action-btn" type="button" onClick={handleUpdateLiveScore}>Update Live Score</button>
+            <p className="cp-panel-note">Updates will be reflected in real-time on the audience match page.</p>
           </div>
         </section>
 

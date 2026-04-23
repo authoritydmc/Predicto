@@ -227,6 +227,69 @@ Team-based, simple to input: `teamA-vs-teamB` or `teamA-vs-teamB-date`
 
 ---
 
+### 3.1. Match Live Score (`/tournaments/{sport}/{tournamentId}/matches/{matchId}/live_score`)
+
+**Purpose**: Stores live match score data for real-time display.
+
+**Structure**:
+```
+/tournaments/{sport}/{tournamentId}/matches/{matchId}/live_score
+```
+
+**Data Example (Cricket)**:
+```json
+{
+  "teamA": {
+    "runs": 145,
+    "wickets": 2,
+    "overs": 18.3,
+    " battingTeam": true
+  },
+  "teamB": {
+    "runs": 0,
+    "wickets": 0,
+    "overs": 0,
+    "battingTeam": false
+  },
+  "currentInnings": 1,
+  "matchStatus": "live",
+  "lastUpdated": 1713868800000,
+  "source": "manual"
+}
+```
+
+**Data Example (Football)**:
+```json
+{
+  "teamA": {
+    "goals": 2,
+    "battingTeam": false
+  },
+  "teamB": {
+    "goals": 1,
+    "battingTeam": true
+  },
+  "matchTime": "67",
+  "matchStatus": "live",
+  "lastUpdated": 1713868800000,
+  "source": "scraper"
+}
+```
+
+**Fields**:
+- `teamA`, `teamB`: Team-specific score data
+  - Cricket: `runs`, `wickets`, `overs`, `battingTeam`
+  - Football: `goals`, `battingTeam`
+- `currentInnings`: Current innings number (cricket)
+- `matchTime`: Current match time in minutes (football)
+- `matchStatus`: `live`, `completed`, `scheduled`, `abandoned`
+- `lastUpdated`: Timestamp of last score update
+- `source`: `manual`, `scraper`, `api`
+
+**Security**:
+- Local: Read/Write open
+- Production: Read open, Write requires admin
+
 ### 4. Match Predictions (`/tournaments/{sport}/{tournamentId}/matches/{matchId}/predictions`)
 
 **Purpose**: Stores user predictions for a specific match.
