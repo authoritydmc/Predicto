@@ -70,7 +70,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
               const metaRef = ref(rtdb, `${dbRoot}/tournaments/${match.sport}/${match.tournamentId}/matches/${match.matchId}/meta`);
               const metaSnap = await get(metaRef);
               const meta = metaSnap.val();
-              if (meta && meta.status === 'live') {
+              if (meta && (meta.status === 'live' || meta.status === 'active')) {
                 return match;
               }
               return null;

@@ -1087,71 +1087,7 @@ const ControlPanel: React.FC = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Instant Live Score Update (debounced)
-  // ─────────────────────────────────────────────────────────────────────────────
-  const handleInstantScoreUpdate = async (scoreData: any) => {
-    if (!isFirebaseConfigured || !db || !matchId || !tournamentId) return;
-
-    try {
-      const meta = await getOnce(matchMetaRef(fSport, tournamentId, matchId));
-      const metaVal = meta.val() || {};
-
-      // Calculate battingFirst
-      let battingFirst: string | null = null;
-      if (scoreData.innings === '2' && metaVal.innings !== '2') {
-        battingFirst = scoreData.battingTeam === 'teamA' ? 'teamB' : 'teamA';
-      } else if (scoreData.innings === '1' && !metaVal.battingFirst) {
-        battingFirst = scoreData.battingTeam;
-      } else {
-        battingFirst = metaVal.battingFirst || null;
-      }
-
-      // Prepare live score data - use update to preserve existing fields
-      const liveScoreData: any = {
-        currentInnings: Number(scoreData.innings),
-        battingTeam: scoreData.battingTeam,
-        scoreA: `${scoreData.scoreTeamARuns}/${scoreData.scoreTeamAWickets}`,
-        oversA: parseFloat(scoreData.scoreTeamAOvers) || 0,
-        scoreB: `${scoreData.scoreTeamBRuns}/${scoreData.scoreTeamBWickets}`,
-        oversB: parseFloat(scoreData.scoreTeamBOvers) || 0,
-        lastUpdated: Date.now(),
-      };
-
-      if (battingFirst) {
-        liveScoreData.battingFirst = battingFirst;
-      }
-
-      // Update live score instantly (use update to preserve existing data)
-      await update(matchLiveScoreRef(fSport, tournamentId, matchId), liveScoreData);
-
-      // Update match meta
-      const metaUpdate: any = {
-        battingTeam: scoreData.battingTeam,
-        innings: scoreData.innings,
-        secondInnings: scoreData.innings === '2',
-        disableScoreA: scoreData.battingTeam === 'teamB',
-        disableScoreB: scoreData.battingTeam === 'teamA',
-      };
-
-      if (battingFirst) {
-        metaUpdate.battingFirst = battingFirst;
-      }
-
-      if (scoreData.tossWinner) {
-        metaUpdate.tossWinner = scoreData.tossWinner;
-      }
-      if (scoreData.tossDecision) {
-        metaUpdate.tossDecision = scoreData.tossDecision;
-      }
-
-      await update(matchMetaRef(fSport, tournamentId, matchId), metaUpdate);
-    } catch (err) {
-      console.error('Error in instant score update:', err);
-    }
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Live Score Update (Manual button - kept for compatibility)
+  // Live Score Update (Manual button)
   // ─────────────────────────────────────────────────────────────────────────────
   const handleUpdateLiveScore = async () => {
     if (!isFirebaseConfigured || !db || !matchId || !tournamentId) {
@@ -2645,7 +2581,6 @@ const ControlPanel: React.FC = () => {
                       setScoreTeamBRuns={setScoreTeamBRuns}
                       setScoreTeamBWickets={setScoreTeamBWickets}
                       setScoreTeamBOvers={setScoreTeamBOvers}
-                      onInstantUpdate={handleInstantScoreUpdate}
                     />
                   )}
                   {fSport === 'football' && (

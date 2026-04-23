@@ -23,7 +23,6 @@ interface CricketLiveScoreProps {
   setScoreTeamBRuns: (value: string) => void;
   setScoreTeamBWickets: (value: string) => void;
   setScoreTeamBOvers: (value: string) => void;
-  onInstantUpdate?: (data: any) => void;
 }
 
 export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
@@ -49,43 +48,7 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
   setScoreTeamBRuns,
   setScoreTeamBWickets,
   setScoreTeamBOvers,
-  onInstantUpdate,
 }) => {
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  // Debounced instant update
-  useEffect(() => {
-    if (!onInstantUpdate) return;
-
-    const timer = setTimeout(() => {
-      onInstantUpdate({
-        tossWinner: fTossWinner,
-        tossDecision: fTossDecision,
-        battingTeam: fBattingTeam,
-        innings: fInnings,
-        scoreTeamARuns,
-        scoreTeamAWickets,
-        scoreTeamAOvers,
-        scoreTeamBRuns,
-        scoreTeamBWickets,
-        scoreTeamBOvers,
-      });
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [
-    fTossWinner,
-    fTossDecision,
-    fBattingTeam,
-    fInnings,
-    scoreTeamARuns,
-    scoreTeamAWickets,
-    scoreTeamAOvers,
-    scoreTeamBRuns,
-    scoreTeamBWickets,
-    scoreTeamBOvers,
-    onInstantUpdate,
-  ]);
 
   const battingTeamName = fBattingTeam === 'teamA' ? fTeamA : fTeamB;
   const bowlingTeamName = fBattingTeam === 'teamA' ? fTeamB : fTeamA;
@@ -457,17 +420,6 @@ export const CricketLiveScore: React.FC<CricketLiveScoreProps> = ({
           </div>
         </div>
       </details>
-
-      {isUpdating && (
-        <div style={{
-          fontSize: '11px',
-          color: '#34c759',
-          textAlign: 'center',
-          padding: '4px',
-        }}>
-          ✓ Syncing...
-        </div>
-      )}
     </div>
   );
 };
