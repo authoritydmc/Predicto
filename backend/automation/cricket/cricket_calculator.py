@@ -65,7 +65,13 @@ class CricketCalculator(ScoreCalculator):
                                   actual_result: str, meta: Dict[str, Any], is_overs: bool) -> Dict[str, Any]:
         """
         Calculate points for 2nd innings prediction
-        
+
+        Prediction format:
+        - winnerTeam: The team that will win the match (e.g., "CSK")
+        - runsOrOvers: The predicted value
+          - If overs format (e.g., "15.2"): Predicted overs to win
+          - If score format (e.g., "102"): Predicted final score of the batting (losing) team
+
         Scoring rules:
         - Wrong winner: 0 points
         - Exact match: +70 points
@@ -73,16 +79,17 @@ class CricketCalculator(ScoreCalculator):
         - Near thresholds: bonus points
         """
         config = CRICKET_CONFIG['innings2']
-        
+
         # Get predicted winner and value from simplified schema
         pred_winner = (prediction.get('winnerTeam') or '').lower()
         pred_val_str = str(prediction.get('runsOrOvers', '0'))
-        
+
         # Determine if prediction is overs format (contains decimal point)
         pred_is_overs = '.' in pred_val_str
-        
+
         print(f"[CricketCalculator] 2nd innings: predicted_winner={pred_winner}, actual_winner={actual_winner}, predicted_val={pred_val_str}, actual_result={actual_result}, is_overs={is_overs}, pred_is_overs={pred_is_overs}")
-        
+        print(f"[CricketCalculator]   Interpretation: User predicted {pred_winner} to win, with {'overs to win' if pred_is_overs else 'losing team score of'} {pred_val_str}")
+
         # Wrong winner prediction
         if pred_winner != actual_winner.lower():
             print(f"[CricketCalculator]   Wrong winner! 0 points")
@@ -94,18 +101,18 @@ class CricketCalculator(ScoreCalculator):
                 'isExact': False,
                 'mode': 'Wrong Winner'
             }
-        
+
         # Correct winner - calculate based on format
         if is_overs:
             actual_balls = overs_to_balls(actual_result)
             pred_balls = overs_to_balls(pred_val_str)
             diff = abs(actual_balls - pred_balls)
-            
+
             accuracy = max(0, round(config['base_points'] - diff * config['diff_multiplier_overs']))
             near_3 = config['near_3_points'] if diff <= config['near_3_threshold'] else 0
             near_9 = config['near_9_points'] if diff <= config['near_9_threshold'] else 0
             exact = config['exact_match_points'] if diff == 0 else 0
-            
+
             print(f"[CricketCalculator]   Correct winner (overs format)")
             print(f"[CricketCalculator]   Actual balls: {actual_balls}, Predicted balls: {pred_balls}, Diff: {diff}")
             print(f"[CricketCalculator]   Base: {accuracy} (120 - {diff}*1.8)")
@@ -113,7 +120,7 @@ class CricketCalculator(ScoreCalculator):
             print(f"[CricketCalculator]   Near 9 bonus: {near_9}")
             print(f"[CricketCalculator]   Exact bonus: {exact}")
             print(f"[CricketCalculator]   Total: {accuracy + near_3 + near_9 + exact}")
-            
+
             return {
                 'points': accuracy + near_3 + near_9 + exact,
                 'diff': balls_to_overs_display(diff),
@@ -123,21 +130,23 @@ class CricketCalculator(ScoreCalculator):
                 'mode': 'Overs'
             }
         else:
+            # Score format: actual_result is the losing team's final score
+            # User predicted the losing team would score pred_val_str
             diff = abs(int(actual_result) - int(pred_val_str or 0))
-            
+
             base = max(0, round(config['base_points'] - diff * config['diff_multiplier_score']))
             near_5 = config['near_5_points'] if diff <= config['near_5_threshold'] else 0
             near_12 = config['near_12_points'] if diff <= config['near_12_threshold'] else 0
             exact = config['exact_match_points'] if diff == 0 else 0
-            
+
             print(f"[CricketCalculator]   Correct winner (score format)")
-            print(f"[CricketCalculator]   Actual: {actual_result}, Predicted: {pred_val_str}, Diff: {diff}")
+            print(f"[CricketCalculator]   Actual losing team score: {actual_result}, Predicted losing team score: {pred_val_str}, Diff: {diff}")
             print(f"[CricketCalculator]   Base: {base} (120 - {diff}*1.2)")
             print(f"[CricketCalculator]   Near 5 bonus: {near_5}")
             print(f"[CricketCalculator]   Near 12 bonus: {near_12}")
             print(f"[CricketCalculator]   Exact bonus: {exact}")
             print(f"[CricketCalculator]   Total: {base + near_5 + near_12 + exact}")
-            
+
             return {
                 'points': base + near_5 + near_12 + exact,
                 'diff': f"{diff} runs",
