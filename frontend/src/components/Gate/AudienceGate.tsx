@@ -26,7 +26,15 @@ interface ActiveTournament {
 
 const getDbRoot = () => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('firebase_mode') === 'prod' ? 'prod' : 'local';
+    const storedMode = localStorage.getItem('firebase_mode');
+    if (storedMode) {
+      return storedMode;
+    }
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+    const defaultMode = isLocal ? 'local' : 'prod';
+    localStorage.setItem('firebase_mode', defaultMode);
+    return defaultMode;
   }
   return 'local';
 };

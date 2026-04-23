@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { onValue, get } from 'firebase/database';
-import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode } from './firebase/services';
+import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import TournamentBrowser from './components/Tournament/TournamentBrowser';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
 import UserAuth from './components/Auth/UserAuth';
+import PasscodeViewer from './components/Auth/PasscodeViewer';
 import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
 import './styles/App.css';
 
@@ -27,6 +28,7 @@ function AppContent() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [passkey, setPasskey] = useState<string | null>(null);
   const [showPasskey, setShowPasskey] = useState(false);
+  const [showPasscodeViewer, setShowPasscodeViewer] = useState(false);
   const [teamChangeCount, setTeamChangeCount] = useState(0);
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
     return (localStorage.getItem('firebase_mode') as 'local' | 'prod') || 'local';
@@ -39,15 +41,49 @@ function AppContent() {
     return next;
   });
 
-  // Load auth state from localStorage on mount
+  // Load auth state from localStorage on mount and check for login URL parameter
   useEffect(() => {
-    const storedUsername = localStorage.getItem('ovr_username');
-    const storedIsAuthed = localStorage.getItem('ovr_is_authed');
-    if (storedUsername && storedIsAuthed === 'true') {
-      console.log('[App] Found auth state in localStorage:', storedUsername);
-      setUsername(storedUsername);
-      setIsAuthed(true);
-    }
+    const checkLoginParam = async () => {
+      // Check for ?login=username:passkey parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const loginParam = urlParams.get('login');
+      
+      if (loginParam) {
+        const [username, passkey] = loginParam.split(':');
+        if (username && passkey) {
+          console.log('[App] Found login parameter, attempting auto-login for:', username);
+          try {
+            const result = await verifyUserPasskey(username, passkey);
+            if (result.valid) {
+              console.log('[App] Auto-login successful for:', username);
+              localStorage.setItem('ovr_username', username);
+              localStorage.setItem('ovr_is_authed', 'true');
+              localStorage.setItem('ovr_client_id', result.clientId);
+              setUsername(username);
+              setIsAuthed(true);
+              // Clear the URL parameter
+              window.history.replaceState({}, '', window.location.pathname);
+              return;
+            } else {
+              console.log('[App] Auto-login failed: invalid passkey');
+            }
+          } catch (error) {
+            console.error('[App] Auto-login error:', error);
+          }
+        }
+      }
+      
+      // Fall back to localStorage auth state
+      const storedUsername = localStorage.getItem('ovr_username');
+      const storedIsAuthed = localStorage.getItem('ovr_is_authed');
+      if (storedUsername && storedIsAuthed === 'true') {
+        console.log('[App] Found auth state in localStorage:', storedUsername);
+        setUsername(storedUsername);
+        setIsAuthed(true);
+      }
+    };
+    
+    checkLoginParam();
   }, []);
 
   // Load user profile (username, passkey, favorite team, and change count) from Firebase
@@ -411,6 +447,13 @@ function AppContent() {
               🔄
             </button>
             <button 
+              className="passkey-view-btn"
+              onClick={() => setShowPasscodeViewer(true)}
+              title="View passcode with QR and share link"
+            >
+              View Passcode
+            </button>
+            <button 
               className="firebase-mode-btn"
               onClick={handleToggleFirebaseMode}
               title={`Switch to ${firebaseMode === 'local' ? 'PROD' : 'LOCAL'} mode`}
@@ -423,6 +466,14 @@ function AppContent() {
             </button>
           </div>
         </div>
+      )}
+
+      {showPasscodeViewer && username && passkey && (
+        <PasscodeViewer
+          username={username}
+          passkey={passkey}
+          onClose={() => setShowPasscodeViewer(false)}
+        />
       )}
     </main>
   );

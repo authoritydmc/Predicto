@@ -1,10 +1,23 @@
 import { ref, push, set, update, serverTimestamp, get } from 'firebase/database';
 import { rtdb } from './config';
 
-// Get Firebase mode from localStorage, default to local
+// Get Firebase mode from localStorage, default based on URL
 const getDbRoot = () => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('firebase_mode') === 'prod' ? 'prod' : 'local';
+    // Check if localStorage has a value set
+    const storedMode = localStorage.getItem('firebase_mode');
+    if (storedMode) {
+      return storedMode;
+    }
+    
+    // Default based on URL: localhost/127.0.0.1 = local, else = prod
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+    const defaultMode = isLocal ? 'local' : 'prod';
+    
+    // Set the default in localStorage for future use
+    localStorage.setItem('firebase_mode', defaultMode);
+    return defaultMode;
   }
   return 'local';
 };

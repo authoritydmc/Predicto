@@ -37,8 +37,8 @@ export const getDbRoot = () => {
   
   // Fallback to URL params (for backwards compatibility)
   const urlParams = new URLSearchParams(window.location.search);
-  const mode = urlParams.get("appMode") || "prod";
-  return mode === "local" ? "local" : "prod";
+  const mode = urlParams.get("appMode") || "local";
+  return mode === "prod" ? "prod" : "local";
 };
 
 /**
