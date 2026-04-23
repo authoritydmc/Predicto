@@ -129,10 +129,13 @@ def main():
                 print(f"[Cricket Calculator] Skipping match {match_id}: already reconciled")
                 continue
             
-            # Skip if match is not completed
+            # Skip if match is not completed AND has no actual results
             status = meta.get('status', '')
-            if status not in ['done', 'completed']:
-                print(f"[Cricket Calculator] Skipping match {match_id}: not completed (status: {status})")
+            has_actual_1st = meta.get('actual1stInningsScore') is not None
+            has_actual_2nd = meta.get('actual2ndInningsResult') is not None
+            
+            if status not in ['done', 'completed'] and not (has_actual_1st or has_actual_2nd):
+                print(f"[Cricket Calculator] Skipping match {match_id}: not completed and no actual results (status: {status})")
                 continue
             
             print(f"[Cricket Calculator] {'=' * 60}")

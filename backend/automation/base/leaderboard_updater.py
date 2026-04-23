@@ -32,7 +32,7 @@ class LeaderboardUpdater:
             Update result summary
         """
         # Get all matches in tournament
-        matches_path = f"{self.db_root}/{sport}/{tournament_id}/matches"
+        matches_path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches"
         matches_data = self.client.get(matches_path)
         
         if not matches_data:
@@ -45,7 +45,7 @@ class LeaderboardUpdater:
             if not isinstance(match_data, dict):
                 continue
             
-            predictions_path = f"{self.db_root}/{sport}/{tournament_id}/matches/{match_id}/predictions"
+            predictions_path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/predictions"
             predictions = self.client.get(predictions_path)
             
             if not predictions:
@@ -66,7 +66,7 @@ class LeaderboardUpdater:
         leaderboard = self._create_leaderboard(user_scores)
         
         # Update Firebase
-        leaderboard_path = f"{self.db_root}/{sport}/{tournament_id}/leaderboard"
+        leaderboard_path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/leaderboard"
         success = self.client.set(leaderboard_path, {
             'rankings': leaderboard,
             'updatedAt': self.client.get_timestamp(),

@@ -68,6 +68,7 @@ node_modules/
 # Firebase service account key (DO NOT COMMIT)
 firebase-service-account.json
 service-account.json
+firebase.cert.json
 *.json
 
 # Python bytecode

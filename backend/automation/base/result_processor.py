@@ -73,7 +73,7 @@ class ResultProcessor:
         # Only mark match as reconciled on full processing
         if innings == 'both':
             self.client.update(
-                f"{sport}/{tournament_id}/matches/{match_id}/meta",
+                f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/meta",
                 {
                     'reconciled': True,
                     'reconciledAt': self.client.get_timestamp(),
@@ -208,7 +208,7 @@ class ResultProcessor:
                                          penalty: int, p1_result: Dict[str, Any],
                                          p2_result: Dict[str, Any], innings: str = 'both') -> bool:
         """Update prediction with reconciliation data"""
-        path = f"{self.db_root}/{sport}/{tournament_id}/matches/{match_id}/predictions/{username}"
+        path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/predictions/{username}"
         data = self.client.get(path)
         
         if not data:

@@ -32,7 +32,7 @@ class PredictionFetcher:
         Returns:
             List of unreconciled predictions
         """
-        path = f"{self.db_root}/{sport}/{tournament_id}/matches/{match_id}/predictions"
+        path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/predictions"
         data = self.client.get(path)
         
         if not data:
@@ -77,7 +77,7 @@ class PredictionFetcher:
         Returns:
             Match metadata dict or None
         """
-        path = f"{self.db_root}/{sport}/{tournament_id}/matches/{match_id}/meta"
+        path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/meta"
         return self.client.get(path)
     
     def get_live_score(self, sport: str, tournament_id: str, match_id: str) -> Optional[Dict[str, Any]]:
@@ -92,7 +92,7 @@ class PredictionFetcher:
         Returns:
             Live score dict or None
         """
-        path = f"{self.db_root}/{sport}/{tournament_id}/matches/{match_id}/live_score"
+        path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/live_score"
         return self.client.get(path)
     
     def get_innings_history(self, sport: str, tournament_id: str, match_id: str, innings: str) -> Optional[Dict[str, Any]]:
@@ -108,5 +108,5 @@ class PredictionFetcher:
         Returns:
             Innings history dict or None
         """
-        path = f"{self.db_root}/{sport}/{tournament_id}/matches/{match_id}/innings_history/{innings}"
+        path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/innings_history/{innings}"
         return self.client.get(path)

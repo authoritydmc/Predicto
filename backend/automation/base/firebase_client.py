@@ -39,27 +39,26 @@ class FirebaseClient:
         
         # Initialize Firebase Admin SDK if not already initialized
         if not firebase_admin._apps:
-            # Try to use service account from environment variable
-            service_account_path = os.environ.get('FIREBASE_SERVICE_ACCOUNT_KEY')
+            # Try to use service account from firebase.cert.json (project root)
+            service_account_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'firebase.cert.json')
             
-            if service_account_path and os.path.exists(service_account_path):
+            if os.path.exists(service_account_path):
                 # Use service account key file
                 cred = credentials.Certificate(service_account_path)
                 print(f"[FirebaseClient] Using service account key: {service_account_path}")
+                firebase_admin.initialize_app(cred, {
+                    'databaseURL': self.config['databaseURL']
+                })
+                self.use_rest_api = False
             else:
                 # Fall back to REST API with API key (for development without service account)
                 print("[FirebaseClient] WARNING: Service account key not found, using REST API fallback")
-                print("[FirebaseClient] For production, set FIREBASE_SERVICE_ACCOUNT_KEY environment variable")
+                print("[FirebaseClient] For production, add firebase.cert.json to project root")
                 self.use_rest_api = True
                 self.base_url = self.config['databaseURL']
                 import requests
                 self.session = requests.Session()
                 return
-            
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': self.config['databaseURL']
-            })
-            self.use_rest_api = False
         
         self.db = db
     
