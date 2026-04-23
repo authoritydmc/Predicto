@@ -126,18 +126,20 @@ export const savePrediction = async (sport: string, id: string, clientId: string
     console.log('[Firebase] Saving prediction:', { sport, id, clientId, matchId, payload });
     // Use username as the key instead of clientId
     const username = payload.name || clientId;
-    const pRef = matchId 
+    const pRef = matchId
       ? matchRef(sport, id, matchId, "predictions", username)
       : predictionsRef(sport, id, username);
-    
+
     // Get existing predictions array
     const snap = await get(pRef);
     const existingData = snap.val();
-    
+
     const newPrediction = {
       ...payload,
       userId: clientId, // Keep clientId for reference
       predictionId: Date.now(), // Unique ID for this prediction
+      predictionType: payload.predictionType || 'live_first_innings', // Default if not provided
+      timestamp: Date.now(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       // Reconciliation metadata
@@ -146,7 +148,7 @@ export const savePrediction = async (sport: string, id: string, clientId: string
       penaltyScore: null,
       score: null
     };
-    
+
     if (existingData && Array.isArray(existingData.predictions)) {
       // Append to existing array
       existingData.predictions.push(newPrediction);
@@ -170,7 +172,7 @@ export const savePrediction = async (sport: string, id: string, clientId: string
         updatedAt: serverTimestamp()
       });
     }
-    
+
     console.log('[Firebase] Prediction saved successfully');
   } catch (error) {
     console.error('[Firebase] Error saving prediction:', error);
@@ -198,11 +200,11 @@ export const reconcilePrediction = async (sport: string, id: string, username: s
     const pRef = matchRef(sport, id, matchId, "predictions", username);
     const snap = await get(pRef);
     const userData = snap.val();
-    
+
     if (userData && Array.isArray(userData.predictions)) {
       // Find and update the specific prediction
       const predictionIndex = userData.predictions.findIndex((p: any) => p.predictionId === predictionId);
-      
+
       if (predictionIndex !== -1) {
         userData.predictions[predictionIndex].reconciled = true;
         userData.predictions[predictionIndex].reconciledAt = serverTimestamp();
@@ -210,12 +212,12 @@ export const reconcilePrediction = async (sport: string, id: string, username: s
         if (penaltyScore !== undefined) {
           userData.predictions[predictionIndex].penaltyScore = penaltyScore;
         }
-        
+
         await update(pRef, {
           predictions: userData.predictions,
           updatedAt: serverTimestamp()
         });
-        
+
         console.log('[Firebase] Prediction reconciled successfully');
       } else {
         console.warn('[Firebase] Prediction not found for reconciliation:', predictionId);
@@ -223,6 +225,30 @@ export const reconcilePrediction = async (sport: string, id: string, username: s
     }
   } catch (error) {
     console.error('[Firebase] Error reconciling prediction:', error);
+    throw error;
+  }
+};
+
+export const applyPenalty = async (sport: string, id: string, username: string, matchId: string, penalty: number, reasonText: string, updatedBy: string) => {
+  try {
+    console.log('[Firebase] Applying penalty:', { sport, id, username, matchId, penalty, reasonText, updatedBy });
+    const pRef = matchRef(sport, id, matchId, "predictions", username);
+
+    const penaltyData = {
+      penalty,
+      reasonText,
+      timestamp: Date.now(),
+      updatedBy
+    };
+
+    await update(pRef, {
+      penalty: penaltyData,
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('[Firebase] Penalty applied successfully');
+  } catch (error) {
+    console.error('[Firebase] Error applying penalty:', error);
     throw error;
   }
 };
