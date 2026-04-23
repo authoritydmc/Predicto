@@ -182,6 +182,14 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
             <button type="submit" className="primary-btn" disabled={loading}>
               {loading ? 'Checking...' : 'Continue'}
             </button>
+            <button
+              type="button"
+              onClick={handleStartQRScan}
+              className="secondary-btn"
+              style={{ marginTop: '8px' }}
+            >
+              📷 Scan Login QR
+            </button>
           </form>
         )}
 

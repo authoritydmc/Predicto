@@ -158,7 +158,22 @@ export const checkUsernameAvailability = async (username: string): Promise<boole
     console.log('[Firebase] Checking username availability:', username);
     const snap = await get(usernameRef(username));
     const exists = snap.exists();
-    console.log('[Firebase] Username exists:', exists);
+    console.log('[Firebase] Username exists in usernames node:', exists);
+
+    // Fallback: check if username exists in users node (for legacy users without username mapping)
+    if (!exists) {
+      const usersIndexRef = ref(rtdb, `${getDbRoot()}/users`);
+      const usersSnap = await get(usersIndexRef);
+      const usersData = usersSnap.val();
+      if (usersData) {
+        const found = Object.values(usersData).some((user: any) =>
+          user.username?.toLowerCase() === username.toLowerCase()
+        );
+        console.log('[Firebase] Username exists in users node (fallback):', found);
+        return !found;
+      }
+    }
+
     return !exists;
   } catch (error) {
     console.error('[Firebase] Error checking username availability:', error);
