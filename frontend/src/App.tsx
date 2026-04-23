@@ -71,8 +71,13 @@ function AppLayout() {
             const result = await verifyUserPasskey(username, passkey);
             if (result.valid) {
               console.log('[App] Auto-login successful for:', username);
-              localStorage.setItem('ovr_client_id', result.clientId);
-              // Firebase will handle the rest via onValue listener
+
+              // Write to users/{clientId} to trigger Firebase listener
+              await set(userRef(clientId), {
+                username: username,
+              });
+
+              // Clear URL param
               window.history.replaceState({}, '', window.location.pathname);
             }
           } catch (error) {
@@ -83,7 +88,7 @@ function AppLayout() {
     };
 
     checkLoginParam();
-  }, []);
+  }, [clientId]);
 
   // Load user profile from Firebase
   useEffect(() => {
