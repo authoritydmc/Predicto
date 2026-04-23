@@ -322,7 +322,25 @@ function AppContent() {
                  </span>
                )}
             </div>
-            <span id="matchBadge">{activeMatch ? `Active: ${activeMatch}` : 'Waiting for host...'}</span>
+            {meta?.teamA && meta?.teamB ? (
+              <div className="match-teams-display">
+                <div className="match-team">
+                  {getTeamLogoUrl(meta.teamA) && (
+                    <img src={getTeamLogoUrl(meta.teamA)!} alt={meta.teamA} className="match-team-logo" />
+                  )}
+                  <span>{meta.teamA}</span>
+                </div>
+                <span className="vs-divider">vs</span>
+                <div className="match-team">
+                  {getTeamLogoUrl(meta.teamB) && (
+                    <img src={getTeamLogoUrl(meta.teamB)!} alt={meta.teamB} className="match-team-logo" />
+                  )}
+                  <span>{meta.teamB}</span>
+                </div>
+              </div>
+            ) : (
+              <span id="matchBadge">{activeMatch ? `Active: ${activeMatch}` : 'Waiting for host...'}</span>
+            )}
           </div>
         </section>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { onValue, ref, get } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
+import { getTeamLogoUrl } from '../../utils/teamLogos';
 
 interface TournamentBrowserProps {
   tournamentCode: string;
@@ -26,6 +27,16 @@ interface Match {
   };
 }
 
+interface ScheduledMatch {
+  matchId: string;
+  matchTitle: string;
+  teamA: string;
+  teamB: string;
+  date: string;
+  venue: string;
+  status: string;
+}
+
 const getDbRoot = () => {
   if (typeof window !== 'undefined') {
     return localStorage.getItem('firebase_mode') === 'prod' ? 'prod' : 'local';
@@ -49,6 +60,7 @@ const getSportIcon = (sport: string) => {
 export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack }: TournamentBrowserProps) {
   const [tournamentInfo, setTournamentInfo] = useState<TournamentInfo | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [schedule, setSchedule] = useState<ScheduledMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,13 +90,29 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
 
         setTournamentInfo(tournamentData);
 
-        // Fetch all matches
-        const matchesPath = `${dbRoot}/tournaments/${tournamentData.sport}/${tournamentData.tournamentId}/matches`;
-        console.log('[TournamentBrowser] Matches path:', matchesPath);
+        // Fetch schedule and live matches
+        const tournamentPath = `${dbRoot}/tournaments/${tournamentData.sport}/${tournamentData.tournamentId}`;
+        console.log('[TournamentBrowser] Tournament path:', tournamentPath);
         
-        const matchesRef = ref(rtdb, matchesPath);
-        
-        const unsub = onValue(matchesRef, (snap) => {
+        // Fetch schedule
+        const scheduleRef = ref(rtdb, `${tournamentPath}/schedule`);
+        const scheduleUnsub = onValue(scheduleRef, (snap) => {
+          const scheduleData = snap.val();
+          console.log('[TournamentBrowser] Schedule data:', scheduleData);
+          
+          if (scheduleData && Array.isArray(scheduleData)) {
+            setSchedule(scheduleData);
+          } else {
+            console.log('[TournamentBrowser] No schedule found');
+            setSchedule([]);
+          }
+        }, (err) => {
+          console.error('[TournamentBrowser] Error fetching schedule:', err);
+        });
+
+        // Fetch live matches (from matches folder)
+        const matchesRef = ref(rtdb, `${tournamentPath}/matches`);
+        const matchesUnsub = onValue(matchesRef, (snap) => {
           const matchesData = snap.val();
           console.log('[TournamentBrowser] Matches data:', matchesData);
           
@@ -106,7 +134,10 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
           setLoading(false);
         });
 
-        return () => unsub();
+        return () => {
+          scheduleUnsub();
+          matchesUnsub();
+        };
       } catch (err) {
         console.error('[TournamentBrowser] Error loading tournament:', err);
         setError('Failed to load tournament: ' + (err as Error).message);
@@ -120,35 +151,39 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
   const categorizeMatches = () => {
     const now = Date.now();
     const live: Match[] = [];
-    const upcoming: Match[] = [];
-    const previous: Match[] = [];
+    const upcoming: ScheduledMatch[] = [];
+    const previous: ScheduledMatch[] = [];
 
+    // Live matches come from the matches folder (actual created matches)
     matches.forEach(match => {
       const status = match.meta?.status || 'scheduled';
-      const matchDate = match.meta?.date ? new Date(match.meta.date).getTime() : 0;
-
       if (status === 'live') {
         live.push(match);
-      } else if (status === 'done') {
-        previous.push(match);
-      } else if (matchDate > now) {
-        upcoming.push(match);
+      }
+    });
+
+    // Upcoming and past matches come from schedule
+    schedule.forEach(scheduledMatch => {
+      const matchDate = new Date(scheduledMatch.date).getTime();
+      
+      if (matchDate > now) {
+        upcoming.push(scheduledMatch);
       } else {
-        previous.push(match);
+        previous.push(scheduledMatch);
       }
     });
 
     // Sort upcoming by date (soonest first)
     upcoming.sort((a, b) => {
-      const dateA = a.meta?.date ? new Date(a.meta.date).getTime() : 0;
-      const dateB = b.meta?.date ? new Date(b.meta.date).getTime() : 0;
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
       return dateA - dateB;
     });
 
     // Sort previous by date (most recent first)
     previous.sort((a, b) => {
-      const dateA = a.meta?.date ? new Date(a.meta.date).getTime() : 0;
-      const dateB = b.meta?.date ? new Date(b.meta.date).getTime() : 0;
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
       return dateB - dateA;
     });
 
@@ -161,6 +196,25 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
     if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getTimeUntil = (dateStr: string) => {
+    const now = Date.now();
+    const matchDate = new Date(dateStr).getTime();
+    const diff = matchDate - now;
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days} day${days > 1 ? 's' : ''}`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours > 1 ? 's' : ''}`;
+    } else if (minutes > 0) {
+      return `${minutes} min${minutes > 1 ? 's' : ''}`;
+    }
+    return 'Starting soon';
   };
 
   const getShareUrl = (matchId: string) => {
@@ -240,10 +294,17 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
           </div>
           <div className="match-grid">
             {live.map((match) => (
-              <button
+              <div
                 key={match.matchId}
                 onClick={() => onJoinMatch(match.matchId)}
                 className="match-card live"
+                role="button"
+                tabIndex={0}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    onJoinMatch(match.matchId);
+                  }
+                }}
               >
                 <div className="match-card-header">
                   <span className="match-status live">LIVE</span>
@@ -258,10 +319,32 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
                 <div className="match-card-content">
                   <h4 className="match-title">{match.meta?.matchTitle || match.matchId}</h4>
                   {match.meta?.teamA && match.meta?.teamB && (
-                    <p className="match-teams">{match.meta.teamA} vs {match.meta.teamB}</p>
+                    <div className="match-teams-with-logos">
+                      <div className="team-logo-container">
+                        {getTeamLogoUrl(match.meta.teamA) && (
+                          <img 
+                            src={getTeamLogoUrl(match.meta.teamA)!} 
+                            alt={match.meta.teamA}
+                            className="team-logo"
+                          />
+                        )}
+                        <span>{match.meta.teamA}</span>
+                      </div>
+                      <span className="vs-divider">vs</span>
+                      <div className="team-logo-container">
+                        {getTeamLogoUrl(match.meta.teamB) && (
+                          <img 
+                            src={getTeamLogoUrl(match.meta.teamB)!} 
+                            alt={match.meta.teamB}
+                            className="team-logo"
+                          />
+                        )}
+                        <span>{match.meta.teamB}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -276,13 +359,20 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
           </div>
           <div className="match-grid">
             {upcoming.map((match) => (
-              <button
+              <div
                 key={match.matchId}
                 onClick={() => onJoinMatch(match.matchId)}
                 className="match-card"
+                role="button"
+                tabIndex={0}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    onJoinMatch(match.matchId);
+                  }
+                }}
               >
                 <div className="match-card-header">
-                  <span className="match-date">{formatDate(match.meta?.date)}</span>
+                  <span className="match-countdown">{getTimeUntil(match.date)}</span>
                   <button 
                     onClick={(e) => copyShareUrl(match.matchId, e)}
                     className="share-btn"
@@ -292,12 +382,37 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
                   </button>
                 </div>
                 <div className="match-card-content">
-                  <h4 className="match-title">{match.meta?.matchTitle || match.matchId}</h4>
-                  {match.meta?.teamA && match.meta?.teamB && (
-                    <p className="match-teams">{match.meta.teamA} vs {match.meta.teamB}</p>
+                  <h4 className="match-title">{match.matchTitle || match.matchId}</h4>
+                  {match.teamA && match.teamB && (
+                    <div className="match-teams-with-logos">
+                      <div className="team-logo-container">
+                        {getTeamLogoUrl(match.teamA) && (
+                          <img 
+                            src={getTeamLogoUrl(match.teamA)!} 
+                            alt={match.teamA}
+                            className="team-logo"
+                          />
+                        )}
+                        <span>{match.teamA}</span>
+                      </div>
+                      <span className="vs-divider">vs</span>
+                      <div className="team-logo-container">
+                        {getTeamLogoUrl(match.teamB) && (
+                          <img 
+                            src={getTeamLogoUrl(match.teamB)!} 
+                            alt={match.teamB}
+                            className="team-logo"
+                          />
+                        )}
+                        <span>{match.teamB}</span>
+                      </div>
+                    </div>
+                  )}
+                  {match.venue && (
+                    <p className="match-venue">{match.venue}</p>
                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -307,19 +422,26 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
       {previous.length > 0 && (
         <div className="tournament-section">
           <div className="section-header">
-            <h3 className="section-title">Completed</h3>
+            <h3 className="section-title">Past</h3>
             <span className="section-count">{previous.length}</span>
           </div>
           <div className="match-grid">
             {previous.map((match) => (
-              <button
+              <div
                 key={match.matchId}
                 onClick={() => onJoinMatch(match.matchId)}
                 className="match-card completed"
+                role="button"
+                tabIndex={0}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    onJoinMatch(match.matchId);
+                  }
+                }}
               >
                 <div className="match-card-header">
                   <span className="match-status done">DONE</span>
-                  <span className="match-date">{formatDate(match.meta?.date)}</span>
+                  <span className="match-date">{formatDate(match.date)}</span>
                   <button 
                     onClick={(e) => copyShareUrl(match.matchId, e)}
                     className="share-btn"
@@ -329,12 +451,15 @@ export default function TournamentBrowser({ tournamentCode, onJoinMatch, onBack 
                   </button>
                 </div>
                 <div className="match-card-content">
-                  <h4 className="match-title">{match.meta?.matchTitle || match.matchId}</h4>
-                  {match.meta?.teamA && match.meta?.teamB && (
-                    <p className="match-teams">{match.meta.teamA} vs {match.meta.teamB}</p>
+                  <h4 className="match-title">{match.matchTitle || match.matchId}</h4>
+                  {match.teamA && match.teamB && (
+                    <p className="match-teams">{match.teamA} vs {match.teamB}</p>
+                  )}
+                  {match.venue && (
+                    <p className="match-venue">{match.venue}</p>
                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>

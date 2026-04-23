@@ -26,6 +26,82 @@
   --team-gradient: linear-gradient(135deg, var(--team-a), var(--team-a-alt), var(--team-b-alt), var(--team-b));
 }
 
+.firebase-mode-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Space Grotesk', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.mode-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-btn.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mode-btn-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.mode-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mode-code {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: lowercase;
+}
+
+.mode-btn.active .mode-code {
+  color: var(--muted);
+}
+
+.mode-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.mode-btn.active .mode-indicator {
+  opacity: 1;
+  background: var(--system-green);
+  box-shadow: 0 0 8px var(--system-green);
+}
+
 * { box-sizing: border-box; }
 
 html, body {

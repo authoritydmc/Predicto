@@ -1286,27 +1286,40 @@ const ControlPanel: React.FC = () => {
               }}>
                 {fSport ? fSport.toUpperCase() : 'NO SPORT'}
               </span>
-              <button 
-                className={`cp-badge ${getDbRoot() === 'local' ? 'cp-badge-local' : 'cp-badge-prod'}`}
-                onClick={() => {
-                  const newMode = getDbRoot() === 'local' ? 'prod' : 'local';
-                  // Set localStorage for immediate effect
-                  localStorage.setItem('firebase_mode', newMode);
-                  // Call IPC to update backend and reload all windows
-                  // @ts-ignore
-                  window.overlayDesktop.setFirebaseMode(newMode);
-                }}
-                style={{ 
-                  background: getDbRoot() === 'local' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                  color: getDbRoot() === 'local' ? '#818cf8' : '#34d399',
-                  border: getDbRoot() === 'local' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                title={`Switch to ${getDbRoot() === 'local' ? 'PROD' : 'LOCAL'} mode`}
-              >
-                {getDbRoot().toUpperCase()}
-              </button>
+              <div className="firebase-mode-toggle">
+                <button 
+                  className={`mode-btn ${getDbRoot() === 'local' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (getDbRoot() !== 'local') {
+                      localStorage.setItem('firebase_mode', 'local');
+                      // @ts-ignore
+                      window.overlayDesktop.setFirebaseMode('local');
+                    }
+                  }}
+                >
+                  <div className="mode-btn-content">
+                    <span className="mode-name">Local</span>
+                    <span className="mode-code">dev</span>
+                  </div>
+                  <span className="mode-indicator"></span>
+                </button>
+                <button 
+                  className={`mode-btn ${getDbRoot() === 'prod' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (getDbRoot() !== 'prod') {
+                      localStorage.setItem('firebase_mode', 'prod');
+                      // @ts-ignore
+                      window.overlayDesktop.setFirebaseMode('prod');
+                    }
+                  }}
+                >
+                  <div className="mode-btn-content">
+                    <span className="mode-name">Production</span>
+                    <span className="mode-code">prod</span>
+                  </div>
+                  <span className="mode-indicator"></span>
+                </button>
+              </div>
             </div>
             <h1>Control Panel</h1>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
