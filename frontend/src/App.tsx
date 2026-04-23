@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams, Outlet } from 'react-router-dom';
-import { onValue, get } from 'firebase/database';
+import { onValue, get, set } from 'firebase/database';
 import { matchDiscoveryRef, matchMetaRef, userRef, usernameDataRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey, generatePasskey, ensureUsernameDataExists } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import AppHeader from './components/Layout/AppHeader';
@@ -154,9 +154,14 @@ function AppLayout() {
     return () => userUnsub();
   }, [clientId]);
 
-  const handleAuthSuccess = (authUsername: string, authClientId: string) => {
+  const handleAuthSuccess = async (authUsername: string, authClientId: string) => {
     console.log('[App] Auth successful:', { authUsername, authClientId });
-    localStorage.setItem('ovr_client_id', authClientId);
+
+    // Update users/{clientId} with username reference
+    await set(userRef(clientId), {
+      username: authUsername,
+    });
+
     // Firebase will handle the rest via onValue listener
   };
 
