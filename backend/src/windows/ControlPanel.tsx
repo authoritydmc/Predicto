@@ -261,7 +261,9 @@ const ControlPanel: React.FC = () => {
   const [fMatchTitle, setFMatchTitle] = useState('');
   const [fTeamA, setFTeamA] = useState('');
   const [fTeamB, setFTeamB] = useState('');
-  const [fBattingTeam, setFBattingTeam] = useState<'home' | 'away'>('home');
+  const [fTossWinner, setFTossWinner] = useState<'teamA' | 'teamB' | null>(null);
+  const [fTossDecision, setFTossDecision] = useState<'bat' | 'bowl' | null>(null);
+  const [fBattingTeam, setFBattingTeam] = useState<'teamA' | 'teamB'>('teamA');
   const [fInnings, setFInnings] = useState<'1' | '2'>('1');
   const [fAllowReprediction, setFAllowReprediction] = useState(false);
   const [fAutomationPaused, setFAutomationPaused] = useState(false);
@@ -289,7 +291,7 @@ const ControlPanel: React.FC = () => {
   const [scoreTeamBWickets, setScoreTeamBWickets] = useState('');
   const [scoreTeamBOvers, setScoreTeamBOvers] = useState('');
   const [scoreMatchStatus, setScoreMatchStatus] = useState<'live' | 'completed' | 'scheduled'>('live');
-  const [scoreSource, setScoreSource] = useState<'manual' | 'scraper' | 'api'>('manual');
+  const [scoreSource, setScoreSource] = useState<'manual' | 'scraper' | 'api' | 'prediction'>('manual');
   const [scraperRunning, setScraperRunning] = useState(false);
   const [scraperStatus, setScraperStatus] = useState('');
   const [scraperOrder, setScraperOrder] = useState('cricbuzz,google,cricapi');
@@ -584,9 +586,12 @@ const ControlPanel: React.FC = () => {
           setFAutomationPaused(Boolean(merged.automationPaused));
           setGoogleUrl(merged.googleMatchUrl || '');
           setShowWinProb(Boolean(merged.showWinProb));
-          if (!merged.disableScoreA && merged.disableScoreB) setFBattingTeam('home');
-          else if (!merged.disableScoreB && merged.disableScoreA) setFBattingTeam('away');
+          if (!merged.disableScoreA && merged.disableScoreB) setFBattingTeam('teamA');
+          else if (!merged.disableScoreB && merged.disableScoreA) setFBattingTeam('teamB');
           setFInnings(merged.secondInnings ? '2' : '1');
+          // Load toss information
+          setFTossWinner(merged.tossWinner || null);
+          setFTossDecision(merged.tossDecision || null);
         });
       });
 
@@ -622,7 +627,7 @@ const ControlPanel: React.FC = () => {
     const tA = fTeamA || 'Team A'; const tB = fTeamB || 'Team B';
     if (meta.disableScoreA && !meta.disableScoreB) return tB;
     if (meta.disableScoreB && !meta.disableScoreA) return tA;
-    return fBattingTeam === 'home' ? tB : tA;
+    return fBattingTeam === 'teamA' ? tB : tA;
   })();
 
   const getFormMeta = () => ({
@@ -630,8 +635,8 @@ const ControlPanel: React.FC = () => {
     teamA: fTeamA,
     teamB: fTeamB,
     allowReprediction: fAllowReprediction,
-    disableScoreA: fBattingTeam === 'away',
-    disableScoreB: fBattingTeam === 'home',
+    disableScoreA: fBattingTeam === 'teamB',
+    disableScoreB: fBattingTeam === 'teamA',
     secondInnings: is2nd,
     predictionSort: meta.predictionSort || 'newest',
     predictionsPaused: Boolean(meta.predictionsPaused),
@@ -909,7 +914,7 @@ const ControlPanel: React.FC = () => {
       
       // 2. Save match meta
       if (isFirebaseConfigured && db) {
-        await update(matchMetaRef(fSport, tournamentId, mCode), {
+        const metaUpdate: any = {
           matchTitle: fMatchTitle,
           teamA: fTeamA,
           teamB: fTeamB,
@@ -919,8 +924,20 @@ const ControlPanel: React.FC = () => {
           automationPaused: fAutomationPaused,
           status: 'live',
           createdAt: Date.now(),
-          updatedAt: Date.now()
-        });
+          updatedAt: Date.now(),
+          disableScoreA: fBattingTeam === 'teamB',
+          disableScoreB: fBattingTeam === 'teamA',
+        };
+        
+        // Add toss information if provided
+        if (fTossWinner) {
+          metaUpdate.tossWinner = fTossWinner;
+        }
+        if (fTossDecision) {
+          metaUpdate.tossDecision = fTossDecision;
+        }
+        
+        await update(matchMetaRef(fSport, tournamentId, mCode), metaUpdate);
       }
       
       // 3. Update local settings
@@ -962,15 +979,38 @@ const ControlPanel: React.FC = () => {
           runs: parseInt(scoreTeamARuns) || 0,
           wickets: parseInt(scoreTeamAWickets) || 0,
           overs: parseFloat(scoreTeamAOvers) || 0,
-          battingTeam: fBattingTeam === 'home'
+          battingTeam: true
         };
         scoreData.teamB = {
           runs: parseInt(scoreTeamBRuns) || 0,
           wickets: parseInt(scoreTeamBWickets) || 0,
           overs: parseFloat(scoreTeamBOvers) || 0,
-          battingTeam: fBattingTeam === 'away'
+          battingTeam: false
         };
         scoreData.currentInnings = fInnings === '2' ? 2 : 1;
+        
+        // Set secondInningsStart if transitioning to 2nd innings
+        if (fInnings === '2' && (!liveScore || liveScore.currentInnings !== 2)) {
+          scoreData.secondInningsStart = Date.now();
+        }
+        
+        // Update match meta with batting team info and toss information
+        const metaUpdate: any = {
+          disableScoreA: fBattingTeam === 'teamB',
+          disableScoreB: fBattingTeam === 'teamA',
+          innings: fInnings,
+          battingTeam: fBattingTeam
+        };
+        
+        // Add toss information if provided
+        if (fTossWinner) {
+          metaUpdate.tossWinner = fTossWinner;
+        }
+        if (fTossDecision) {
+          metaUpdate.tossDecision = fTossDecision;
+        }
+        
+        await update(matchMetaRef(fSport, tournamentId, matchId), metaUpdate);
       } else if (fSport === 'football') {
         scoreData.teamA = {
           goals: parseInt(scoreTeamARuns) || 0,
@@ -1022,7 +1062,7 @@ const ControlPanel: React.FC = () => {
             setFInnings(result.data.currentInnings === 1 ? '1' : '2');
           }
           if (result.data.teamA.battingTeam !== undefined) {
-            setFBattingTeam(result.data.teamA.battingTeam ? 'home' : 'away');
+            setFBattingTeam(result.data.teamA.battingTeam ? 'teamA' : 'teamB');
           }
         } else if (fSport === 'football' && result.data.teamA && result.data.teamB) {
           setScoreTeamARuns(result.data.teamA.goals?.toString() || '');
@@ -1035,6 +1075,51 @@ const ControlPanel: React.FC = () => {
       } else {
         setScraperStatus(`Failed: ${result.error}`);
         console.error('[ControlPanel] Scraper error:', result);
+        
+        // Fallback: Try to use prediction data if scraper fails
+        if (fSport === 'cricket') {
+          try {
+            const predictionsSnap = await getOnce(matchPredictionsRef(fSport, tournamentId, matchId));
+            const predictions = predictionsSnap.val();
+            
+            if (predictions) {
+              // Handle new array structure or old object structure
+              const predictionsArray = Array.isArray(predictions.predictions) 
+                ? predictions.predictions 
+                : Object.values(predictions).filter((p: any) => p && typeof p === 'object');
+              
+              // Find a prediction that matches the current batting team
+              const battingTeam = fBattingTeam;
+              const relevantPrediction = predictionsArray.find((p: any) => {
+                if (meta?.status === 'scheduled') {
+                  // For scheduled matches, use the predicted batting first
+                  return p.predictedBattingFirst === battingTeam;
+                } else if (meta?.status === 'live') {
+                  // For live matches, determine batting first from disableScore flags
+                  const actualBattingFirst = meta?.disableScoreA === false ? 'teamA' : meta?.disableScoreB === false ? 'teamB' : null;
+                  return p.battingFirst === actualBattingFirst;
+                }
+                return false;
+              });
+              
+              if (relevantPrediction) {
+                const scoreStr = battingTeam === 'teamA' ? relevantPrediction.scoreA : relevantPrediction.scoreB;
+                if (scoreStr) {
+                  // Parse score string like "185/4"
+                  const parts = scoreStr.split('/');
+                  setScoreTeamARuns(battingTeam === 'teamA' ? parts[0] || '' : '');
+                  setScoreTeamAWickets(battingTeam === 'teamA' ? parts[1] || '' : '');
+                  setScoreTeamBRuns(battingTeam === 'teamB' ? parts[0] || '' : '');
+                  setScoreTeamBWickets(battingTeam === 'teamB' ? parts[1] || '' : '');
+                  setScraperStatus(`Using prediction data as fallback`);
+                  setScoreSource('prediction');
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[ControlPanel] Error loading prediction fallback:', e);
+          }
+        }
       }
     } catch (error) {
       setScraperStatus('Error running scraper');
@@ -1145,7 +1230,7 @@ const ControlPanel: React.FC = () => {
     }).find((m: any) => m?.date === todayStr);
     if (!match) { alert(`No matches for today (${todayStr}).`); return; }
     setFMatchTitle(match.titleStr); setFTeamA(match.home); setFTeamB(match.away);
-    setFBattingTeam('home'); setFInnings('1');
+    setFBattingTeam('teamA'); setFInnings('1');
     alert(`Loaded ${match.titleStr}. Click "Deploy Changes" to apply.`);
   };
 
@@ -2107,29 +2192,69 @@ const ControlPanel: React.FC = () => {
                         <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
                       </label>
                     </div>
-                    <div className="cp-form-row">
-                      <label>Batting Team (Active Predictions)</label>
-                      <div className="cp-radio-group">
-                        <div className="cp-radio-option">
-                          <input type="radio" id="battingA" name="battingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
-                          <label className="cp-radio-label" htmlFor="battingA">{fTeamA || 'Home Team'}</label>
+                    
+                    {/* Toss Information Section */}
+                    <div className="cp-section-header">
+                      <span>Toss Information</span>
+                    </div>
+                    <div className="cp-dual-row">
+                      <div className="cp-form-row">
+                        <label>Toss Winner</label>
+                        <div className="cp-radio-group">
+                          <div className="cp-radio-option">
+                            <input type="radio" id="tossWinnerA" name="tossWinner" value="teamA" checked={fTossWinner === 'teamA'} onChange={() => setFTossWinner('teamA')} />
+                            <label className="cp-radio-label" htmlFor="tossWinnerA">{fTeamA || 'Home Team'}</label>
+                          </div>
+                          <div className="cp-radio-option">
+                            <input type="radio" id="tossWinnerB" name="tossWinner" value="teamB" checked={fTossWinner === 'teamB'} onChange={() => setFTossWinner('teamB')} />
+                            <label className="cp-radio-label" htmlFor="tossWinnerB">{fTeamB || 'Away Team'}</label>
+                          </div>
                         </div>
-                        <div className="cp-radio-option">
-                          <input type="radio" id="battingB" name="battingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
-                          <label className="cp-radio-label" htmlFor="battingB">{fTeamB || 'Away Team'}</label>
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Toss Decision</label>
+                        <div className="cp-radio-group">
+                          <div className="cp-radio-option">
+                            <input type="radio" id="tossBat" name="tossDecision" value="bat" checked={fTossDecision === 'bat'} onChange={() => setFTossDecision('bat')} />
+                            <label className="cp-radio-label" htmlFor="tossBat">Bat First</label>
+                          </div>
+                          <div className="cp-radio-option">
+                            <input type="radio" id="tossBowl" name="tossDecision" value="bowl" checked={fTossDecision === 'bowl'} onChange={() => setFTossDecision('bowl')} />
+                            <label className="cp-radio-label" htmlFor="tossBowl">Bowl First</label>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div className="cp-form-row">
-                      <label>Current Innings</label>
-                      <div className="cp-radio-group">
-                        <div className="cp-radio-option">
-                          <input type="radio" id="innings1st" name="innings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
-                          <label className="cp-radio-label" htmlFor="innings1st">1st Innings</label>
+                    
+                    {/* Match Status Section */}
+                    <div className="cp-section-header">
+                      <span>Match Status</span>
+                    </div>
+                    <div className="cp-dual-row">
+                      <div className="cp-form-row">
+                        <label>Batting Team (Active Predictions)</label>
+                        <div className="cp-radio-group">
+                          <div className="cp-radio-option">
+                            <input type="radio" id="battingA" name="battingTeam" value="teamA" checked={fBattingTeam === 'teamA'} onChange={() => setFBattingTeam('teamA')} />
+                            <label className="cp-radio-label" htmlFor="battingA">{fTeamA || 'Home Team'}</label>
+                          </div>
+                          <div className="cp-radio-option">
+                            <input type="radio" id="battingB" name="battingTeam" value="teamB" checked={fBattingTeam === 'teamB'} onChange={() => setFBattingTeam('teamB')} />
+                            <label className="cp-radio-label" htmlFor="battingB">{fTeamB || 'Away Team'}</label>
+                          </div>
                         </div>
-                        <div className="cp-radio-option">
-                          <input type="radio" id="innings2nd" name="innings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
-                          <label className="cp-radio-label" htmlFor="innings2nd">2nd Innings</label>
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Current Innings</label>
+                        <div className="cp-radio-group">
+                          <div className="cp-radio-option">
+                            <input type="radio" id="innings1st" name="innings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
+                            <label className="cp-radio-label" htmlFor="innings1st">1st Innings</label>
+                          </div>
+                          <div className="cp-radio-option">
+                            <input type="radio" id="innings2nd" name="innings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
+                            <label className="cp-radio-label" htmlFor="innings2nd">2nd Innings</label>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2154,34 +2279,77 @@ const ControlPanel: React.FC = () => {
                       <option value="manual">Manual</option>
                       <option value="scraper">Scraper</option>
                       <option value="api">API</option>
+                      <option value="prediction">Prediction Fallback</option>
                     </select>
                   </div>
                   {fSport === 'cricket' && (
                     <>
                       <div className="cp-divider" style={{ margin: '12px 0' }} />
-                      <div className="cp-form-row">
-                        <label>Current Innings</label>
-                        <div className="cp-radio-group">
-                          <div className="cp-radio-option">
-                            <input type="radio" id="liveInnings1st" name="liveInnings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
-                            <label className="cp-radio-label" htmlFor="liveInnings1st">1st Innings</label>
+                      
+                      {/* Toss Information */}
+                      <div className="cp-section-header">
+                        <span>Toss Information</span>
+                      </div>
+                      <div className="cp-dual-row">
+                        <div className="cp-form-row">
+                          <label>Toss Winner</label>
+                          <div className="cp-radio-group">
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveTossWinnerA" name="liveTossWinner" value="teamA" checked={fTossWinner === 'teamA'} onChange={() => setFTossWinner('teamA')} />
+                              <label className="cp-radio-label" htmlFor="liveTossWinnerA">{fTeamA || 'Team A'}</label>
+                            </div>
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveTossWinnerB" name="liveTossWinner" value="teamB" checked={fTossWinner === 'teamB'} onChange={() => setFTossWinner('teamB')} />
+                              <label className="cp-radio-label" htmlFor="liveTossWinnerB">{fTeamB || 'Team B'}</label>
+                            </div>
                           </div>
-                          <div className="cp-radio-option">
-                            <input type="radio" id="liveInnings2nd" name="liveInnings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
-                            <label className="cp-radio-label" htmlFor="liveInnings2nd">2nd Innings</label>
+                        </div>
+                        <div className="cp-form-row">
+                          <label>Toss Decision</label>
+                          <div className="cp-radio-group">
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveTossBat" name="liveTossDecision" value="bat" checked={fTossDecision === 'bat'} onChange={() => setFTossDecision('bat')} />
+                              <label className="cp-radio-label" htmlFor="liveTossBat">Bat First</label>
+                            </div>
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveTossBowl" name="liveTossDecision" value="bowl" checked={fTossDecision === 'bowl'} onChange={() => setFTossDecision('bowl')} />
+                              <label className="cp-radio-label" htmlFor="liveTossBowl">Bowl First</label>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="cp-form-row">
-                        <label>Batting Team</label>
-                        <div className="cp-radio-group">
-                          <div className="cp-radio-option">
-                            <input type="radio" id="liveBattingA" name="liveBattingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
-                            <label className="cp-radio-label" htmlFor="liveBattingA">{fTeamA || 'Team A'}</label>
+                      
+                      <div className="cp-divider" style={{ margin: '12px 0' }} />
+                      
+                      {/* Match Status */}
+                      <div className="cp-section-header">
+                        <span>Match Status</span>
+                      </div>
+                      <div className="cp-dual-row">
+                        <div className="cp-form-row">
+                          <label>Current Innings</label>
+                          <div className="cp-radio-group">
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveInnings1st" name="liveInnings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
+                              <label className="cp-radio-label" htmlFor="liveInnings1st">1st Innings</label>
+                            </div>
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveInnings2nd" name="liveInnings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
+                              <label className="cp-radio-label" htmlFor="liveInnings2nd">2nd Innings</label>
+                            </div>
                           </div>
-                          <div className="cp-radio-option">
-                            <input type="radio" id="liveBattingB" name="liveBattingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
-                            <label className="cp-radio-label" htmlFor="liveBattingB">{fTeamB || 'Team B'}</label>
+                        </div>
+                        <div className="cp-form-row">
+                          <label>Batting Team</label>
+                          <div className="cp-radio-group">
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveBattingA" name="liveBattingTeam" value="teamA" checked={fBattingTeam === 'teamA'} onChange={() => setFBattingTeam('teamA')} />
+                              <label className="cp-radio-label" htmlFor="liveBattingA">{fTeamA || 'Team A'}</label>
+                            </div>
+                            <div className="cp-radio-option">
+                              <input type="radio" id="liveBattingB" name="liveBattingTeam" value="teamB" checked={fBattingTeam === 'teamB'} onChange={() => setFBattingTeam('teamB')} />
+                              <label className="cp-radio-label" htmlFor="liveBattingB">{fTeamB || 'Team B'}</label>
+                            </div>
                           </div>
                         </div>
                       </div>

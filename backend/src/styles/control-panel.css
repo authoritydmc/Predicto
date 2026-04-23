@@ -344,6 +344,19 @@ input[type=range]::-webkit-slider-thumb {
 /* ─── Divider ────────────────────────────────────────────────────────────────── */
 .cp-divider { height: 1px; background: var(--panel-border); }
 
+/* ─── Section Header ──────────────────────────────────────────────────────────── */
+.cp-section-header {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.cp-section-header span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ─── Panel Note ─────────────────────────────────────────────────────────────── */
 .cp-panel-note { font-size: 11px; color: var(--muted); margin-top: -4px; padding-left: 4px; margin-bottom: 0; }
 .cp-section-hint { font-size: 11px; color: rgba(255,255,255,.5); text-align: center; }

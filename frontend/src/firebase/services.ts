@@ -124,13 +124,53 @@ export const sendChatMessage = async (sport: string, id: string, payload: any, m
 export const savePrediction = async (sport: string, id: string, clientId: string, payload: any, matchId?: string) => {
   try {
     console.log('[Firebase] Saving prediction:', { sport, id, clientId, matchId, payload });
+    // Use username as the key instead of clientId
+    const username = payload.name || clientId;
     const pRef = matchId 
-      ? matchRef(sport, id, matchId, "predictions", clientId)
-      : predictionsRef(sport, id, clientId);
-    await set(pRef, {
+      ? matchRef(sport, id, matchId, "predictions", username)
+      : predictionsRef(sport, id, username);
+    
+    // Get existing predictions array
+    const snap = await get(pRef);
+    const existingData = snap.val();
+    
+    const newPrediction = {
       ...payload,
+      userId: clientId, // Keep clientId for reference
+      predictionId: Date.now(), // Unique ID for this prediction
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+      // Reconciliation metadata
+      reconciled: false,
+      reconciledAt: null,
+      penaltyScore: null,
+      score: null
+    };
+    
+    if (existingData && Array.isArray(existingData.predictions)) {
+      // Append to existing array
+      existingData.predictions.push(newPrediction);
+      existingData.latestPrediction = newPrediction;
+      existingData.predictionCount = existingData.predictions.length;
+      await update(pRef, {
+        predictions: existingData.predictions,
+        latestPrediction: newPrediction,
+        predictionCount: existingData.predictions.length,
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      // Create new array structure
+      await set(pRef, {
+        username: username,
+        userId: clientId,
+        predictions: [newPrediction],
+        latestPrediction: newPrediction,
+        predictionCount: 1,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+    
     console.log('[Firebase] Prediction saved successfully');
   } catch (error) {
     console.error('[Firebase] Error saving prediction:', error);
@@ -148,6 +188,75 @@ export const saveUserGlobalProfile = async (username: string, data: Partial<User
     console.log('[Firebase] User profile saved successfully');
   } catch (error) {
     console.error('[Firebase] Error saving user profile:', error);
+    throw error;
+  }
+};
+
+export const reconcilePrediction = async (sport: string, id: string, username: string, matchId: string, predictionId: number, score: number, penaltyScore?: number) => {
+  try {
+    console.log('[Firebase] Reconciling prediction:', { sport, id, username, matchId, predictionId, score, penaltyScore });
+    const pRef = matchRef(sport, id, matchId, "predictions", username);
+    const snap = await get(pRef);
+    const userData = snap.val();
+    
+    if (userData && Array.isArray(userData.predictions)) {
+      // Find and update the specific prediction
+      const predictionIndex = userData.predictions.findIndex((p: any) => p.predictionId === predictionId);
+      
+      if (predictionIndex !== -1) {
+        userData.predictions[predictionIndex].reconciled = true;
+        userData.predictions[predictionIndex].reconciledAt = serverTimestamp();
+        userData.predictions[predictionIndex].score = score;
+        if (penaltyScore !== undefined) {
+          userData.predictions[predictionIndex].penaltyScore = penaltyScore;
+        }
+        
+        await update(pRef, {
+          predictions: userData.predictions,
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log('[Firebase] Prediction reconciled successfully');
+      } else {
+        console.warn('[Firebase] Prediction not found for reconciliation:', predictionId);
+      }
+    }
+  } catch (error) {
+    console.error('[Firebase] Error reconciling prediction:', error);
+    throw error;
+  }
+};
+
+export const getPredictionsForReconciliation = async (sport: string, id: string, matchId: string) => {
+  try {
+    const predictionsRef = matchRef(sport, id, matchId, "predictions");
+    const snap = await get(predictionsRef);
+    const predictionsData = snap.val();
+    
+    if (!predictionsData) return [];
+    
+    // Return all unreconciled predictions from all users
+    const unreconciledPredictions: any[] = [];
+    
+    if (typeof predictionsData === 'object') {
+      Object.values(predictionsData).forEach((userData: any) => {
+        if (userData && Array.isArray(userData.predictions)) {
+          userData.predictions.forEach((prediction: any) => {
+            if (!prediction.reconciled) {
+              unreconciledPredictions.push({
+                username: userData.username,
+                userId: userData.userId,
+                ...prediction
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    return unreconciledPredictions;
+  } catch (error) {
+    console.error('[Firebase] Error getting predictions for reconciliation:', error);
     throw error;
   }
 };

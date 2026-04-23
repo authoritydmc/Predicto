@@ -423,30 +423,6 @@ function MatchPage() {
         
         if (matchMeta && matchMeta.status) {
           setMatchStatus(matchMeta.status);
-          
-          // If status is 'done', block access
-          if (matchMeta.status === 'done') {
-            alert('This match has ended. You cannot join completed matches.');
-            navigate('/');
-            setTournamentContext(null);
-            return;
-          }
-          
-          // If status is 'live', check if it should be auto-marked as done due to no updates for 6+ hours
-          if (matchMeta.status === 'live') {
-            const liveScoreSnap = await get(matchLiveScoreRef(sport, id, matchId));
-            const liveScore = liveScoreSnap.val();
-            const now = Date.now();
-            const sixHours = 6 * 60 * 60 * 1000;
-            
-            // If no live score data or lastUpdated is older than 6 hours, treat as done
-            if (!liveScore || !liveScore.lastUpdated || (now - liveScore.lastUpdated) > sixHours) {
-              setMatchStatus('done');
-              alert('This match has ended. You cannot join completed matches.');
-              navigate('/');
-              setTournamentContext(null);
-            }
-          }
         } else {
           setMatchStatus('live');
         }
@@ -598,6 +574,52 @@ function MatchPage() {
               </div>
             ) : (
               <span id="matchBadge">{activeMatch ? `Active: ${activeMatch}` : 'Waiting for host...'}</span>
+            )}
+            
+            {/* Cricket Match Info */}
+            {tournamentContext.sport === 'cricket' && meta?.teamA && meta?.teamB && (
+              <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {/* Batting First Indicator */}
+                {meta.disableScoreA !== undefined && meta.disableScoreB !== undefined && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#ff9f0a' }}>🏏</span>
+                    <span>
+                      {meta.disableScoreA === false && meta.disableScoreB === true 
+                        ? `${meta.teamA} batting first` 
+                        : meta.disableScoreA === true && meta.disableScoreB === false 
+                          ? `${meta.teamB} batting first` 
+                          : 'Toss pending'}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Second Innings Info */}
+                {meta.secondInnings && liveScore?.teamA && liveScore?.teamB && (
+                  <>
+                    {/* Runs Required */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: '#34c759' }}>🎯</span>
+                      <span>
+                        {meta.disableScoreA === false && meta.disableScoreB === true 
+                          ? `${meta.teamB} needs ${liveScore.teamA.runs + 1 - liveScore.teamB.runs} runs`
+                          : meta.disableScoreA === true && meta.disableScoreB === false 
+                            ? `${meta.teamA} needs ${liveScore.teamB.runs + 1 - liveScore.teamA.runs} runs`
+                            : 'Chasing...'}
+                      </span>
+                    </div>
+                    
+                    {/* Chasing Team Start Time */}
+                    {liveScore.secondInningsStart && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#007aff' }}>⏱️</span>
+                        <span>
+                          Chasing started: {new Date(liveScore.secondInningsStart).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
             <button 
               onClick={() => {

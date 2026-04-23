@@ -205,6 +205,11 @@ class CricbuzzScraper(LiveScoreScraper):
                         "source": "cricbuzz"
                     }
                     
+                    # Detect second innings from match status
+                    if "innings break" in match_status.lower() or "2nd innings" in match_status.lower():
+                        score_data["currentInnings"] = 2
+                        score_data["secondInningsStart"] = int(time.time() * 1000)
+                    
                     # Parse scores
                     for team_score in match_score:
                         team_name = team_score.get('team', {}).get('teamName', '').lower()
