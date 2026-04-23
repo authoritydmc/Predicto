@@ -104,3 +104,10 @@ input, select, textarea {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.25); }
+
+/* Scrollbar utilities */
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 2px; }
+.scrollbar-thumb-white\/20::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); }
+.scrollbar-track-transparent::-webkit-scrollbar-track { background: transparent; }

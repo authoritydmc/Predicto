@@ -144,6 +144,7 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
         onAuthSuccess(username, result.clientId);
       } else {
         setError('Invalid passkey. Please try again.');
+        setPasskey(''); // Clear all fields on invalid passkey
       }
     } catch (err) {
       setError('Error logging in. Please try again.');
@@ -244,10 +245,18 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
                         }
                       }}
                       onKeyDown={(e) => {
-                        // Handle backspace to go to previous input
-                        if (e.key === 'Backspace' && !passkey[index] && index > 0) {
-                          const prevInput = document.querySelectorAll('.passkey-input')[index - 1] as HTMLInputElement;
-                          prevInput?.focus();
+                        // Handle backspace: clear current and go to previous if empty
+                        if (e.key === 'Backspace') {
+                          if (passkey[index]) {
+                            // Has value - clear it but stay in this field
+                            const newPasskey = passkey.split('');
+                            newPasskey[index] = '';
+                            setPasskey(newPasskey.join(''));
+                          } else if (index > 0) {
+                            // Empty - go to previous field
+                            const prevInput = document.querySelectorAll('.passkey-input')[index - 1] as HTMLInputElement;
+                            prevInput?.focus();
+                          }
                         }
                       }}
                       className="passkey-input"

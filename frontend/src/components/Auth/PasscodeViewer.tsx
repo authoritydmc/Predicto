@@ -9,6 +9,7 @@ interface PasscodeViewerProps {
 }
 
 export default function PasscodeViewer({ username, passkey, onClose, onResetPasskey }: PasscodeViewerProps) {
+  console.log('[PasscodeViewer] Component mounted', { username, passkey });
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [resetting, setResetting] = useState(false);

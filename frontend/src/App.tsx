@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useNavigate, useParams, Outlet } from 're
 import { onValue, get } from 'firebase/database';
 import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
+import AppHeader from './components/Layout/AppHeader';
 import TournamentBrowser from './components/Tournament/TournamentBrowser';
 import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
@@ -44,6 +45,8 @@ function AppLayout() {
   const [teamChangeCount, setTeamChangeCount] = useState(0);
   const [showPasskey, setShowPasskey] = useState(false);
   const [showPasscodeViewer, setShowPasscodeViewer] = useState(false);
+  const [forceShowAuth, setForceShowAuth] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
     return (localStorage.getItem('firebase_mode') as 'local' | 'prod') || 'local';
   });
@@ -107,15 +110,22 @@ function AppLayout() {
       }
       if (data?.passkey) {
         setPasskey(data.passkey);
+        console.log('[App] Passkey set:', data.passkey);
+      } else {
+        console.log('[App] No passkey found in profile data');
       }
       if (data?.favoriteTeam) {
         setFavoriteTeam(data.favoriteTeam);
+        localStorage.setItem('ovr_favorite_team', data.favoriteTeam);
       }
       if (data?.teamChangeCount !== undefined) {
         setTeamChangeCount(data.teamChangeCount);
+        localStorage.setItem('ovr_team_change_count', data.teamChangeCount.toString());
       }
+      setLoading(false);
     }, (error) => {
       console.error('[App] Error fetching user profile:', error);
+      setLoading(false);
     });
     return () => unsub();
   }, [clientId]);
@@ -157,13 +167,15 @@ function AppLayout() {
     }
     
     try {
-      const newCount = favoriteTeam ? teamChangeCount + 1 : 0;
+      const newCount = favoriteTeam ? teamChangeCount + 1 : teamChangeCount;
       await saveUserGlobalProfile(clientId, { 
         favoriteTeam: team,
         teamChangeCount: newCount
       });
       setFavoriteTeam(team);
       setTeamChangeCount(newCount);
+      localStorage.setItem('ovr_favorite_team', team);
+      localStorage.setItem('ovr_team_change_count', newCount.toString());
     } catch (error) {
       console.error('[App] Error saving favorite team:', error);
     }
@@ -183,13 +195,48 @@ function AppLayout() {
     handleToggleFirebaseMode,
   };
 
+  // Listen for login trigger event from header
+  useEffect(() => {
+    const handleTriggerLogin = () => {
+      setForceShowAuth(true);
+      // Scroll to top to show auth modal
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('trigger-login', handleTriggerLogin);
+    return () => window.removeEventListener('trigger-login', handleTriggerLogin);
+  }, []);
+
+  console.log('[AppLayout] Rendering with state', { username, isAuthed, passkey, loading });
+  
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-content">
+          <div className="loading-spinner"></div>
+          <h2>Loading OverlayChat</h2>
+          <p>Connecting to server...</p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <AppContext.Provider value={contextValue}>
       <div className="app-layout">
+        <AppHeader
+          username={username}
+          isAuthed={isAuthed}
+          passkey={passkey}
+          onRotatePasskey={handleRotatePasskey}
+        />
+        <div className="app-header-spacer" />
         <Outlet />
         
-        {!isAuthed && (
-          <UserAuth clientId={clientId} onAuthSuccess={handleAuthSuccess} />
+        {(!isAuthed || forceShowAuth) && (
+          <UserAuth clientId={clientId} onAuthSuccess={(username, clientId) => {
+            setForceShowAuth(false);
+            handleAuthSuccess(username, clientId);
+          }} />
         )}
         
         {isAuthed && !favoriteTeam && (

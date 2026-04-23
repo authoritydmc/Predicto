@@ -1,14 +1,33 @@
 import { useState, useRef, useEffect } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
 import { STORAGE_KEYS } from '../../config/constants';
 import PasscodeViewer from '../Auth/PasscodeViewer';
 import './AppHeader.css';
 
-export default function AppHeader() {
-  const { username, isAuthed, passkey, handleRotatePasskey } = useAppContext();
+interface AppHeaderProps {
+  username: string | null;
+  isAuthed: boolean;
+  passkey: string | null;
+  onLoginClick?: () => void;
+  onRotatePasskey?: () => Promise<void>;
+}
+
+export default function AppHeader({ 
+  username, 
+  isAuthed, 
+  passkey, 
+  onLoginClick,
+  onRotatePasskey 
+}: AppHeaderProps) {
+  console.log('[AppHeader] Props received:', { username, isAuthed, passkey });
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPasscodeViewer, setShowPasscodeViewer] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleLoginClick = () => {
+    // Dispatch custom event that App.tsx can listen for
+    window.dispatchEvent(new CustomEvent('trigger-login'));
+    onLoginClick?.();
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -32,8 +51,10 @@ export default function AppHeader() {
   };
 
   const handleViewPasscode = () => {
+    console.log('[AppHeader] handleViewPasscode called', { username, passkey });
     setShowDropdown(false);
     setShowPasscodeViewer(true);
+    console.log('[AppHeader] showPasscodeViewer set to true');
   };
 
   return (
@@ -91,7 +112,7 @@ export default function AppHeader() {
                 )}
               </div>
             ) : (
-              <button className="login-button">
+              <button className="login-button" onClick={handleLoginClick}>
                 Login
               </button>
             )}
@@ -100,12 +121,18 @@ export default function AppHeader() {
       </header>
 
       {showPasscodeViewer && username && passkey && (
-        <PasscodeViewer
-          username={username}
-          passkey={passkey}
-          onClose={() => setShowPasscodeViewer(false)}
-          onResetPasskey={handleRotatePasskey}
-        />
+        <>
+          {console.log('[AppHeader] Rendering PasscodeViewer', { showPasscodeViewer, username, passkey })}
+          <PasscodeViewer
+            username={username}
+            passkey={passkey}
+            onClose={() => {
+              console.log('[AppHeader] PasscodeViewer onClose called');
+              setShowPasscodeViewer(false);
+            }}
+            onResetPasskey={onRotatePasskey || (async () => {})}
+          />
+        </>
       )}
     </>
   );

@@ -1,9 +1,18 @@
 @echo off
 setlocal
 cls
+
+REM Get local IP address
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address" ^| findstr /v "127.0.0.1"') do (
+    for /f "tokens=*" %%b in ("%%a") do set LOCAL_IP=%%b
+)
+set LOCAL_IP=%LOCAL_IP: =%
+
 echo ==========================================
 echo    OverlayChat Management Console
 echo ==========================================
+echo.
+echo Local Network IP: %LOCAL_IP%
 echo.
 echo  [0]  Start FULL STACK (LOCAL)
 echo  [P]  Start FULL STACK (PROD) - !DANGER!
@@ -20,7 +29,7 @@ set /p opt="Select an option: "
 if "%opt%"=="0" (
     echo Launching FULL STACK in LOCAL mode...
     start cmd /k "echo Broadcaster (Local) && cd backend && npm start -- --mode=local"
-    start cmd /k "echo Audience (Local) && cd frontend && npm run dev"
+    start cmd /k "echo Audience (Local) && cd frontend && echo Frontend will be available at: && echo   - Local: http://localhost:5173 && echo   - Network: http://%LOCAL_IP%:5173 && npm run dev -- --host 0.0.0.0"
     goto :eof
 )
 
@@ -37,8 +46,12 @@ if "%opt%"=="1" (
 
 if "%opt%"=="2" (
     echo Launching Audience...
+    echo Frontend will be available at:
+    echo   - Local: http://localhost:5173
+    echo   - Network: http://%LOCAL_IP%:5173
+    echo.
     cd frontend
-    npm run dev
+    npm run dev -- --host 0.0.0.0
     pause
     goto :eof
 )
@@ -74,7 +87,7 @@ set /p confirm="Type 'YES' to proceed into PROD mode: "
 if /i "%confirm%"=="YES" (
     echo Launching FULL STACK in PROD mode...
     start cmd /k "echo Broadcaster (PROD) && cd backend && npm start -- --mode=prod"
-    start cmd /k "echo Audience (PROD) && cd frontend && npm run dev:prod"
+    start cmd /k "echo Audience (PROD) && cd frontend && echo Frontend will be available at: && echo   - Local: http://localhost:5173 && echo   - Network: http://%LOCAL_IP%:5173 && npm run dev:prod -- --host 0.0.0.0"
 ) else (
     echo Launch cancelled.
 )

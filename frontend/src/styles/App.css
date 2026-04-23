@@ -37,6 +37,65 @@
   position: relative;
 }
 
+/* Spacer for fixed header */
+.app-header-spacer {
+  height: 64px;
+  flex-shrink: 0;
+}
+
+/* Loading Screen */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #0a0a0f 0%, #151520 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-content h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.loading-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -624,19 +683,20 @@ body.desktop-embed {
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   letter-spacing: 0;
   text-transform: uppercase;
-  background: rgba(0, 0, 0, 0.3);
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(30, 30, 45, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.4);
   border-radius: 8px;
   color: #ffffff !important;
   outline: none;
   transition: all 0.2s ease;
   caret-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .passkey-input:focus {
   border-color: var(--accent-blue);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  background: rgba(50, 50, 70, 0.9);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25), 0 4px 12px rgba(99, 102, 241, 0.2);
   transform: translateY(-1px);
 }
 
@@ -2648,6 +2708,225 @@ body.desktop-embed .join-card {
   justify-content: center;
   z-index: 10000;
   padding: 20px;
+}
+
+/* Passcode Viewer Modal */
+.passcode-viewer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  padding: 20px;
+}
+
+.passcode-viewer-modal {
+  background: linear-gradient(135deg, rgba(25, 25, 40, 0.98) 0%, rgba(35, 35, 55, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px);
+}
+
+.passcode-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.passcode-viewer-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.passcode-viewer-header .close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.passcode-viewer-header .close-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 1);
+}
+
+.passcode-viewer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.passcode-info {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.passcode-info p {
+  margin: 8px 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.passcode-info strong {
+  color: rgba(255, 255, 255, 1);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 1rem;
+}
+
+.qr-code-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+}
+
+.qr-code {
+  width: 200px;
+  height: 200px;
+  display: block;
+}
+
+.qr-loading {
+  color: #0a0a0f;
+  font-size: 0.9rem;
+}
+
+.share-url-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-url-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.share-url-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.share-url-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.85rem;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  outline: none;
+}
+
+.share-url-input:focus {
+  border-color: var(--accent-blue);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.copy-btn {
+  padding: 10px 16px;
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.copy-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.reset-passkey-btn {
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reset-passkey-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.reset-passkey-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.passcode-instructions {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.passcode-instructions h3 {
+  margin: 0 0 12px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-blue);
+}
+
+.passcode-instructions ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+}
+
+.passcode-instructions li {
+  margin-bottom: 6px;
+}
+
+.passcode-instructions strong {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .modal-overlay.hidden {
