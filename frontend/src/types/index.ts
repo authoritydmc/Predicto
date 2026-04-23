@@ -15,14 +15,9 @@ export interface UserProfile {
   createdAt?: number;
 }
 
-// Username Mapping (usernames/{username})
-export interface UsernameMapping {
-  clientId: string;
-  createdAt: number;
-}
-
-// Username Data (username/{username})
+// Username Data (username/{username}) - contains all user data including clientId
 export interface UsernameData {
+  clientId: string;
   passkey: string;
   favoriteTeam: string | null;
   teamChangeCount: number;

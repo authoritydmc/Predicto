@@ -89,14 +89,8 @@ export const userRef = (clientId: string) =>
   ref(rtdb, `${getDbRoot()}/users/${clientId}`);
 
 // ── User Authentication (Username/Passkey) ─────────────────────────────────────
-export const usernameRef = (username: string) =>
-  ref(rtdb, `${getDbRoot()}/usernames/${username.toLowerCase()}`);
-
 export const usernameDataRef = (username: string) =>
   ref(rtdb, `${getDbRoot()}/username/${username.toLowerCase()}`);
-
-export const usernameIndexRef = () =>
-  ref(rtdb, `${getDbRoot()}/usernames`);
 
 // ── Meta Merge Helper ───────────────────────────────────────────────────────────
 export const getMergedMeta = async (sport: string, tournamentId: string, matchId: string) => {
@@ -165,6 +159,7 @@ export const ensureUsernameDataExists = async (username: string, clientId: strin
       const passkey = generatePasskey();
 
       const usernameData: UsernameData = {
+        clientId,
         passkey,
         favoriteTeam: null,
         teamChangeCount: 0,
@@ -173,16 +168,6 @@ export const ensureUsernameDataExists = async (username: string, clientId: strin
       };
 
       await set(usernameDataRef(username), usernameData);
-
-      // Also ensure username mapping exists
-      const usernameMappingSnap = await get(usernameRef(username));
-      if (!usernameMappingSnap.exists()) {
-        await set(usernameRef(username), {
-          clientId,
-          createdAt: Date.now(),
-        });
-      }
-
       console.log('[Firebase] Username data created successfully');
     }
   } catch (error) {
@@ -195,24 +180,9 @@ export const ensureUsernameDataExists = async (username: string, clientId: strin
 export const checkUsernameAvailability = async (username: string): Promise<boolean> => {
   try {
     console.log('[Firebase] Checking username availability:', username);
-    const snap = await get(usernameRef(username));
+    const snap = await get(usernameDataRef(username));
     const exists = snap.exists();
-    console.log('[Firebase] Username exists in usernames node:', exists);
-
-    // Fallback: check if username exists in users node (for legacy users without username mapping)
-    if (!exists) {
-      const usersIndexRef = ref(rtdb, `${getDbRoot()}/users`);
-      const usersSnap = await get(usersIndexRef);
-      const usersData = usersSnap.val();
-      if (usersData) {
-        const found = Object.values(usersData).some((user: any) =>
-          user.username?.toLowerCase() === username.toLowerCase()
-        );
-        console.log('[Firebase] Username exists in users node (fallback):', found);
-        return !found;
-      }
-    }
-
+    console.log('[Firebase] Username exists:', exists);
     return !exists;
   } catch (error) {
     console.error('[Firebase] Error checking username availability:', error);
@@ -234,19 +204,14 @@ export const createUserWithPasskey = async (username: string, clientId: string):
     console.log('[Firebase] Creating user with passkey:', { username, clientId });
     const passkey = generatePasskey();
 
-    // Save username -> clientId mapping (just the mapping)
-    await set(usernameRef(username), {
-      clientId,
-      createdAt: serverTimestamp(),
-    });
-
-    // Save all user data under username/{username}
+    // Save all user data under username/{username} (including clientId)
     await set(usernameDataRef(username), {
+      clientId,
       passkey,
       favoriteTeam: null,
       teamChangeCount: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     });
 
     // Save username reference in users/{clientId}
@@ -266,23 +231,12 @@ export const verifyUserPasskey = async (username: string, passkey: string): Prom
   try {
     console.log('[Firebase] Verifying user passkey:', { username, passkey });
 
-    // Get username mapping to get clientId
-    const usernameSnap = await get(usernameRef(username));
-    const usernameData = usernameSnap.val();
-
-    if (!usernameData) {
-      console.log('[Firebase] Username not found in usernames node');
-      return { clientId: '', valid: false };
-    }
-
-    const clientId = usernameData.clientId;
-
     // Get user data from username/{username}
     const userDataSnap = await get(usernameDataRef(username));
     const userData = userDataSnap.val();
 
     if (!userData) {
-      console.log('[Firebase] User data not found in username node');
+      console.log('[Firebase] Username not found');
       return { clientId: '', valid: false };
     }
 
@@ -290,7 +244,7 @@ export const verifyUserPasskey = async (username: string, passkey: string): Prom
     console.log('[Firebase] Passkey valid:', isValid);
 
     return {
-      clientId,
+      clientId: userData.clientId,
       valid: isValid,
     };
   } catch (error) {
