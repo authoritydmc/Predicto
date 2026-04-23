@@ -142,12 +142,20 @@ export const getMatchesByTournament = async (sport: string, tournamentId: string
   const matchesRef = ref(db, `${getDbRoot()}/tournaments/${sport}/${tournamentId}/matches`);
   const snapshot = await get(matchesRef);
   const matches = snapshot.val() || {};
-  
-  return Object.entries(matches).map(([matchId, data]: [string, any]) => ({
-    matchId,
-    ...data.meta,
-    status: data.meta?.status || 'scheduled'
-  }));
+
+  return Object.entries(matches).map(([matchId, data]: [string, any]) => {
+    // Handle both nested meta structure and flat structure
+    const meta = data.meta || data;
+    return {
+      matchId,
+      matchTitle: meta.matchTitle || meta.title || `${meta.teamA || 'Team A'} vs ${meta.teamB || 'Team B'}`,
+      teamA: meta.teamA || 'Team A',
+      teamB: meta.teamB || 'Team B',
+      status: meta.status || 'scheduled',
+      date: meta.date,
+      ...meta
+    };
+  });
 };
 
 // ── Match-Level Refs ───────────────────────────────────────────────────────────

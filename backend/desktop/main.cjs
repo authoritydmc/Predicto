@@ -5,6 +5,25 @@ const { WebSocketServer } = require("ws");
 const { spawn } = require("child_process");
 const { version: APP_VERSION } = require("../package.json");
 
+// ── Environment Detection ───────────────────────────────────────────────────
+const getAppModeFromArgs = () => {
+  const modeArg = process.argv.find(arg => arg.startsWith('--mode='));
+  if (modeArg) return modeArg.split('=')[1].toLowerCase();
+  return null;
+};
+
+const rawAppMode = getAppModeFromArgs() || process.env.APP_MODE || process.env.NODE_ENV || "prod";
+const APP_MODE = (() => {
+  if (rawAppMode === "local" || rawAppMode === "dev") return "local";
+  return "prod";
+})();
+
+const isDev = process.env.NODE_ENV === "development";
+const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:5174";
+
+console.log(`[System] Initializing in ${APP_MODE.toUpperCase()} mode`);
+console.log(`[System] Version: ${APP_VERSION}`);
+
 // ── WebSocket Log Server ──────────────────────────────────────────────────────
 let wss = null;
 const initLogServer = () => {
@@ -74,25 +93,6 @@ const startScheduler = () => {
 if (APP_MODE === 'prod') {
   startScheduler();
 }
-
-const isDev = process.env.NODE_ENV === "development";
-const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:5174";
-
-// ── Environment Detection ───────────────────────────────────────────────────
-const getAppModeFromArgs = () => {
-  const modeArg = process.argv.find(arg => arg.startsWith('--mode='));
-  if (modeArg) return modeArg.split('=')[1].toLowerCase();
-  return null;
-};
-
-const rawAppMode = getAppModeFromArgs() || process.env.APP_MODE || process.env.NODE_ENV || "prod";
-const APP_MODE = (() => {
-  if (rawAppMode === "local" || rawAppMode === "dev") return "local";
-  return "prod";
-})();
-
-console.log(`[System] Initializing in ${APP_MODE.toUpperCase()} mode`);
-console.log(`[System] Version: ${APP_VERSION}`);
 
 const DEFAULT_SETTINGS = {
   appVersion: APP_VERSION,

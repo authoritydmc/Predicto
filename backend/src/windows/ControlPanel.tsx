@@ -447,6 +447,25 @@ const ControlPanel: React.FC = () => {
       try {
         const matches = await getMatchesByTournament(fSport, tournamentId);
         setAvailableMatches(matches);
+
+        // Auto-select best match if no match is currently selected
+        if (!matchId && matches.length > 0) {
+          // Priority: Upcoming scheduled match > Live match > First match
+          const scheduledMatches = matches
+            .filter((m: any) => m.status === 'scheduled' && m.date)
+            .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          const upcomingMatch = scheduledMatches.find((m: any) => new Date(m.date) >= new Date());
+          const liveMatch = matches.find((m: any) => m.status === 'live');
+
+          const bestMatch = upcomingMatch || liveMatch || matches[0];
+
+          setMatchId(bestMatch.matchId);
+          setFMatchCode(bestMatch.matchId);
+          setFMatchTitle(bestMatch.matchTitle);
+          setFTeamA(bestMatch.teamA);
+          setFTeamB(bestMatch.teamB);
+          subscribeToMeta(fSport, tournamentId, bestMatch.matchId);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -537,26 +556,44 @@ const ControlPanel: React.FC = () => {
     checkAndMarkDoneMatches();
   }, [tournamentId, fSport, schedule]);
 
-  // Auto-select next upcoming match from schedule
+  // Auto-select next upcoming match from schedule (only if no existing matches)
   useEffect(() => {
-    if (schedule.length > 0 && !matchId) {
+    if (schedule.length > 0 && !matchId && availableMatches.length === 0) {
       const now = new Date();
       const upcomingMatches = schedule
         .filter((m: any) => m.date && new Date(m.date) >= now)
         .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
+
       if (upcomingMatches.length > 0) {
         const nextMatch = upcomingMatches[0];
-        setFMatchTitle(nextMatch.matchTitle);
-        setFTeamA(nextMatch.teamA);
-        setFTeamB(nextMatch.teamB);
-        // Generate and set match code
-        const generatedMatchId = nextMatch.matchId || generateMatchId(nextMatch.teamA, nextMatch.teamB, nextMatch.date ? new Date(nextMatch.date) : undefined);
-        setFMatchCode(generatedMatchId);
-        setMatchId(generatedMatchId);
+
+        // Check if this match already exists in availableMatches by matching teams
+        const existingMatch = availableMatches.find((m: any) =>
+          (m.teamA === nextMatch.teamA && m.teamB === nextMatch.teamB) ||
+          (m.teamA === nextMatch.teamB && m.teamB === nextMatch.teamA)
+        );
+
+        if (existingMatch) {
+          // Use existing match data
+          setMatchId(existingMatch.matchId);
+          setFMatchCode(existingMatch.matchId);
+          setFMatchTitle(existingMatch.matchTitle);
+          setFTeamA(existingMatch.teamA);
+          setFTeamB(existingMatch.teamB);
+          subscribeToMeta(fSport, tournamentId, existingMatch.matchId);
+        } else {
+          // Use schedule data
+          setFMatchTitle(nextMatch.matchTitle);
+          setFTeamA(nextMatch.teamA);
+          setFTeamB(nextMatch.teamB);
+          // Generate and set match code
+          const generatedMatchId = nextMatch.matchId || generateMatchId(nextMatch.teamA, nextMatch.teamB, nextMatch.date ? new Date(nextMatch.date) : undefined);
+          setFMatchCode(generatedMatchId);
+          setMatchId(generatedMatchId);
+        }
       }
     }
-  }, [schedule, matchId]);
+  }, [schedule, matchId, availableMatches, tournamentId, fSport]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Firebase Mode Switch Handler
@@ -2485,11 +2522,61 @@ const ControlPanel: React.FC = () => {
                     <div className="cp-form-row">
                       <label>Status</label>
                       <select value={fMatchStatus} onChange={e => setFMatchStatus(e.target.value as any)}>
+                        <option value="scheduled">Scheduled</option>
                         <option value="live">Live</option>
                         <option value="done">Done</option>
-                        <option value="scheduled">Scheduled</option>
                       </select>
                     </div>
+
+                    {/* Prediction Controls - Only show for live/done matches */}
+                    {(fMatchStatus === 'live' || fMatchStatus === 'done') && (
+                      <>
+                        <div className="cp-section-header">
+                          <span>Prediction Controls</span>
+                        </div>
+                        <div className="cp-form-row">
+                          <label className="cp-toggle-row" title="Enable or disable predictions for this match">
+                            <span>Enable Predictions</span>
+                            <Toggle checked={fPredictionsEnabled} onChange={setFPredictionsEnabled} />
+                          </label>
+                        </div>
+                        <div className="cp-form-row">
+                          <label className="cp-toggle-row" title="Temporarily pause predictions (requires predictions to be enabled)">
+                            <span>Pause Predictions</span>
+                            <Toggle checked={fPredictionsPaused} onChange={setFPredictionsPaused} />
+                          </label>
+                        </div>
+                        {fPredictionsPaused && (
+                          <div className="cp-form-row">
+                            <label>Pause Reason</label>
+                            <input
+                              type="text"
+                              value={fPauseReason}
+                              onChange={e => setFPauseReason(e.target.value)}
+                              placeholder="Reason for pausing predictions..."
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Scheduled Match Note */}
+                    {fMatchStatus === 'scheduled' && (
+                      <div style={{
+                        padding: '12px 16px',
+                        background: 'rgba(255, 159, 10, 0.1)',
+                        border: '1px solid rgba(255, 159, 10, 0.3)',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        color: '#ff9f0a',
+                        marginTop: '8px',
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>ℹ️</span>
+                          <span>For scheduled matches, use the Match Control tab to set toss, batting team, and live score when the match starts.</span>
+                        </span>
+                      </div>
+                    )}
                     
                     {/* Sport-specific Match Details */}
                     {fSport === 'cricket' && (
