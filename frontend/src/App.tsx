@@ -366,9 +366,7 @@ function MatchPage() {
   const navigate = useNavigate();
   const { 
     clientId, 
-    favoriteTeam, 
-    handleSelectFavoriteTeam, 
-    teamChangeCount 
+    favoriteTeam
   } = useAppContext();
   
   const [tournamentContext, setTournamentContext] = useState<{ sport: string; id: string; matchId: string } | null>(null);
@@ -498,36 +496,23 @@ function MatchPage() {
       } as React.CSSProperties}
     >
       <div id="audienceApp" className="audience-app-container">
-        <header className="audience-header">
-          <button onClick={() => navigate('/')} className="back-btn" title="Return to home">
-            ← Back
-          </button>
-          <div className="audience-header-title">
-            <span className="audience-header-kicker">Live Match</span>
-            <span className="audience-header-code">{matchCode?.toUpperCase() || ''}</span>
+        <header className="audience-header audience-header-merged">
+          <div className="audience-header-left">
+            <button onClick={() => navigate('/')} className="back-btn" title="Return to home">
+              ← Back
+            </button>
+            <div className="audience-header-title">
+              <span className="audience-header-kicker">Live Match</span>
+              <span className="audience-header-code">{matchCode?.toUpperCase() || ''}</span>
+            </div>
           </div>
-          <button 
-            onClick={() => {
-              const url = `${window.location.origin}/match/${matchCode}`;
-              navigator.clipboard.writeText(url).then(() => {
-                alert('Link copied to clipboard!');
-              });
-            }}
-            className="share-btn"
-            title="Copy link"
-          >
-            🔗
-          </button>
-        </header>
-
-        <section className="hero audience-hero audience-hero-compact">
-          <div className="hero-meta">
+          <div className="audience-header-right">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                <span className="badge-mini sport">
                  {tournamentContext.sport.toUpperCase()}
                </span>
                <span style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} onClick={handleCopyMatchCode}>
-                 Room: <strong id="roomBadge">{matchCode}</strong>
+                 <strong id="roomBadge">{matchCode}</strong>
                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -540,7 +525,7 @@ function MatchPage() {
                )}
             </div>
             {meta?.teamA && meta?.teamB ? (
-              <div className="match-teams-display">
+              <div className="match-teams-display match-teams-display-compact">
                 <div className="match-team">
                   {getTeamLogoUrl(meta.teamA) && (
                     <img src={getTeamLogoUrl(meta.teamA)!} alt={meta.teamA} className="match-team-logo" />
@@ -578,27 +563,20 @@ function MatchPage() {
             ) : (
               <span id="matchBadge">{activeMatch ? `Active: ${activeMatch}` : 'Waiting for host...'}</span>
             )}
+            <button 
+              onClick={() => {
+                const url = `${window.location.origin}/match/${matchCode}`;
+                navigator.clipboard.writeText(url).then(() => {
+                  alert('Link copied to clipboard!');
+                });
+              }}
+              className="share-btn"
+              title="Copy link"
+            >
+              🔗
+            </button>
           </div>
-        </section>
-
-        {favoriteTeam && (
-          <section className="panel favorite-team-panel">
-            <div className="favorite-team-display">
-              {getTeamLogoUrl(favoriteTeam) && (
-                <div className="favorite-team-logo-wrapper">
-                  <img src={getTeamLogoUrl(favoriteTeam)!} alt={favoriteTeam} className="favorite-team-logo" />
-                </div>
-              )}
-              <div className="favorite-team-info">
-                <p className="favorite-team-label">Supporting</p>
-                <h3 className="favorite-team-name">{favoriteTeam}</h3>
-                <button onClick={() => handleSelectFavoriteTeam(favoriteTeam)} className="ghost-link-xs" disabled={teamChangeCount >= 3}>
-                  Change {teamChangeCount >= 3 ? '(Limit reached)' : `(${3 - teamChangeCount} left)`}
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
+        </header>
 
         <div className="grid-two">
           {activeMatch ? (
