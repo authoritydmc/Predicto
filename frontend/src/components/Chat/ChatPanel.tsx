@@ -200,9 +200,14 @@ export default function ChatPanel({ sport, id, matchId, clientId }: ChatPanelPro
     e.preventDefault();
     if (!message.trim()) return;
 
+    // Ensure we have the actual username, not "You"
+    const actualUsername = userName === 'You' 
+      ? localStorage.getItem('ovr_username') || 'Anonymous'
+      : userName;
+
     try {
       await sendChatMessage(sport, id, {
-        name: userName,
+        name: actualUsername,
         message: message.trim(),
         clientId: clientId,
       }, matchId);
@@ -241,19 +246,23 @@ export default function ChatPanel({ sport, id, matchId, clientId }: ChatPanelPro
         </div>
         <div className="chat-header-right">
           <div className="chat-avatars">
-            {messages.slice(-3).reverse().map((msg, idx) => (
-              <div 
-                key={msg.id} 
-                className="chat-avatar-mini"
-                style={{ 
-                  backgroundColor: getAvatarColor(msg.name),
-                  zIndex: 3 - idx 
-                }}
-                title={msg.name}
-              >
-                {getInitials(msg.name)}
-              </div>
-            ))}
+            {messages.slice(-3).reverse().map((msg, idx) => {
+              // Replace "You" with actual username for display
+              const displayName = msg.name === 'You' ? userName : msg.name;
+              return (
+                <div 
+                  key={msg.id} 
+                  className="chat-avatar-mini"
+                  style={{ 
+                    backgroundColor: getAvatarColor(displayName),
+                    zIndex: 3 - idx 
+                  }}
+                  title={displayName}
+                >
+                  {getInitials(displayName)}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -275,6 +284,9 @@ export default function ChatPanel({ sport, id, matchId, clientId }: ChatPanelPro
             const isOwnMessage = msg.clientId === clientId;
             const showAvatar = !isOwnMessage;
             const isFirstInGroup = index === 0 || messages[index - 1].clientId !== msg.clientId;
+            
+            // Replace "You" with actual username for display
+            const displayName = msg.name === 'You' ? userName : msg.name;
 
             return (
               <div 
@@ -285,10 +297,10 @@ export default function ChatPanel({ sport, id, matchId, clientId }: ChatPanelPro
                 {showAvatar && isFirstInGroup && (
                   <div 
                     className="chat-avatar"
-                    style={{ backgroundColor: getAvatarColor(msg.name) }}
-                    title={msg.name}
+                    style={{ backgroundColor: getAvatarColor(displayName) }}
+                    title={displayName}
                   >
-                    {getInitials(msg.name)}
+                    {getInitials(displayName)}
                   </div>
                 )}
                 {showAvatar && !isFirstInGroup && <div className="chat-avatar-spacer" />}
@@ -298,7 +310,7 @@ export default function ChatPanel({ sport, id, matchId, clientId }: ChatPanelPro
                   {/* Sender Name - Only show for others and on first message in group */}
                   {!isOwnMessage && isFirstInGroup && (
                     <span className="chat-sender-name">
-                      {msg.name}
+                      {displayName}
                     </span>
                   )}
 

@@ -12,6 +12,7 @@ export default function PasscodeViewer({ username, passkey, onClose, onResetPass
   console.log('[PasscodeViewer] Component mounted', { username, passkey });
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [passkeyCopied, setPasskeyCopied] = useState(false);
   const [resetting, setResetting] = useState(false);
 
   // Generate shareable URL and QR code
@@ -76,7 +77,22 @@ export default function PasscodeViewer({ username, passkey, onClose, onResetPass
         <div className="passcode-viewer-content">
           <div className="passcode-info">
             <p className="passcode-username">Username: <strong>{username}</strong></p>
-            <p className="passcode-passkey">Passkey: <strong>{passkey}</strong></p>
+            <p
+              className="passcode-passkey"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(passkey);
+                  setPasskeyCopied(true);
+                  setTimeout(() => setPasskeyCopied(false), 2000);
+                } catch (error) {
+                  console.error('Failed to copy passkey:', error);
+                }
+              }}
+              style={{ cursor: 'pointer' }}
+              title="Click to copy"
+            >
+              Passkey: <strong>{passkeyCopied ? '✓ Copied!' : (passkey.length > 4 ? `${passkey.slice(0, 4)}-${passkey.slice(4)}` : passkey)}</strong>
+            </p>
           </div>
 
           <div className="qr-code-container">

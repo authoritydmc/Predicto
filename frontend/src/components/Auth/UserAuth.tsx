@@ -233,51 +233,31 @@ export default function UserAuth({ clientId, onAuthSuccess }: UserAuthProps) {
             </div>
             <label>
               Passkey
-              <div className="passkey-input-container">
-                {[...Array(8)].map((_, index) => (
-                  <React.Fragment key={index}>
-                    <input
-                      type="text"
-                      maxLength={1}
-                      value={passkey[index] || ''}
-                      onChange={(e) => {
-                        const value = e.target.value.toUpperCase();
-                        const newPasskey = passkey.split('');
-                        newPasskey[index] = value;
-                        setPasskey(newPasskey.join(''));
-                        
-                        // Auto-focus next input
-                        if (value && index < 7) {
-                          const nextInput = document.querySelectorAll('.passkey-input')[index + 1] as HTMLInputElement;
-                          nextInput?.focus();
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        // Handle backspace: clear current and go to previous if empty
-                        if (e.key === 'Backspace') {
-                          if (passkey[index]) {
-                            // Has value - clear it but stay in this field
-                            const newPasskey = passkey.split('');
-                            newPasskey[index] = '';
-                            setPasskey(newPasskey.join(''));
-                          } else if (index > 0) {
-                            // Empty - go to previous field
-                            const prevInput = document.querySelectorAll('.passkey-input')[index - 1] as HTMLInputElement;
-                            prevInput?.focus();
-                          }
-                        }
-                      }}
-                      className="passkey-input"
-                      ref={(el) => {
-                        if (el && index === 0 && !passkey) {
-                          el.focus();
-                        }
-                      }}
-                    />
-                    {index === 3 && <span className="passkey-separator">-</span>}
-                  </React.Fragment>
-                ))}
-              </div>
+              <input
+                type="text"
+                value={passkey.length > 4 ? `${passkey.slice(0, 4)}-${passkey.slice(4)}` : passkey}
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/[^A-Z0-9]/g, '').toUpperCase().slice(0, 8);
+                  setPasskey(rawValue);
+                }}
+                placeholder="XXXX-XXXX"
+                maxLength={9}
+                className="passkey-single-input"
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  fontSize: '1.2rem',
+                  fontFamily: 'JetBrains Mono, Courier New, monospace',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  textAlign: 'center',
+                  background: 'rgba(30, 30, 45, 0.8)',
+                  border: '2px solid rgba(255, 255, 255, 0.4)',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  outline: 'none',
+                }}
+              />
             </label>
             {error && <p className="error-text">{error}</p>}
             <button type="submit" className="primary-btn" disabled={loading}>

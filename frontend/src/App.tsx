@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams, Outlet } from 'react-router-dom';
 import { onValue, get } from 'firebase/database';
-import { matchDiscoveryRef, matchMetaRef, userRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey, generatePasskey } from './firebase/services';
+import { matchDiscoveryRef, matchMetaRef, userRef, usernameDataRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey, generatePasskey, ensureUsernameDataExists } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
 import AppHeader from './components/Layout/AppHeader';
 import TournamentBrowser from './components/Tournament/TournamentBrowser';
@@ -45,6 +45,7 @@ function AppLayout() {
   const [showPasskey, setShowPasskey] = useState(false);
   const [forceShowAuth, setForceShowAuth] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [passkeyCopied, setPasskeyCopied] = useState(false);
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
     return (localStorage.getItem('firebase_mode') as 'local' | 'prod') || 'local';
   });
@@ -87,40 +88,70 @@ function AppLayout() {
   // Load user profile from Firebase
   useEffect(() => {
     console.log('[App] Loading user profile for client:', clientId);
-    const unsub = onValue(userRef(clientId), async (snap) => {
-      const data = snap.val();
-      console.log('[App] User profile data:', data);
-      if (data?.username) {
-        setUsername(data.username);
+
+    // First, get username from users/{clientId}
+    const userUnsub = onValue(userRef(clientId), (snap) => {
+      const userData = snap.val();
+      console.log('[App] User data from users node:', userData);
+
+      if (userData?.username) {
+        setUsername(userData.username);
         setIsAuthed(true);
+
+        // Ensure username/{username} node exists
+        ensureUsernameDataExists(userData.username, clientId)
+          .then(() => {
+            console.log('[App] Username data ensured');
+          })
+          .catch((error) => {
+            console.error('[App] Error ensuring username data:', error);
+          });
+
+        // Then listen to username/{username} for actual user data
+        const usernameUnsub = onValue(usernameDataRef(userData.username), (usernameSnap) => {
+          const data = usernameSnap.val();
+          console.log('[App] User profile data from username node:', data);
+
+          if (data?.passkey) {
+            setPasskey(data.passkey);
+            console.log('[App] Passkey set:', data.passkey);
+          } else if (userData.username) {
+            // User exists but no passkey - generate one
+            console.log('[App] No passkey found, generating new one');
+            const newPasskey = generatePasskey();
+            saveUserGlobalProfile(userData.username, { passkey: newPasskey })
+              .then(() => {
+                setPasskey(newPasskey);
+                console.log('[App] New passkey generated and saved:', newPasskey);
+              })
+              .catch((error) => {
+                console.error('[App] Error saving new passkey:', error);
+              });
+          }
+
+          if (data?.favoriteTeam) {
+            setFavoriteTeam(data.favoriteTeam);
+          }
+          if (data?.teamChangeCount !== undefined) {
+            setTeamChangeCount(data.teamChangeCount);
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error('[App] Error fetching username data:', error);
+          setLoading(false);
+        });
+
+        return () => usernameUnsub();
+      } else {
+        // No username found - user not logged in
+        setLoading(false);
       }
-      if (data?.passkey) {
-        setPasskey(data.passkey);
-        console.log('[App] Passkey set:', data.passkey);
-      } else if (data?.username) {
-        // User exists but no passkey - generate one
-        console.log('[App] No passkey found, generating new one');
-        const newPasskey = generatePasskey();
-        try {
-          await saveUserGlobalProfile(clientId, { passkey: newPasskey });
-          setPasskey(newPasskey);
-          console.log('[App] New passkey generated and saved:', newPasskey);
-        } catch (error) {
-          console.error('[App] Error saving new passkey:', error);
-        }
-      }
-      if (data?.favoriteTeam) {
-        setFavoriteTeam(data.favoriteTeam);
-      }
-      if (data?.teamChangeCount !== undefined) {
-        setTeamChangeCount(data.teamChangeCount);
-      }
-      setLoading(false);
     }, (error) => {
-      console.error('[App] Error fetching user profile:', error);
+      console.error('[App] Error fetching user data:', error);
       setLoading(false);
     });
-    return () => unsub();
+
+    return () => userUnsub();
   }, [clientId]);
 
   const handleAuthSuccess = (authUsername: string, authClientId: string) => {
@@ -158,7 +189,7 @@ function AppLayout() {
     
     try {
       const newCount = favoriteTeam ? teamChangeCount + 1 : teamChangeCount;
-      await saveUserGlobalProfile(clientId, {
+      await saveUserGlobalProfile(username, {
         favoriteTeam: team,
         teamChangeCount: newCount
       });
@@ -234,8 +265,23 @@ function AppLayout() {
           <div className="passkey-footer">
             <div className="passkey-footer-content">
               <span className="passkey-footer-label">Your Passkey:</span>
-              <div className="passkey-footer-value">
-                {showPasskey ? passkey : '••••••'}
+              <div
+                className="passkey-footer-value"
+                onClick={async () => {
+                  if (showPasskey && passkey) {
+                    try {
+                      await navigator.clipboard.writeText(passkey);
+                      setPasskeyCopied(true);
+                      setTimeout(() => setPasskeyCopied(false), 2000);
+                    } catch (error) {
+                      console.error('Failed to copy passkey:', error);
+                    }
+                  }
+                }}
+                style={{ cursor: showPasskey ? 'pointer' : 'default' }}
+                title={showPasskey ? 'Click to copy' : ''}
+              >
+                {passkeyCopied ? '✓ Copied!' : (showPasskey ? (passkey.length > 4 ? `${passkey.slice(0, 4)}-${passkey.slice(4)}` : passkey) : '••••-••••')}
               </div>
               <button 
                 className="passkey-toggle-btn"

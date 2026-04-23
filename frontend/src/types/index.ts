@@ -15,6 +15,26 @@ export interface UserProfile {
   createdAt?: number;
 }
 
+// Username Mapping (usernames/{username})
+export interface UsernameMapping {
+  clientId: string;
+  createdAt: number;
+}
+
+// Username Data (username/{username})
+export interface UsernameData {
+  passkey: string;
+  favoriteTeam: string | null;
+  teamChangeCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// User Reference (users/{clientId})
+export interface UserReference {
+  username: string;
+}
+
 // Match Types
 export interface MatchContext {
   sport: string;

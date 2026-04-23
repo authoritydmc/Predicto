@@ -1,6 +1,6 @@
 import { ref, push, set, update, serverTimestamp, get } from 'firebase/database';
 import { rtdb } from './config';
-import type { UserProfile } from '../types';
+import type { UserProfile, UsernameData } from '../types';
 
 // Get Firebase mode from localStorage, default based on URL
 const getDbRoot = () => {
@@ -92,6 +92,9 @@ export const userRef = (clientId: string) =>
 export const usernameRef = (username: string) =>
   ref(rtdb, `${getDbRoot()}/usernames/${username.toLowerCase()}`);
 
+export const usernameDataRef = (username: string) =>
+  ref(rtdb, `${getDbRoot()}/username/${username.toLowerCase()}`);
+
 export const usernameIndexRef = () =>
   ref(rtdb, `${getDbRoot()}/usernames`);
 
@@ -138,16 +141,52 @@ export const savePrediction = async (sport: string, id: string, clientId: string
   }
 };
 
-export const saveUserGlobalProfile = async (clientId: string, data: Partial<UserProfile>) => {
+export const saveUserGlobalProfile = async (username: string, data: Partial<UserProfile>) => {
   try {
-    console.log('[Firebase] Saving user profile:', { clientId, data });
-    await update(userRef(clientId), {
+    console.log('[Firebase] Saving user profile:', { username, data });
+    await update(usernameDataRef(username), {
       ...data,
       updatedAt: serverTimestamp(),
     });
     console.log('[Firebase] User profile saved successfully');
   } catch (error) {
     console.error('[Firebase] Error saving user profile:', error);
+    throw error;
+  }
+};
+
+export const ensureUsernameDataExists = async (username: string, clientId: string): Promise<void> => {
+  try {
+    console.log('[Firebase] Checking if username data exists:', username);
+    const snap = await get(usernameDataRef(username));
+
+    if (!snap.exists()) {
+      console.log('[Firebase] Username data missing, creating with defaults:', username);
+      const passkey = generatePasskey();
+
+      const usernameData: UsernameData = {
+        passkey,
+        favoriteTeam: null,
+        teamChangeCount: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await set(usernameDataRef(username), usernameData);
+
+      // Also ensure username mapping exists
+      const usernameMappingSnap = await get(usernameRef(username));
+      if (!usernameMappingSnap.exists()) {
+        await set(usernameRef(username), {
+          clientId,
+          createdAt: Date.now(),
+        });
+      }
+
+      console.log('[Firebase] Username data created successfully');
+    }
+  } catch (error) {
+    console.error('[Firebase] Error ensuring username data exists:', error);
     throw error;
   }
 };
@@ -193,26 +232,28 @@ export const generatePasskey = (): string => {
 export const createUserWithPasskey = async (username: string, clientId: string): Promise<string> => {
   try {
     console.log('[Firebase] Creating user with passkey:', { username, clientId });
-    // Generate a random 8-character alphanumeric passkey
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let passkey = '';
-    for (let i = 0; i < 8; i++) {
-      passkey += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    
-    // Save username -> clientId mapping
+    const passkey = generatePasskey();
+
+    // Save username -> clientId mapping (just the mapping)
     await set(usernameRef(username), {
       clientId,
-      passkey,
       createdAt: serverTimestamp(),
     });
-    
-    // Save username in user profile
-    await update(userRef(clientId), {
-      username,
+
+    // Save all user data under username/{username}
+    await set(usernameDataRef(username), {
       passkey,
+      favoriteTeam: null,
+      teamChangeCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
-    
+
+    // Save username reference in users/{clientId}
+    await set(userRef(clientId), {
+      username,
+    });
+
     console.log('[Firebase] User created with passkey:', passkey);
     return passkey;
   } catch (error) {
@@ -224,19 +265,32 @@ export const createUserWithPasskey = async (username: string, clientId: string):
 export const verifyUserPasskey = async (username: string, passkey: string): Promise<{ clientId: string, valid: boolean }> => {
   try {
     console.log('[Firebase] Verifying user passkey:', { username, passkey });
-    const snap = await get(usernameRef(username));
-    const data = snap.val();
-    
-    if (!data) {
-      console.log('[Firebase] Username not found');
+
+    // Get username mapping to get clientId
+    const usernameSnap = await get(usernameRef(username));
+    const usernameData = usernameSnap.val();
+
+    if (!usernameData) {
+      console.log('[Firebase] Username not found in usernames node');
       return { clientId: '', valid: false };
     }
-    
-    const isValid = data.passkey === passkey;
+
+    const clientId = usernameData.clientId;
+
+    // Get user data from username/{username}
+    const userDataSnap = await get(usernameDataRef(username));
+    const userData = userDataSnap.val();
+
+    if (!userData) {
+      console.log('[Firebase] User data not found in username node');
+      return { clientId: '', valid: false };
+    }
+
+    const isValid = userData.passkey === passkey;
     console.log('[Firebase] Passkey valid:', isValid);
-    
+
     return {
-      clientId: data.clientId,
+      clientId,
       valid: isValid,
     };
   } catch (error) {
@@ -248,25 +302,15 @@ export const verifyUserPasskey = async (username: string, passkey: string): Prom
 export const rotatePasskey = async (username: string, clientId: string): Promise<string> => {
   try {
     console.log('[Firebase] Rotating passkey for user:', { username, clientId });
-    // Generate new 8-character alphanumeric passkey
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let newPasskey = '';
-    for (let i = 0; i < 8; i++) {
-      newPasskey += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const newPasskey = generatePasskey();
     console.log('[Firebase] Generated new passkey:', newPasskey);
-    
-    // Update username mapping with new passkey
-    await update(usernameRef(username), {
+
+    // Update username/{username} with new passkey
+    await update(usernameDataRef(username), {
       passkey: newPasskey,
       updatedAt: serverTimestamp(),
     });
-    
-    // Update user profile with new passkey
-    await update(userRef(clientId), {
-      passkey: newPasskey,
-    });
-    
+
     console.log('[Firebase] Passkey rotated successfully');
     return newPasskey;
   } catch (error) {
