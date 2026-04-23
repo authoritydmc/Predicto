@@ -59,6 +59,12 @@ h1, h2, h3, .section-title, .prediction-score {
   padding: 32px;
 }
 
+@media (max-width: 767px) {
+  .app-shell {
+    padding: 16px;
+  }
+}
+
 html.desktop-embed,
 body.desktop-embed,
 html:has(body.overlay-shell),
@@ -114,6 +120,12 @@ body.desktop-embed {
   z-index: 1;
 }
 
+@media (max-width: 767px) {
+  .page {
+    max-width: 100%;
+  }
+}
+
 .hero {
   margin-bottom: 28px;
 }
@@ -160,6 +172,12 @@ body.desktop-embed {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
+}
+
+@media (max-width: 767px) {
+  .grid-two {
+    grid-template-columns: 1fr;
+  }
 }
 
 .panel {
@@ -227,6 +245,20 @@ body.desktop-embed {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 20px;
   border-radius: 12px;
+}
+
+@media (max-width: 767px) {
+  .audience-header {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+    padding: 12px 16px;
+  }
+
+  .audience-header-title {
+    flex-direction: column;
+    gap: 4px;
+  }
 }
 
 .back-btn {
@@ -350,6 +382,12 @@ body.desktop-embed {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
+}
+
+@media (max-width: 767px) {
+  .match-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .match-card {
@@ -486,6 +524,13 @@ body.desktop-embed {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+@media (max-width: 767px) {
+  .match-teams-display {
+    flex-direction: column;
+    gap: 8px;
+  }
 }
 
 .match-team {
@@ -1628,6 +1673,17 @@ body.desktop-embed .join-card {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+@media (max-width: 767px) {
+  .active-sessions-grid {
+    flex-direction: column;
+  }
+
+  .discovery-chip {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .discovery-chip {
