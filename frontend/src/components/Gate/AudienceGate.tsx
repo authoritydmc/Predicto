@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { onValue, ref } from 'firebase/database';
+import { onValue, ref, get } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
 
 interface AudienceGateProps {
@@ -47,12 +47,12 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
   const [loadingMatches, setLoadingMatches] = useState(true);
   const [loadingTournaments, setLoadingTournaments] = useState(true);
 
-  // Fetch active matches from discovery
+  // Fetch active matches from discovery and filter by status='live'
   useEffect(() => {
     const dbRoot = getDbRoot();
     const discoveryRef = ref(rtdb, `${dbRoot}/discovery/matches`);
     
-    const unsub = onValue(discoveryRef, (snap) => {
+    const unsub = onValue(discoveryRef, async (snap) => {
       const data = snap.val();
       if (data) {
         const matches = Object.entries(data).map(([matchCode, info]: [string, any]) => ({
@@ -62,7 +62,26 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
           matchId: info.matchId,
           updatedAt: info.updatedAt
         }));
-        setActiveMatches(matches);
+
+        // Filter matches by checking their actual status from meta
+        const liveMatches = await Promise.all(
+          matches.map(async (match) => {
+            try {
+              const metaRef = ref(rtdb, `${dbRoot}/tournaments/${match.sport}/${match.tournamentId}/matches/${match.matchId}/meta`);
+              const metaSnap = await get(metaRef);
+              const meta = metaSnap.val();
+              if (meta && meta.status === 'live') {
+                return match;
+              }
+              return null;
+            } catch (err) {
+              console.error('[AudienceGate] Error fetching match meta:', match.matchCode, err);
+              return null;
+            }
+          })
+        );
+
+        setActiveMatches(liveMatches.filter((m): m is ActiveMatch => m !== null));
       } else {
         setActiveMatches([]);
       }
@@ -75,12 +94,12 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
     return () => unsub();
   }, []);
 
-  // Fetch active tournaments from discovery
+  // Fetch active tournaments from discovery and filter by status='active'
   useEffect(() => {
     const dbRoot = getDbRoot();
     const tournamentsRef = ref(rtdb, `${dbRoot}/discovery/tournaments`);
     
-    const unsub = onValue(tournamentsRef, (snap) => {
+    const unsub = onValue(tournamentsRef, async (snap) => {
       const data = snap.val();
       if (data) {
         const tournaments = Object.entries(data).map(([tournamentCode, info]: [string, any]) => ({
@@ -91,7 +110,26 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
           status: info.status,
           updatedAt: info.updatedAt
         }));
-        setActiveTournaments(tournaments);
+
+        // Filter tournaments by checking their actual status from meta
+        const activeTournaments = await Promise.all(
+          tournaments.map(async (tournament) => {
+            try {
+              const metaRef = ref(rtdb, `${dbRoot}/tournaments/${tournament.sport}/${tournament.tournamentId}/meta`);
+              const metaSnap = await get(metaRef);
+              const meta = metaSnap.val();
+              if (meta && meta.status === 'active') {
+                return tournament;
+              }
+              return null;
+            } catch (err) {
+              console.error('[AudienceGate] Error fetching tournament meta:', tournament.tournamentCode, err);
+              return null;
+            }
+          })
+        );
+
+        setActiveTournaments(activeTournaments.filter((t): t is NonNullable<typeof t> => t !== null));
       } else {
         setActiveTournaments([]);
       }
