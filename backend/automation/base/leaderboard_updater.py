@@ -56,6 +56,7 @@ class LeaderboardUpdater:
             print(f"[LeaderboardUpdater] Processing match {match_id}: {len(predictions)} predictions")
             
             for username, user_data in predictions.items():
+                print(f"[LeaderboardUpdater] Checking user {username}: {list(user_data.keys())}")
                 if isinstance(user_data, dict) and 'predictions' in user_data:
                     # Array structure (standard predictions)
                     for prediction in user_data['predictions']:
@@ -65,30 +66,64 @@ class LeaderboardUpdater:
                             print(f"[LeaderboardUpdater]   {username}: +{score} points (from {match_id})")
                 elif isinstance(user_data, dict) and 'second_inn' in user_data:
                     # Nested second_inn structure (live 2nd innings predictions)
-                    if user_data.get('reconciled', False):
-                        score = user_data.get('score', 0)
-                        self._add_score(user_scores, username, user_data)
+                    second_inn = user_data['second_inn']
+                    print(f"[LeaderboardUpdater]   Found second_inn for {username}: reconciled={second_inn.get('reconciled')}, score={second_inn.get('score')}")
+                    if isinstance(second_inn, dict) and second_inn.get('reconciled', True):
+                        score = second_inn.get('score', 0)
+                        self._add_score(user_scores, username, second_inn)
                         print(f"[LeaderboardUpdater]   {username}: +{score} points (from {match_id}, 2nd innings)")
+                elif isinstance(user_data, dict) and 'first_inn' in user_data:
+                    # Nested first_inn structure (live 1st innings predictions)
+                    first_inn = user_data['first_inn']
+                    if isinstance(first_inn, dict) and first_inn.get('reconciled', True):
+                        score = first_inn.get('score', 0)
+                        self._add_score(user_scores, username, first_inn)
+                        print(f"[LeaderboardUpdater]   {username}: +{score} points (from {match_id}, 1st innings)")
+                elif isinstance(user_data, dict) and 'early_predict' in user_data:
+                    # Early predictions structure
+                    early = user_data['early_predict']
+                    if isinstance(early, dict):
+                        if 'first' in early and isinstance(early['first'], dict) and early['first'].get('reconciled', True):
+                            score = early['first'].get('score', 0)
+                            self._add_score(user_scores, username, early['first'])
+                            print(f"[LeaderboardUpdater]   {username}: +{score} points (from {match_id}, early 1st innings)")
+                        if 'second' in early and isinstance(early['second'], dict) and early['second'].get('reconciled', True):
+                            score = early['second'].get('score', 0)
+                            self._add_score(user_scores, username, early['second'])
+                            print(f"[LeaderboardUpdater]   {username}: +{score} points (from {match_id}, early 2nd innings)")
         
         # Convert to sorted leaderboard
         leaderboard = self._create_leaderboard(user_scores)
         
-        # Update Firebase
+        # Update Firebase with per-user structure
         leaderboard_path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/leaderboard"
-        success = self.client.set(leaderboard_path, {
-            'rankings': leaderboard,
+        
+        # Clear existing leaderboard and set new per-user entries
+        self.client.update(leaderboard_path, {})
+        
+        for entry in leaderboard:
+            user_path = f"{leaderboard_path}/{entry['username']}"
+            self.client.set(user_path, {
+                'rank': entry['rank'],
+                'username': entry['username'],
+                'totalScore': entry['totalScore'],
+                'matchesPlayed': entry['matchesPlayed'],
+                'penalties': entry['penalties'],
+                'averageScore': entry['averageScore']
+            })
+        
+        # Set metadata separately at _meta path
+        meta_path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/leaderboard/_meta"
+        self.client.set(meta_path, {
             'updatedAt': self.client.get_timestamp(),
             'totalParticipants': len(leaderboard)
         })
         
-        if success:
-            return {
-                'success': True,
-                'updated': len(leaderboard),
-                'leaderboard': leaderboard
-            }
-        else:
-            return {'success': False, 'error': 'Failed to update leaderboard'}
+        return {
+            'success': True,
+            'updated': len(leaderboard),
+            'leaderboard': leaderboard
+        }
     
     def _add_score(self, user_scores: Dict[str, Dict[str, Any]], username: str, prediction: Dict[str, Any]):
         """Add prediction score to user aggregate"""

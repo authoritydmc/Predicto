@@ -121,11 +121,30 @@ class ResultProcessor:
         if not username or not prediction_id:
             return False
         
+        print(f"[ResultProcessor] Raw prediction data: {prediction}")
+        
+        # Extract prediction data from nested structure for 2nd innings
+        prediction_to_process = prediction
+        if 'second_inn' in prediction and isinstance(prediction['second_inn'], dict):
+            prediction_to_process = prediction['second_inn']
+            print(f"[ResultProcessor] Using nested second_inn prediction data: {prediction_to_process}")
+        elif 'first_inn' in prediction and isinstance(prediction['first_inn'], dict):
+            prediction_to_process = prediction['first_inn']
+            print(f"[ResultProcessor] Using nested first_inn prediction data: {prediction_to_process}")
+        elif 'early_predict' in prediction:
+            if isinstance(prediction['early_predict'], dict):
+                if 'second' in prediction['early_predict']:
+                    prediction_to_process = prediction['early_predict']['second']
+                    print(f"[ResultProcessor] Using nested early_predict.second prediction data: {prediction_to_process}")
+                elif 'first' in prediction['early_predict']:
+                    prediction_to_process = prediction['early_predict']['first']
+                    print(f"[ResultProcessor] Using nested early_predict.first prediction data: {prediction_to_process}")
+        
         # Calculate 1st innings points if processing 1st innings or both
         p1_result = None
         if innings in ['1', 'both']:
             print(f"[ResultProcessor] Calculating 1st innings points...")
-            p1_result = self._calculate_innings1(prediction, meta, h1)
+            p1_result = self._calculate_innings1(prediction_to_process, meta, h1)
             if p1_result:
                 print(f"[ResultProcessor] 1st innings result: {p1_result.get('points', 0)} points (diff: {p1_result.get('diff', 'N/A')}, mode: {p1_result.get('mode', 'N/A')})")
         
@@ -138,55 +157,23 @@ class ResultProcessor:
                 is_overs = meta.get('isOversFormat', False)
                 print(f"[ResultProcessor] Calculating 2nd innings points (winner: {actual_winner}, result: {actual_result}, overs: {is_overs})...")
                 if actual_winner and actual_result:
-                    p2_result = self._calculate_innings2(prediction, actual_winner, actual_result, meta, is_overs)
+                    p2_result = self._calculate_innings2(prediction_to_process, actual_winner, actual_result, meta, is_overs)
                     if p2_result:
                         print(f"[ResultProcessor] 2nd innings result: {p2_result.get('points', 0)} points (diff: {p2_result.get('diff', 'N/A')}, mode: {p2_result.get('mode', 'N/A')})")
         
         # Calculate penalty for each innings processing
         penalty_result = {'total': 0, 'breakdown': {}, 'applied': []}
-        
         # Get existing applied penalties from prediction
         existing_penalties = prediction.get('appliedPenalties', {})
         if existing_penalties:
             print(f"[ResultProcessor] Existing penalties: {existing_penalties}")
         
-        # Convert placeholder values (true) to actual points from config
-        from cricket.cricket_config import CRICKET_CONFIG
-        penalty_config = CRICKET_CONFIG['penalty']
+        # Calculate new penalties using the extracted prediction data
+        penalty_result = self.calculator.calculate_penalty(prediction_to_process, existing_penalties)
+        print(f"[ResultProcessor] Penalty calculation result: {penalty_result}")
         
-        # Resolve placeholder values to actual points
-        resolved_penalties = {}
-        for penalty_type, value in existing_penalties.items():
-            if value is True:
-                # Frontend placeholder - use config value
-                resolved_penalties[penalty_type] = penalty_config.get(penalty_type, 0)
-            else:
-                # Already has actual value
-                resolved_penalties[penalty_type] = value
-        
-        # Calculate penalties based on innings being processed
-        if innings in ['1', 'both']:
-            # Calculate 1st innings penalties
-            penalty_1st = self.calculator.calculate_penalty(prediction, resolved_penalties)
-            # Merge new penalties
-            for penalty_type, value in penalty_1st['breakdown'].items():
-                if penalty_type not in resolved_penalties:
-                    penalty_result['breakdown'][penalty_type] = value
-                    penalty_result['applied'].append(penalty_type)
-                    penalty_result['total'] += value
-        
-        if innings in ['2', 'both']:
-            # Calculate 2nd innings penalties
-            penalty_2nd = self.calculator.calculate_penalty(prediction, resolved_penalties)
-            # Merge new penalties
-            for penalty_type, value in penalty_2nd['breakdown'].items():
-                if penalty_type not in resolved_penalties:
-                    penalty_result['breakdown'][penalty_type] = value
-                    penalty_result['applied'].append(penalty_type)
-                    penalty_result['total'] += value
-        
-        # Update existing penalties with newly applied ones (using actual points)
-        updated_penalties = {**resolved_penalties}
+        # Update existing penalties with newly applied ones
+        updated_penalties = {**existing_penalties}
         for penalty_type in penalty_result['applied']:
             updated_penalties[penalty_type] = penalty_result['breakdown'][penalty_type]
         
@@ -287,24 +274,36 @@ class ResultProcessor:
         if isinstance(data, dict) and 'second_inn' in data:
             # Update second_inn prediction for 2nd innings
             if innings in ['2', 'both'] and p2_result:
-                data['second_inn']['reconciled'] = innings == 'both'
+                data['second_inn']['reconciled'] = True  # Mark as reconciled so leaderboard can pick it up
                 data['second_inn']['score'] = p2_result.get('points', 0)
+                data['second_inn']['diff'] = p2_result.get('diff', '')
+                data['second_inn']['isExact'] = p2_result.get('isExact', False)
+                data['second_inn']['mode'] = p2_result.get('mode', '')
                 data['second_inn']['updatedAt'] = self.client.get_timestamp()
             
-            # For 1st innings, update top-level
+            # For 1st innings, check for first_inn structure
             if innings in ['1', 'both'] and p1_result:
-                data['p1Result'] = p1_result
-                if innings == 'both':
-                    data['reconciled'] = True
-                    data['reconciledAt'] = self.client.get_timestamp()
-                    data['score'] = total
-                    data['penaltyScore'] = penalty_result['total']
-                    data['penaltyBreakdown'] = penalty_result['breakdown']
-                    data['appliedPenalties'] = updated_penalties
+                if 'first_inn' in data and isinstance(data['first_inn'], dict):
+                    data['first_inn']['reconciled'] = True
+                    data['first_inn']['score'] = p1_result.get('points', 0)
+                    data['first_inn']['diff'] = p1_result.get('diff', '')
+                    data['first_inn']['isExact'] = p1_result.get('isExact', False)
+                    data['first_inn']['mode'] = p1_result.get('mode', '')
+                    data['first_inn']['updatedAt'] = self.client.get_timestamp()
+                else:
+                    data['p1Result'] = p1_result
             
-            return self.client.update(path, {
-                'updatedAt': self.client.get_timestamp()
-            })
+            # Mark top-level as reconciled on full processing
+            if innings == 'both':
+                data['reconciled'] = True
+                data['reconciledAt'] = self.client.get_timestamp()
+                data['score'] = total
+                data['penaltyScore'] = penalty_result['total']
+                data['penaltyBreakdown'] = penalty_result['breakdown']
+                data['appliedPenalties'] = updated_penalties
+            
+            # Update the entire data object to include nested structure changes
+            return self.client.update(path, data)
         
         # Handle array structure (standard predictions)
         if isinstance(data, dict) and 'predictions' in data:

@@ -2961,7 +2961,7 @@ body.desktop-embed .join-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10002;
+  z-index: 10005;
   padding: 20px;
 }
 
@@ -2969,7 +2969,7 @@ body.desktop-embed .join-card {
   background: #1a1a1a;
   border: 1px solid #333;
   border-radius: 16px;
-  max-width: 900px;
+  max-width: 1200px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;
@@ -3202,7 +3202,7 @@ body.desktop-embed .join-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10002;
+  z-index: 10005;
   padding: 20px;
 }
 
@@ -3210,7 +3210,7 @@ body.desktop-embed .join-card {
   background: #1a1a1a;
   border: 1px solid #333;
   border-radius: 16px;
-  max-width: 900px;
+  max-width: 1200px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;

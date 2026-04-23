@@ -55,9 +55,10 @@ export default function TournamentLeaderboardModal({ sport, tournamentId, onClos
           const data = snap.val();
           if (data) {
             const entries = Object.entries(data)
+              .filter(([name, _]: [string, any]) => name !== '_meta') // Filter out _meta entry
               .map(([name, stats]: [string, any]) => ({
                 name,
-                totalPoints: stats.totalPoints || 0,
+                totalPoints: stats.totalScore || 0,
                 matchesPlayed: stats.matchesPlayed || 0
               }))
               .sort((a, b) => b.totalPoints - a.totalPoints)

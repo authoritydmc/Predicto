@@ -43,6 +43,7 @@ def main():
     # Get environment from APP_MODE (default to prod)
     app_mode = os.environ.get('APP_MODE', 'prod')
     db_root = 'local' if app_mode == 'local' else 'prod'
+    print(f"[Cricket Calculator] APP_MODE environment variable: {app_mode}")
     print(f"[Cricket Calculator] Using database environment: {db_root}")
     
     # Initialize cricket calculator

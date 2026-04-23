@@ -1644,6 +1644,31 @@ const ControlPanel: React.FC = () => {
           setResolutionStatus('success');
           setResolutionMessage(`Scores calculated successfully. ${result.lineCount || 0} lines processed.`);
           
+          // Fetch reconciled predictions to populate results
+          try {
+            const predictionsSnap = await getOnce(matchPredictionsRef(fSport, tournamentId, matchId));
+            const predictions = predictionsSnap.val();
+            
+            if (predictions) {
+              const results = Object.entries(predictions).map(([username, data]: [string, any]) => {
+                const prediction = data.first_inn || data.second_inn || data.early_predict?.first || data.early_predict?.second;
+                return {
+                  clientId: username,
+                  name: username,
+                  points: prediction?.score || 0,
+                  guess: prediction?.runs || prediction?.runsOrOvers || prediction?.guess || '-',
+                  diff: prediction?.diff || '-',
+                  isExact: prediction?.isExact || false
+                };
+              }).sort((a, b) => b.points - a.points);
+              
+              setLastResults(results);
+              setResActualScore(is2nd ? fActualResult : fActualScore);
+            }
+          } catch (fetchError) {
+            console.error('[ControlPanel] Error fetching reconciled predictions:', fetchError);
+          }
+          
           // Refresh predictions to show reconciled results
           // @ts-ignore
           setResultsOpen(true);

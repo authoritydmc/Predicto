@@ -57,29 +57,43 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
               let firstCall = 'no call';
               let secondCall = 'no call';
               let penalty = 0;
+              let totalScore = 0;
 
-              // Parse first innings prediction
+              // Parse first innings prediction (new schema)
               if (userData.first_inn) {
-                const winner = userData.first_inn.predictedWinner === 'teamA' ? matchMeta?.teamA : matchMeta?.teamB;
-                firstCall = `${winner} ${userData.first_inn.scoreA || 0}+${userData.first_inn.scoreB || 0}`;
+                const winner = userData.first_inn.winnerTeam || 'unknown';
+                const runs = userData.first_inn.runs || 0;
+                firstCall = `${winner} ${runs}`;
               } else if (userData.early_predict?.first) {
-                const winner = userData.early_predict.first.predictedWinner === 'teamA' ? matchMeta?.teamA : matchMeta?.teamB;
-                firstCall = `${winner} ${userData.early_predict.first.teamABattingFirstScore || 0}+${userData.early_predict.first.teamBBattingFirstScore || 0}`;
+                const winner = userData.early_predict.first.winnerTeam || 'unknown';
+                const runs = userData.early_predict.first.runs || 0;
+                firstCall = `${winner} ${runs}`;
               }
 
-              // Parse second innings prediction
+              // Parse second innings prediction (new schema)
               if (userData.second_inn) {
-                const winner = userData.second_inn.secondInningsWinner === 'teamA' ? matchMeta?.teamA : matchMeta?.teamB;
-                if (userData.second_inn.secondInningsWinOvers) {
-                  secondCall = `${winner} in ${userData.second_inn.secondInningsWinOvers}`;
-                } else if (userData.second_inn.secondInningsChasingScore) {
-                  secondCall = `${winner} chase ${userData.second_inn.secondInningsChasingScore}`;
-                }
+                const winner = userData.second_inn.winnerTeam || 'unknown';
+                const runsOrOvers = userData.second_inn.runsOrOvers || 0;
+                const isOvers = runsOrOvers.includes('.');
+                secondCall = isOvers ? `${winner} in ${runsOrOvers}` : `${winner} chase ${runsOrOvers}`;
+              } else if (userData.early_predict?.second) {
+                const winner = userData.early_predict.second.winnerTeam || 'unknown';
+                const runsOrOvers = userData.early_predict.second.runsOrOvers || 0;
+                const isOvers = runsOrOvers.includes('.');
+                secondCall = isOvers ? `${winner} in ${runsOrOvers}` : `${winner} chase ${runsOrOvers}`;
               }
 
-              // Calculate penalty
-              if (userData.penalties && Array.isArray(userData.penalties)) {
-                penalty = userData.penalties.reduce((sum: number, p: any) => sum + (p.penaltyPoints || 0), 0);
+              // Calculate penalty from appliedPenalties (new schema)
+              if (userData.appliedPenalties && typeof userData.appliedPenalties === 'object') {
+                const penaltyValues = Object.values(userData.appliedPenalties) as number[];
+                penalty = penaltyValues.reduce((sum: number, val: number) => sum + (val || 0), 0);
+              }
+
+              // Get total score if reconciled
+              if (userData.second_inn?.reconciled && userData.second_inn?.score) {
+                totalScore = userData.second_inn.score;
+              } else if (userData.first_inn?.reconciled && userData.first_inn?.score) {
+                totalScore = userData.first_inn.score;
               }
 
               return {
@@ -87,7 +101,7 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
                 firstInningsCall: firstCall,
                 secondInningsCall: secondCall,
                 penalty,
-                totalScore: 0 // Will be calculated after reconciliation
+                totalScore
               };
             });
 
