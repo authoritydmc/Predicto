@@ -290,6 +290,10 @@ const ControlPanel: React.FC = () => {
   const [scoreTeamBOvers, setScoreTeamBOvers] = useState('');
   const [scoreMatchStatus, setScoreMatchStatus] = useState<'live' | 'completed' | 'scheduled'>('live');
   const [scoreSource, setScoreSource] = useState<'manual' | 'scraper' | 'api'>('manual');
+  const [scraperRunning, setScraperRunning] = useState(false);
+  const [scraperStatus, setScraperStatus] = useState('');
+  const [scraperOrder, setScraperOrder] = useState('cricbuzz,google,cricapi');
+  const [activeMatchTab, setActiveMatchTab] = useState<'details' | 'live'>('details');
 
   // ── Opacity
   const [opacity, setOpacity] = useState(1);
@@ -468,7 +472,7 @@ const ControlPanel: React.FC = () => {
     loadSchedule();
   }, [tournamentId, fSport]);
 
-  // Auto-mark matches as done after 6 hours from match date
+  // Auto-mark matches as done if no live score update for past 6 hours
   useEffect(() => {
     if (!tournamentId || !isFirebaseConfigured || !db || schedule.length === 0) return;
     
@@ -477,26 +481,31 @@ const ControlPanel: React.FC = () => {
       const sixHours = 6 * 60 * 60 * 1000;
       
       for (const match of schedule) {
-        if (!match.date || !match.matchId) continue;
+        if (!match.matchId) continue;
         
-        const matchDate = new Date(match.date).getTime();
-        // If match date + 6 hours has passed and match is still live, mark as done
-        if (now > matchDate + sixHours) {
-          try {
-            const metaSnap = await getOnce(matchMetaRef(fSport, tournamentId, match.matchId));
-            const meta = metaSnap.val();
-            
-            if (meta && meta.status === 'live') {
+        try {
+          // Check live score data for lastUpdated timestamp
+          const liveScoreSnap = await getOnce(matchLiveScoreRef(fSport, tournamentId, match.matchId));
+          const liveScore = liveScoreSnap.val();
+          
+          // Check match meta for current status
+          const metaSnap = await getOnce(matchMetaRef(fSport, tournamentId, match.matchId));
+          const meta = metaSnap.val();
+          
+          if (meta && meta.status === 'live') {
+            // If no live score data exists, or if lastUpdated is older than 6 hours
+            if (!liveScore || !liveScore.lastUpdated || (now - liveScore.lastUpdated) > sixHours) {
               await update(matchMetaRef(fSport, tournamentId, match.matchId), {
                 status: 'done',
                 endedAt: now,
-                autoMarked: true
+                autoMarked: true,
+                autoMarkReason: 'no_update_6h'
               });
-              console.log(`Auto-marked match ${match.matchId} as done`);
+              console.log(`Auto-marked match ${match.matchId} as done (no update for 6+ hours)`);
             }
-          } catch (err) {
-            console.error(`Error auto-marking match ${match.matchId}:`, err);
           }
+        } catch (err) {
+          console.error(`Error auto-marking match ${match.matchId}:`, err);
         }
       }
     };
@@ -953,13 +962,13 @@ const ControlPanel: React.FC = () => {
           runs: parseInt(scoreTeamARuns) || 0,
           wickets: parseInt(scoreTeamAWickets) || 0,
           overs: parseFloat(scoreTeamAOvers) || 0,
-          battingTeam: true
+          battingTeam: fBattingTeam === 'home'
         };
         scoreData.teamB = {
           runs: parseInt(scoreTeamBRuns) || 0,
           wickets: parseInt(scoreTeamBWickets) || 0,
           overs: parseFloat(scoreTeamBOvers) || 0,
-          battingTeam: false
+          battingTeam: fBattingTeam === 'away'
         };
         scoreData.currentInnings = fInnings === '2' ? 2 : 1;
       } else if (fSport === 'football') {
@@ -978,6 +987,61 @@ const ControlPanel: React.FC = () => {
     } catch (err) {
       console.error(err);
       alert('Error updating live score');
+    }
+  };
+
+  const handleRunScraper = async () => {
+    if (!matchId || !fTeamA || !fTeamB) {
+      alert('Please select a match with team names first');
+      return;
+    }
+
+    setScraperRunning(true);
+    setScraperStatus('Initializing scraper...');
+
+    try {
+      // @ts-ignore
+      const result = await window.overlayDesktop.runScraper(fSport, matchId, fTeamA, fTeamB, scraperOrder);
+      
+      if (result.success) {
+        setScraperStatus(`Success! Fetched from ${result.data.source}`);
+        
+        // Auto-fill the form with scraped data
+        if (fSport === 'cricket' && result.data.teamA && result.data.teamB) {
+          setScoreTeamARuns(result.data.teamA.runs?.toString() || '');
+          setScoreTeamAWickets(result.data.teamA.wickets?.toString() || '');
+          setScoreTeamAOvers(result.data.teamA.overs?.toString() || '');
+          setScoreTeamBRuns(result.data.teamB.runs?.toString() || '');
+          setScoreTeamBWickets(result.data.teamB.wickets?.toString() || '');
+          setScoreTeamBOvers(result.data.teamB.overs?.toString() || '');
+          setScoreMatchStatus(result.data.matchStatus || 'live');
+          setScoreSource('scraper');
+          
+          // Update innings and batting team from scraper
+          if (result.data.currentInnings) {
+            setFInnings(result.data.currentInnings === 1 ? '1' : '2');
+          }
+          if (result.data.teamA.battingTeam !== undefined) {
+            setFBattingTeam(result.data.teamA.battingTeam ? 'home' : 'away');
+          }
+        } else if (fSport === 'football' && result.data.teamA && result.data.teamB) {
+          setScoreTeamARuns(result.data.teamA.goals?.toString() || '');
+          setScoreTeamBRuns(result.data.teamB.goals?.toString() || '');
+          setScoreMatchStatus(result.data.matchStatus || 'live');
+          setScoreSource('scraper');
+        }
+        
+        console.log('[ControlPanel] Scraper result:', result.data);
+      } else {
+        setScraperStatus(`Failed: ${result.error}`);
+        console.error('[ControlPanel] Scraper error:', result);
+      }
+    } catch (error) {
+      setScraperStatus('Error running scraper');
+      console.error('[ControlPanel] Scraper exception:', error);
+    } finally {
+      setScraperRunning(false);
+      setTimeout(() => setScraperStatus(''), 5000);
     }
   };
 
@@ -1167,6 +1231,25 @@ const ControlPanel: React.FC = () => {
       setFActualScore(''); setFActualResult('');
       alert('Match ended and archived.');
     } catch (err) { console.error(err); alert('Error ending match.'); }
+  };
+
+  const handleRestoreMatch = async (matchIdToRestore: string) => {
+    if (!isFirebaseConfigured || !db || !tournamentId) return;
+    if (!confirm('Restore match to live status? This will allow users to join again.')) return;
+    try {
+      await update(matchMetaRef(fSport, tournamentId, matchIdToRestore), {
+        status: 'live',
+        autoMarked: false,
+        autoMarkReason: null,
+        endedAt: null
+      });
+      // Update local status
+      setMatchStatuses(prev => ({ ...prev, [matchIdToRestore]: 'live' }));
+      alert('Match restored to live status.');
+    } catch (err) {
+      console.error(err);
+      alert('Error restoring match.');
+    }
   };
 
   const updateSeasonLeaderboard = async (rid: string) => {
@@ -1754,7 +1837,7 @@ const ControlPanel: React.FC = () => {
                 {schedule.length > 0 && (
                   <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Tournament Schedule ({schedule.length} matches)</span>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Next Scheduled Match</span>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button 
                           type="button"
@@ -1779,11 +1862,22 @@ const ControlPanel: React.FC = () => {
                     </div>
                     <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {schedule
+                        .filter((match: any) => {
+                          // Only show matches that are scheduled with a date
+                          if (!match.date) return false;
+                          const matchDate = new Date(match.date);
+                          const now = new Date();
+                          // Compare date parts only (year, month, day) - ignore time for filtering
+                          const matchDateOnly = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
+                          const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                          // Show today's matches and future matches
+                          return matchDateOnly >= nowDateOnly;
+                        })
                         .sort((a: any, b: any) => {
-                          if (!a.date) return 1;
-                          if (!b.date) return -1;
+                          // Sort by full date/time to get the next upcoming match
                           return new Date(a.date).getTime() - new Date(b.date).getTime();
                         })
+                        .slice(0, 1) // Only show the best candidate (next upcoming match)
                         .map((match, idx) => {
                           const now = new Date();
                           const matchDate = match.date ? new Date(match.date) : null;
@@ -1861,6 +1955,18 @@ const ControlPanel: React.FC = () => {
                             </div>
                           );
                         })}
+                      {schedule.filter((m: any) => {
+                        if (!m.date) return false;
+                        const matchDate = new Date(m.date);
+                        const now = new Date();
+                        const matchDateOnly = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
+                        const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        return matchDateOnly >= nowDateOnly;
+                      }).length === 0 && (
+                        <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', textAlign: 'center', color: 'var(--muted)' }}>
+                          No upcoming scheduled matches
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1891,6 +1997,16 @@ const ControlPanel: React.FC = () => {
                             <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.teamA} vs {match.teamB}</div>
                           </div>
                           <div style={{ display: 'flex', gap: '6px' }}>
+                            {matchStatuses[match.matchId] === 'done' && (
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreMatch(match.matchId)}
+                                className="cp-action-btn cp-small"
+                                style={{ fontSize: '10px', padding: '4px 8px', background: 'rgba(52, 199, 89, 0.2)', color: '#34c759' }}
+                              >
+                                Restore
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleSelectMatch(match)}
@@ -1916,91 +2032,238 @@ const ControlPanel: React.FC = () => {
 
                 <div className="cp-divider" />
 
-                {/* Match Form */}
-                <form onSubmit={handleCreateMatch}>
-                  <div className="cp-form-row">
-                    <label>Tournament</label>
-                    <input value={tournamentId} readOnly style={{ background: 'rgba(255,255,255,0.02)', cursor: 'not-allowed' }} />
-                  </div>
-                  <div className="cp-dual-row">
+                {/* Match Tabs */}
+                <div className="cp-tabs">
+                  <button 
+                    className={`cp-tab ${activeMatchTab === 'details' ? 'active' : ''}`}
+                    onClick={() => setActiveMatchTab('details')}
+                  >
+                    <span className="cp-tab-icon">📋</span>
+                    Match Details
+                  </button>
+                  <button 
+                    className={`cp-tab ${activeMatchTab === 'live' ? 'active' : ''}`}
+                    onClick={() => setActiveMatchTab('live')}
+                  >
+                    <span className="cp-tab-icon">📊</span>
+                    Live Score
+                  </button>
+                </div>
+
+                {/* Match Details Tab */}
+                <div className={`cp-tab-content ${activeMatchTab === 'details' ? 'active' : ''}`}>
+                  <form onSubmit={handleCreateMatch}>
                     <div className="cp-form-row">
-                      <label>Match Code</label>
-                      <input value={fMatchCode} onChange={e => setFMatchCode(e.target.value)} maxLength={40} placeholder="e.g. csk-vs-mi" required />
+                      <label>Tournament</label>
+                      <input value={tournamentId} readOnly style={{ background: 'rgba(255,255,255,0.02)', cursor: 'not-allowed' }} />
                     </div>
-                    <div className="cp-form-row">
-                      <label>Match Title</label>
-                      <input value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} placeholder="e.g. CSK vs MI - Match 1" required />
+                    <div className="cp-dual-row">
+                      <div className="cp-form-row">
+                        <label>Match Code</label>
+                        <input value={fMatchCode} onChange={e => setFMatchCode(e.target.value)} maxLength={40} placeholder="e.g. csk-vs-mi" required />
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Match Title</label>
+                        <input value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} placeholder="e.g. CSK vs MI - Match 1" required />
+                      </div>
                     </div>
-                  </div>
-                  <div className="cp-dual-row">
-                    <div className="cp-form-row">
-                      <label>Home Team</label>
-                      <div className="cp-input-action-group">
-                        <input value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
-                        {getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos') && (
-                          <img 
-                            src={getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos')!} 
-                            alt={fTeamA}
-                            style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
-                          />
-                        )}
+                    <div className="cp-dual-row">
+                      <div className="cp-form-row">
+                        <label>Home Team</label>
+                        <div className="cp-input-action-group">
+                          <input value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
+                          {getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos') && (
+                            <img 
+                              src={getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos')!} 
+                              alt={fTeamA}
+                              style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Away Team</label>
+                        <div className="cp-input-action-group">
+                          <input value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
+                          {getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos') && (
+                            <img 
+                              src={getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos')!} 
+                              alt={fTeamB}
+                              style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
+                            />
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="cp-form-row">
-                      <label>Away Team</label>
-                      <div className="cp-input-action-group">
-                        <input value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
-                        {getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos') && (
-                          <img 
-                            src={getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos')!} 
-                            alt={fTeamB}
-                            style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
-                          />
-                        )}
+                      <label className="cp-toggle-row">
+                        <span>Allow re-prediction</span>
+                        <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
+                      </label>
+                    </div>
+                    <div className="cp-form-row">
+                      <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
+                        <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
+                        <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
+                      </label>
+                    </div>
+                    <div className="cp-form-row">
+                      <label>Batting Team (Active Predictions)</label>
+                      <div className="cp-radio-group">
+                        <div className="cp-radio-option">
+                          <input type="radio" id="battingA" name="battingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
+                          <label className="cp-radio-label" htmlFor="battingA">{fTeamA || 'Home Team'}</label>
+                        </div>
+                        <div className="cp-radio-option">
+                          <input type="radio" id="battingB" name="battingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
+                          <label className="cp-radio-label" htmlFor="battingB">{fTeamB || 'Away Team'}</label>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="cp-form-row">
-                    <label className="cp-toggle-row">
-                      <span>Allow re-prediction</span>
-                      <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
-                    </label>
-                  </div>
-                  <div className="cp-form-row">
-                    <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
-                      <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
-                      <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
-                    </label>
-                  </div>
-                  <div className="cp-form-row">
-                    <label>Batting Team (Active Predictions)</label>
-                    <div className="cp-radio-group">
-                      <div className="cp-radio-option">
-                        <input type="radio" id="battingA" name="battingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
-                        <label className="cp-radio-label" htmlFor="battingA">{fTeamA || 'Home Team'}</label>
-                      </div>
-                      <div className="cp-radio-option">
-                        <input type="radio" id="battingB" name="battingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
-                        <label className="cp-radio-label" htmlFor="battingB">{fTeamB || 'Away Team'}</label>
+                    <div className="cp-form-row">
+                      <label>Current Innings</label>
+                      <div className="cp-radio-group">
+                        <div className="cp-radio-option">
+                          <input type="radio" id="innings1st" name="innings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
+                          <label className="cp-radio-label" htmlFor="innings1st">1st Innings</label>
+                        </div>
+                        <div className="cp-radio-option">
+                          <input type="radio" id="innings2nd" name="innings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
+                          <label className="cp-radio-label" htmlFor="innings2nd">2nd Innings</label>
+                        </div>
                       </div>
                     </div>
+                    <div className="cp-divider" />
+                    <button className="cp-primary-btn cp-wide-btn" type="submit">{matchId ? 'Update Match' : 'Create Match & Connect'}</button>
+                  </form>
+                </div>
+
+                {/* Live Score Tab */}
+                <div className={`cp-tab-content ${activeMatchTab === 'live' ? 'active' : ''}`}>
+                  <div className="cp-form-row">
+                    <label>Match Status</label>
+                    <select value={scoreMatchStatus} onChange={e => setScoreMatchStatus(e.target.value as any)}>
+                      <option value="live">Live</option>
+                      <option value="completed">Completed</option>
+                      <option value="scheduled">Scheduled</option>
+                    </select>
                   </div>
                   <div className="cp-form-row">
-                    <label>Current Innings</label>
-                    <div className="cp-radio-group">
-                      <div className="cp-radio-option">
-                        <input type="radio" id="innings1st" name="innings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
-                        <label className="cp-radio-label" htmlFor="innings1st">1st Innings</label>
-                      </div>
-                      <div className="cp-radio-option">
-                        <input type="radio" id="innings2nd" name="innings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
-                        <label className="cp-radio-label" htmlFor="innings2nd">2nd Innings</label>
-                      </div>
-                    </div>
+                    <label>Source</label>
+                    <select value={scoreSource} onChange={e => setScoreSource(e.target.value as any)}>
+                      <option value="manual">Manual</option>
+                      <option value="scraper">Scraper</option>
+                      <option value="api">API</option>
+                    </select>
                   </div>
+                  {fSport === 'cricket' && (
+                    <>
+                      <div className="cp-divider" style={{ margin: '12px 0' }} />
+                      <div className="cp-form-row">
+                        <label>Current Innings</label>
+                        <div className="cp-radio-group">
+                          <div className="cp-radio-option">
+                            <input type="radio" id="liveInnings1st" name="liveInnings" value="1" checked={fInnings === '1'} onChange={() => setFInnings('1')} />
+                            <label className="cp-radio-label" htmlFor="liveInnings1st">1st Innings</label>
+                          </div>
+                          <div className="cp-radio-option">
+                            <input type="radio" id="liveInnings2nd" name="liveInnings" value="2" checked={fInnings === '2'} onChange={() => setFInnings('2')} />
+                            <label className="cp-radio-label" htmlFor="liveInnings2nd">2nd Innings</label>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Batting Team</label>
+                        <div className="cp-radio-group">
+                          <div className="cp-radio-option">
+                            <input type="radio" id="liveBattingA" name="liveBattingTeam" value="home" checked={fBattingTeam === 'home'} onChange={() => setFBattingTeam('home')} />
+                            <label className="cp-radio-label" htmlFor="liveBattingA">{fTeamA || 'Team A'}</label>
+                          </div>
+                          <div className="cp-radio-option">
+                            <input type="radio" id="liveBattingB" name="liveBattingTeam" value="away" checked={fBattingTeam === 'away'} onChange={() => setFBattingTeam('away')} />
+                            <label className="cp-radio-label" htmlFor="liveBattingB">{fTeamB || 'Team B'}</label>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="cp-divider" style={{ margin: '12px 0' }} />
+                      <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamA || 'Team A'}</div>
+                      <div className="cp-form-row">
+                        <label>Runs</label>
+                        <input type="number" value={scoreTeamARuns} onChange={e => setScoreTeamARuns(e.target.value)} placeholder="0" />
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Wickets</label>
+                        <input type="number" value={scoreTeamAWickets} onChange={e => setScoreTeamAWickets(e.target.value)} placeholder="0" max="10" />
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Overs</label>
+                        <input type="number" step="0.1" value={scoreTeamAOvers} onChange={e => setScoreTeamAOvers(e.target.value)} placeholder="0.0" />
+                      </div>
+                      <div className="cp-divider" style={{ margin: '12px 0' }} />
+                      <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamB || 'Team B'}</div>
+                      <div className="cp-form-row">
+                        <label>Runs</label>
+                        <input type="number" value={scoreTeamBRuns} onChange={e => setScoreTeamBRuns(e.target.value)} placeholder="0" />
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Wickets</label>
+                        <input type="number" value={scoreTeamBWickets} onChange={e => setScoreTeamBWickets(e.target.value)} placeholder="0" max="10" />
+                      </div>
+                      <div className="cp-form-row">
+                        <label>Overs</label>
+                        <input type="number" step="0.1" value={scoreTeamBOvers} onChange={e => setScoreTeamBOvers(e.target.value)} placeholder="0.0" />
+                      </div>
+                    </>
+                  )}
+                  {fSport === 'football' && (
+                    <>
+                      <div className="cp-form-row">
+                        <label>{fTeamA || 'Team A'} Goals</label>
+                        <input type="number" value={scoreTeamARuns} onChange={e => setScoreTeamARuns(e.target.value)} placeholder="0" />
+                      </div>
+                      <div className="cp-form-row">
+                        <label>{fTeamB || 'Team B'} Goals</label>
+                        <input type="number" value={scoreTeamBRuns} onChange={e => setScoreTeamBRuns(e.target.value)} placeholder="0" />
+                      </div>
+                    </>
+                  )}
                   <div className="cp-divider" />
-                  <button className="cp-primary-btn cp-wide-btn" type="submit">{matchId ? 'Update Match' : 'Create Match & Connect'}</button>
-                </form>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      className="cp-action-btn" 
+                      type="button" 
+                      onClick={handleUpdateLiveScore}
+                      style={{ flex: 1 }}
+                    >
+                      Update Live Score
+                    </button>
+                    <button 
+                      className="cp-secondary-btn" 
+                      type="button" 
+                      onClick={handleRunScraper}
+                      disabled={scraperRunning}
+                      style={{ flex: 1 }}
+                    >
+                      {scraperRunning ? 'Running...' : 'Run Scraper'}
+                    </button>
+                  </div>
+                  {scraperStatus && (
+                    <p className="cp-panel-note" style={{ color: scraperStatus.includes('Success') ? '#34c759' : scraperStatus.includes('Failed') || scraperStatus.includes('Error') ? '#ef4444' : 'var(--muted)' }}>
+                      {scraperStatus}
+                    </p>
+                  )}
+                  <div className="cp-form-row">
+                    <label>Scraper Order (comma-separated)</label>
+                    <input 
+                      type="text" 
+                      value={scraperOrder} 
+                      onChange={e => setScraperOrder(e.target.value)}
+                      placeholder="cricbuzz,google,cricapi"
+                      style={{ fontSize: '11px' }}
+                    />
+                  </div>
+                  <p className="cp-panel-note">Updates will be reflected in real-time on the audience match page.</p>
+                </div>
               </>
             )}
           </div>
@@ -2101,85 +2364,6 @@ const ControlPanel: React.FC = () => {
             </div>
             <div className="cp-divider" />
             <p className="cp-panel-note">Slider updates automatically if Auto-Fetch is on. You can also fetch manually.</p>
-          </div>
-        </section>
-
-        {/* ── Live Score Update ── */}
-        <section className="cp-panel-group">
-          <div 
-            className="cp-group-header" 
-            onClick={() => toggleSection('liveScore')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>Live Score Update</h2>
-            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
-              {collapsedSections.liveScore ? '▶' : '▼'}
-            </span>
-          </div>
-          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.liveScore ? 'none' : 'block' }}>
-            <div className="cp-form-row">
-              <label>Match Status</label>
-              <select value={scoreMatchStatus} onChange={e => setScoreMatchStatus(e.target.value as any)}>
-                <option value="live">Live</option>
-                <option value="completed">Completed</option>
-                <option value="scheduled">Scheduled</option>
-              </select>
-            </div>
-            <div className="cp-form-row">
-              <label>Source</label>
-              <select value={scoreSource} onChange={e => setScoreSource(e.target.value as any)}>
-                <option value="manual">Manual</option>
-                <option value="scraper">Scraper</option>
-                <option value="api">API</option>
-              </select>
-            </div>
-            {fSport === 'cricket' && (
-              <>
-                <div className="cp-divider" style={{ margin: '12px 0' }} />
-                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamA || 'Team A'}</div>
-                <div className="cp-form-row">
-                  <label>Runs</label>
-                  <input type="number" value={scoreTeamARuns} onChange={e => setScoreTeamARuns(e.target.value)} placeholder="0" />
-                </div>
-                <div className="cp-form-row">
-                  <label>Wickets</label>
-                  <input type="number" value={scoreTeamAWickets} onChange={e => setScoreTeamAWickets(e.target.value)} placeholder="0" max="10" />
-                </div>
-                <div className="cp-form-row">
-                  <label>Overs</label>
-                  <input type="number" step="0.1" value={scoreTeamAOvers} onChange={e => setScoreTeamAOvers(e.target.value)} placeholder="0.0" />
-                </div>
-                <div className="cp-divider" style={{ margin: '12px 0' }} />
-                <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--accent-blue)' }}>{fTeamB || 'Team B'}</div>
-                <div className="cp-form-row">
-                  <label>Runs</label>
-                  <input type="number" value={scoreTeamBRuns} onChange={e => setScoreTeamBRuns(e.target.value)} placeholder="0" />
-                </div>
-                <div className="cp-form-row">
-                  <label>Wickets</label>
-                  <input type="number" value={scoreTeamBWickets} onChange={e => setScoreTeamBWickets(e.target.value)} placeholder="0" max="10" />
-                </div>
-                <div className="cp-form-row">
-                  <label>Overs</label>
-                  <input type="number" step="0.1" value={scoreTeamBOvers} onChange={e => setScoreTeamBOvers(e.target.value)} placeholder="0.0" />
-                </div>
-              </>
-            )}
-            {fSport === 'football' && (
-              <>
-                <div className="cp-form-row">
-                  <label>{fTeamA || 'Team A'} Goals</label>
-                  <input type="number" value={scoreTeamARuns} onChange={e => setScoreTeamARuns(e.target.value)} placeholder="0" />
-                </div>
-                <div className="cp-form-row">
-                  <label>{fTeamB || 'Team B'} Goals</label>
-                  <input type="number" value={scoreTeamBRuns} onChange={e => setScoreTeamBRuns(e.target.value)} placeholder="0" />
-                </div>
-              </>
-            )}
-            <div className="cp-divider" />
-            <button className="cp-action-btn" type="button" onClick={handleUpdateLiveScore}>Update Live Score</button>
-            <p className="cp-panel-note">Updates will be reflected in real-time on the audience match page.</p>
           </div>
         </section>
 

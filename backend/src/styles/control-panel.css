@@ -509,3 +509,56 @@ input[type=range]::-webkit-slider-thumb {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.25); }
+
+/* ─── Tabs ───────────────────────────────────────────────────────────────────── */
+.cp-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.cp-tab {
+  flex: 1;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.cp-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cp-tab.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.cp-tab-icon {
+  font-size: 16px;
+}
+
+.cp-tab-content {
+  display: none;
+  animation: cp-fade-in 0.2s ease;
+}
+
+.cp-tab-content.active {
+  display: block;
+}

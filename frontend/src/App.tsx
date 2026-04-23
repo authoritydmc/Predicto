@@ -420,12 +420,32 @@ function MatchPage() {
       try {
         const matchMetaSnap = await get(matchMetaRef(sport, id, matchId));
         const matchMeta = matchMetaSnap.val();
+        
         if (matchMeta && matchMeta.status) {
           setMatchStatus(matchMeta.status);
+          
+          // If status is 'done', block access
           if (matchMeta.status === 'done') {
             alert('This match has ended. You cannot join completed matches.');
             navigate('/');
             setTournamentContext(null);
+            return;
+          }
+          
+          // If status is 'live', check if it should be auto-marked as done due to no updates for 6+ hours
+          if (matchMeta.status === 'live') {
+            const liveScoreSnap = await get(matchLiveScoreRef(sport, id, matchId));
+            const liveScore = liveScoreSnap.val();
+            const now = Date.now();
+            const sixHours = 6 * 60 * 60 * 1000;
+            
+            // If no live score data or lastUpdated is older than 6 hours, treat as done
+            if (!liveScore || !liveScore.lastUpdated || (now - liveScore.lastUpdated) > sixHours) {
+              setMatchStatus('done');
+              alert('This match has ended. You cannot join completed matches.');
+              navigate('/');
+              setTournamentContext(null);
+            }
           }
         } else {
           setMatchStatus('live');
