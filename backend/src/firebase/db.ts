@@ -2,14 +2,14 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, get, update, remove, onValue, query, limitToLast, serverTimestamp, push, DatabaseReference, DataSnapshot } from 'firebase/database';
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
-  authDomain: "scorepredictor-9dd45.firebaseapp.com",
-  databaseURL: "https://scorepredictor-9dd45-default-rtdb.firebaseio.com",
-  projectId: "scorepredictor-9dd45",
-  storageBucket: "scorepredictor-9dd45.firebasestorage.app",
-  messagingSenderId: "555373343943",
-  appId: "1:555373343943:web:64e8233090daa9a7043ae2",
-  measurementId: "G-N10HQR1382"
+  apiKey: process.env.FIREBASE_API_KEY || "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "scorepredictor-9dd45.firebaseapp.com",
+  databaseURL: process.env.FIREBASE_DATABASE_URL || "https://scorepredictor-9dd45-default-rtdb.firebaseio.com",
+  projectId: process.env.FIREBASE_PROJECT_ID || "scorepredictor-9dd45",
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "scorepredictor-9dd45.firebasestorage.app",
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "555373343943",
+  appId: process.env.FIREBASE_APP_ID || "1:555373343943:web:64e8233090daa9a7043ae2",
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-N10HQR1382"
 };
 
 export const isFirebaseConfigured = true;

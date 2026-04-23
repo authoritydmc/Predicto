@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   showDebug: () => ipcRenderer.invoke("debug:show"),
   setFirebaseMode: (mode) => ipcRenderer.invoke("firebase:set-mode", mode),
   runScraper: (sport, matchId, teamA, teamB, scraperOrder) => ipcRenderer.invoke("scraper:run", sport, matchId, teamA, teamB, scraperOrder),
+  triggerSchedulerTask: (taskId) => ipcRenderer.invoke("scheduler:trigger-task", taskId),
+  toggleSchedulerTask: (taskId) => ipcRenderer.invoke("scheduler:toggle-task", taskId),
+  updateSchedulerTask: (taskId, config) => ipcRenderer.invoke("scheduler:update-task", taskId, config),
+  getSchedulerStatus: () => ipcRenderer.invoke("scheduler:get-status"),
 });
 
 // Expose APP_MODE directly on window

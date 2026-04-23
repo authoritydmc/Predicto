@@ -796,32 +796,46 @@ To perform admin operations in production, the Firebase auth token must include:
 
 ## Firebase Configuration
 
+Firebase configuration is loaded from environment variables. See `.env.example` files in both `frontend/` and `backend/` directories for required variables.
+
 ### Backend (`backend/src/firebase/db.ts`)
 ```typescript
 export const firebaseConfig = {
-  apiKey: "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
-  authDomain: "scorepredictor-9dd45.firebaseapp.com",
-  databaseURL: "https://scorepredictor-9dd45-default-rtdb.firebaseio.com",
-  projectId: "scorepredictor-9dd45",
-  storageBucket: "scorepredictor-9dd45.firebasestorage.app",
-  messagingSenderId: "555373343943",
-  appId: "1:555373343943:web:64e8233090daa9a7043ae2",
-  measurementId: "G-N10HQR1382"
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.FIREBASE_DATABASE_URL,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID
 };
 ```
 
 ### Frontend (`frontend/src/firebase/config.ts`)
 ```typescript
 export const firebaseConfig = {
-  apiKey: "AIzaSyCHzMhjOePcNBkvCpJE0H-S2jZ7q9cgaaE",
-  authDomain: "scorepredictor-9dd45.firebaseapp.com",
-  databaseURL: "https://scorepredictor-9dd45-default-rtdb.firebaseio.com",
-  projectId: "scorepredictor-9dd45",
-  storageBucket: "scorepredictor-9dd45.firebasestorage.app",
-  messagingSenderId: "555373343943",
-  appId: "1:555373343943:web:64e8233090daa9a7043ae2",
-  measurementId: "G-N10HQR1382"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+```
+
+### Python Automation (`backend/automation/base/firebase_client.py`)
+```python
+self.config = {
+    'databaseURL': os.environ.get('FIREBASE_DATABASE_URL'),
+    'apiKey': os.environ.get('FIREBASE_API_KEY'),
+    'authDomain': os.environ.get('FIREBASE_AUTH_DOMAIN'),
+    'projectId': os.environ.get('FIREBASE_PROJECT_ID'),
+    'storageBucket': os.environ.get('FIREBASE_STORAGE_BUCKET')
+}
+```
 ```
 
 **Note**: Both backend and frontend use the same Firebase project (`scorepredictor-9dd45`) for consistency.

@@ -187,7 +187,6 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
       return;
     }
     
-    const chasingTeam = battingFirst === 'teamA' ? 'teamB' : 'teamA';
     const firstTeam = battingFirst;
     
     if (secondInningsWinner === firstTeam) {
@@ -287,24 +286,33 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         </div>
       )}
 
-      {/* Scheduled Match: Predict both scenarios */}
+      {/* Cricket: Scheduled Match */}
       {!isMatchCompleted && matchStatus === 'scheduled' && sport === 'cricket' && (
-        <>
-          <div style={{ 
-            padding: '12px', 
-            background: 'rgba(52, 199, 89, 0.1)', 
-            borderRadius: '8px', 
-            marginBottom: '16px',
+        <div className="cricket-prediction-form">
+          <div style={{
+            padding: '16px',
+            background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.05) 100%)',
+            borderRadius: '12px',
+            marginBottom: '20px',
             border: '1px solid rgba(52, 199, 89, 0.3)'
           }}>
-            <p style={{ margin: 0, fontSize: '13px', color: '#34c759', fontWeight: 600 }}>
-              📅 Match Scheduled - Predict first innings for both scenarios
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '20px' }}>🏏</span>
+              <p style={{ margin: 0, fontSize: '14px', color: '#34c759', fontWeight: 700 }}>
+                First Innings Prediction
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+              Predict both teams' first innings scores
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="stack-form">
             <label>
-              Your name
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>👤</span>
+                Your name
+              </span>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -317,9 +325,12 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             </label>
 
             <label>
-              Who do you think will bat first?
-              <select 
-                value={predictedBattingFirst} 
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🎯</span>
+                Who will bat first?
+              </span>
+              <select
+                value={predictedBattingFirst}
                 onChange={e => setPredictedBattingFirst(e.target.value as 'teamA' | 'teamB')}
                 required
               >
@@ -329,7 +340,10 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             </label>
 
             <label>
-              Predicted winner
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏆</span>
+                Predicted winner
+              </span>
               <select value={winner} onChange={e => setWinner(e.target.value)} required>
                 <option value="">Choose winner...</option>
                 <option value="teamA">{teamA}</option>
@@ -337,9 +351,12 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
               </select>
             </label>
 
-            <div className="dual-row">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <label>
-                {teamA} First Innings Forecast
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📊</span>
+                  {teamA} Score
+                </span>
                 <input
                   type="text"
                   value={scoreA}
@@ -349,7 +366,10 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
                 />
               </label>
               <label>
-                {teamB} First Innings Forecast
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📊</span>
+                  {teamB} Score
+                </span>
                 <input
                   type="text"
                   value={scoreB}
@@ -360,31 +380,40 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
               </label>
             </div>
 
-            <button type="submit" className="primary-btn" disabled={loading}>
-              {loading ? 'Submitting...' : 'Send prediction'}
+            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
+              {loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
-        </>
+        </div>
       )}
 
-      {/* Live Match After Toss: Only batting team score */}
+      {/* Cricket: Live Match - First Innings */}
       {!isMatchCompleted && matchStatus === 'live' && battingFirst && sport === 'cricket' && currentInnings === 1 && (
-        <>
-          <div style={{ 
-            padding: '12px', 
-            background: 'rgba(255, 159, 10, 0.1)', 
-            borderRadius: '8px', 
-            marginBottom: '16px',
+        <div className="cricket-prediction-form">
+          <div style={{
+            padding: '16px',
+            background: 'linear-gradient(135deg, rgba(255, 159, 10, 0.15) 0%, rgba(255, 159, 10, 0.05) 100%)',
+            borderRadius: '12px',
+            marginBottom: '20px',
             border: '1px solid rgba(255, 159, 10, 0.3)'
           }}>
-            <p style={{ margin: 0, fontSize: '13px', color: '#ff9f0a', fontWeight: 600 }}>
-              🏏 {battingFirst === 'teamA' ? teamA : teamB} is batting first
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '20px' }}>🏏</span>
+              <p style={{ margin: 0, fontSize: '14px', color: '#ff9f0a', fontWeight: 700 }}>
+                First Innings Live
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+              {battingFirst === 'teamA' ? teamA : teamB} is batting first
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="stack-form">
             <label>
-              Your name
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>👤</span>
+                Your name
+              </span>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -397,7 +426,10 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             </label>
 
             <label>
-              Predicted winner
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏆</span>
+                Predicted winner
+              </span>
               <select value={winner} onChange={e => setWinner(e.target.value)} required>
                 <option value="">Choose winner...</option>
                 <option value="teamA">{teamA}</option>
@@ -406,7 +438,10 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             </label>
 
             <label>
-              {battingFirst === 'teamA' ? teamA : teamB} First Innings Score
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📊</span>
+                {battingFirst === 'teamA' ? teamA : teamB} Final Score
+              </span>
               <input
                 type="text"
                 value={battingFirst === 'teamA' ? scoreA : scoreB}
@@ -419,31 +454,40 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
               />
             </label>
 
-            <button type="submit" className="primary-btn" disabled={loading}>
-              {loading ? 'Submitting...' : 'Send prediction'}
+            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
+              {loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
-        </>
+        </div>
       )}
 
-      {/* Second Innings Early Prediction */}
+      {/* Cricket: Second Innings */}
       {!isMatchCompleted && currentInnings === 2 && showSecondInningsPrediction && sport === 'cricket' && (
-        <>
-          <div style={{ 
-            padding: '12px', 
-            background: 'rgba(52, 199, 89, 0.1)', 
-            borderRadius: '8px', 
-            marginBottom: '16px',
+        <div className="cricket-prediction-form">
+          <div style={{
+            padding: '16px',
+            background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.05) 100%)',
+            borderRadius: '12px',
+            marginBottom: '20px',
             border: '1px solid rgba(52, 199, 89, 0.3)'
           }}>
-            <p style={{ margin: 0, fontSize: '13px', color: '#34c759', fontWeight: 600 }}>
-              🎯 Second Innings - Update your prediction
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '20px' }}>🎯</span>
+              <p style={{ margin: 0, fontSize: '14px', color: '#34c759', fontWeight: 700 }}>
+                Second Innings Prediction
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+              Update your prediction for the chase
             </p>
           </div>
-          
+
           <form onSubmit={handleSecondInningsPrediction} className="stack-form">
             <label>
-              Your name
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>👤</span>
+                Your name
+              </span>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -456,9 +500,12 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
             </label>
 
             <label>
-              Who will win?
-              <select 
-                value={secondInningsWinner} 
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏆</span>
+                Who will win?
+              </span>
+              <select
+                value={secondInningsWinner}
                 onChange={e => setSecondInningsWinner(e.target.value as 'teamA' | 'teamB')}
                 required
               >
@@ -473,7 +520,10 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
                 {secondInningsWinner === (battingFirst === 'teamA' ? 'teamA' : 'teamB') ? (
                   // First team wins - ask for all-out score
                   <label>
-                    {battingFirst === 'teamA' ? teamB : teamA} All-Out Score
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📊</span>
+                      {battingFirst === 'teamA' ? teamB : teamA} All-Out Score
+                    </span>
                     <input
                       type="text"
                       value={secondInningsAllOutScore}
@@ -488,7 +538,10 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
                 ) : (
                   // Chasing team wins - ask for overs
                   <label>
-                    {battingFirst === 'teamA' ? teamB : teamA} will win in
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>⏱️</span>
+                      {battingFirst === 'teamA' ? teamB : teamA} will win in
+                    </span>
                     <input
                       type="text"
                       value={secondInningsWinOvers}
@@ -504,65 +557,97 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
               </>
             )}
 
-            <button type="submit" className="primary-btn" disabled={loading}>
-              {loading ? 'Submitting...' : 'Send second innings prediction'}
+            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
+              {loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
-        </>
+        </div>
       )}
 
-      {/* Football (unchanged) */}
+      {/* Football */}
       {!isMatchCompleted && sport === 'football' && (
-        <form onSubmit={handleSubmit} className="stack-form">
-          <label>
-            Your name
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              maxLength={30}
-              required
-              placeholder="Display name..."
-              readOnly
-              className="readonly-input"
-            />
-          </label>
-
-          <label>
-            Predicted winner
-            <select value={winner} onChange={e => setWinner(e.target.value)} required>
-              <option value="">Choose winner...</option>
-              <option value="teamA">{teamA}</option>
-              <option value="teamB">{teamB}</option>
-            </select>
-          </label>
-
-          <div className="dual-row">
-            <label>
-              {teamA} Goals
-              <input
-                type="number"
-                value={scoreA}
-                onChange={e => setScoreA(e.target.value)}
-                placeholder="0"
-                required
-              />
-            </label>
-            <label>
-              {teamB} Goals
-              <input
-                type="number"
-                value={scoreB}
-                onChange={e => setScoreB(e.target.value)}
-                placeholder="0"
-                required
-              />
-            </label>
+        <div className="football-prediction-form">
+          <div style={{
+            padding: '16px',
+            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%)',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            border: '1px solid rgba(59, 130, 246, 0.3)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '20px' }}>⚽</span>
+              <p style={{ margin: 0, fontSize: '14px', color: '#3b82f6', fontWeight: 700 }}>
+                Match Prediction
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+              Predict the final score
+            </p>
           </div>
 
-          <button type="submit" className="primary-btn" disabled={loading}>
-            {loading ? 'Submitting...' : 'Send prediction'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="stack-form">
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>👤</span>
+                Your name
+              </span>
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                maxLength={30}
+                required
+                placeholder="Display name..."
+                readOnly
+                className="readonly-input"
+              />
+            </label>
+
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏆</span>
+                Predicted winner
+              </span>
+              <select value={winner} onChange={e => setWinner(e.target.value)} required>
+                <option value="">Choose winner...</option>
+                <option value="teamA">{teamA}</option>
+                <option value="teamB">{teamB}</option>
+              </select>
+            </label>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <label>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚽</span>
+                  {teamA} Goals
+                </span>
+                <input
+                  type="number"
+                  value={scoreA}
+                  onChange={e => setScoreA(e.target.value)}
+                  placeholder="0"
+                  required
+                />
+              </label>
+              <label>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚽</span>
+                  {teamB} Goals
+                </span>
+                <input
+                  type="number"
+                  value={scoreB}
+                  onChange={e => setScoreB(e.target.value)}
+                  placeholder="0"
+                  required
+                />
+              </label>
+            </div>
+
+            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
+              {loading ? 'Submitting...' : '🚀 Send Prediction'}
+            </button>
+          </form>
+        </div>
       )}
     </section>
   );

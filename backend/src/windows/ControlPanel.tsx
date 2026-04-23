@@ -227,7 +227,8 @@ const ControlPanel: React.FC = () => {
     winProb: false,
     liveScore: false,
     windowEngine: false,
-    history: true
+    history: true,
+    scheduler: false
   });
 
   // ── Tab State
@@ -297,6 +298,12 @@ const ControlPanel: React.FC = () => {
   const [scraperStatus, setScraperStatus] = useState('');
   const [scraperOrder, setScraperOrder] = useState('cricbuzz,google,cricapi');
   const [activeMatchTab, setActiveMatchTab] = useState<'details' | 'live'>('details');
+
+  // ── Scheduler State
+  const [schedulerTasks, setSchedulerTasks] = useState<Record<string, any>>({});
+  const [schedulerRunning, setSchedulerRunning] = useState(false);
+  const [schedulerLogs, setSchedulerLogs] = useState<any[]>([]);
+  const [activeSchedulerTab, setActiveSchedulerTab] = useState<'tasks' | 'logs'>('tasks');
 
   // ── Opacity
   const [opacity, setOpacity] = useState(1);
@@ -627,6 +634,11 @@ const ControlPanel: React.FC = () => {
         setMeta(m);
       });
     }
+  }, [fSport, tournamentId, matchId, isFirebaseConfigured, db]);
+
+  // Load scheduler tasks on mount
+  useEffect(() => {
+    loadSchedulerTasks();
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1137,6 +1149,54 @@ const ControlPanel: React.FC = () => {
     } finally {
       setScraperRunning(false);
       setTimeout(() => setScraperStatus(''), 5000);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Scheduler Handlers
+  // ─────────────────────────────────────────────────────────────────────────────
+  const loadSchedulerTasks = async () => {
+    if (!isFirebaseConfigured || !db) return;
+    try {
+      const snap = await getOnce(ref(db, getDbRoot() + '/scheduler_config/tasks'));
+      const tasks = snap.val();
+      if (tasks) {
+        setSchedulerTasks(tasks);
+      }
+    } catch (error) {
+      console.error('[ControlPanel] Error loading scheduler tasks:', error);
+    }
+  };
+
+  const handleTriggerSchedulerTask = async (taskId: string) => {
+    // @ts-ignore
+    const result = await window.overlayDesktop.triggerSchedulerTask(taskId);
+    if (result.success) {
+      alert(`Task ${taskId} triggered successfully`);
+      loadSchedulerTasks();
+    } else {
+      alert(`Failed to trigger task: ${result.error}`);
+    }
+  };
+
+  const handleToggleSchedulerTask = async (taskId: string) => {
+    // @ts-ignore
+    const result = await window.overlayDesktop.toggleSchedulerTask(taskId);
+    if (result.success) {
+      loadSchedulerTasks();
+    } else {
+      alert(`Failed to toggle task: ${result.error}`);
+    }
+  };
+
+  const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
+    // @ts-ignore
+    const result = await window.overlayDesktop.updateSchedulerTask(taskId, config);
+    if (result.success) {
+      alert(`Task ${taskId} updated successfully`);
+      loadSchedulerTasks();
+    } else {
+      alert(`Failed to update task: ${result.error}`);
     }
   };
 
@@ -2572,6 +2632,93 @@ const ControlPanel: React.FC = () => {
             </div>
             <div className="cp-divider" />
             <p className="cp-panel-note">Slider updates automatically if Auto-Fetch is on. You can also fetch manually.</p>
+          </div>
+        </section>
+
+        {/* ── Automation Scheduler ── */}
+        <section className="cp-panel-group">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('scheduler')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Automation Scheduler</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.scheduler ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card" style={{ display: collapsedSections.scheduler ? 'none' : 'block' }}>
+            {/* Scheduler Status */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600 }}>
+                  Scheduler Status
+                </span>
+                <span className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
+              </div>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                {schedulerRunning ? 'Running' : 'Stopped'}
+              </span>
+            </div>
+
+            {/* Task List */}
+            <div className="cp-section-header">
+              <span>Scheduled Tasks</span>
+            </div>
+            {Object.keys(schedulerTasks).length === 0 ? (
+              <p style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center', padding: '20px' }}>
+                No tasks configured
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Object.entries(schedulerTasks).map(([taskId, task]: [string, any]) => (
+                  <div key={taskId} style={{ 
+                    padding: '12px', 
+                    background: 'rgba(255,255,255,0.03)', 
+                    borderRadius: '8px',
+                    border: '1px solid var(--panel-border)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600 }}>{task.name}</span>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span className={`cp-dot ${task.enabled ? 'active' : 'inactive'}`} />
+                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                          {task.last_status || 'idle'}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
+                      <span>Interval: {task.interval_seconds}s</span>
+                      {task.last_run && <span>Last run: {new Date(task.last_run).toLocaleTimeString()}</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        className="cp-action-btn cp-small"
+                        onClick={() => handleTriggerSchedulerTask(taskId)}
+                        disabled={task.last_status === 'running'}
+                      >
+                        Run Now
+                      </button>
+                      <button 
+                        className="cp-action-btn cp-small"
+                        onClick={() => handleToggleSchedulerTask(taskId)}
+                      >
+                        {task.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Refresh Button */}
+            <button 
+              className="cp-secondary-btn cp-wide-btn"
+              onClick={loadSchedulerTasks}
+              style={{ marginTop: '12px' }}
+            >
+              Refresh Tasks
+            </button>
           </div>
         </section>
 

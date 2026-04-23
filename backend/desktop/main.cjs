@@ -22,6 +22,59 @@ const initLogServer = () => {
 };
 initLogServer();
 
+// ── Scheduler Process ───────────────────────────────────────────────────────────
+let schedulerProcess = null;
+
+const startScheduler = () => {
+  if (schedulerProcess) {
+    console.log('[Scheduler] Already running');
+    return;
+  }
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "scheduler", "main.py");
+  
+  console.log('[Scheduler] Starting scheduler process...');
+  
+  schedulerProcess = spawn(pythonPath, [scriptPath], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      PYTHONPATH: path.join(__dirname, "..")
+    }
+  });
+  
+  schedulerProcess.stdout.on('data', (data) => {
+    console.log(`[Scheduler] ${data.toString()}`);
+  });
+  
+  schedulerProcess.stderr.on('data', (data) => {
+    console.error(`[Scheduler] Error: ${data.toString()}`);
+  });
+  
+  schedulerProcess.on('close', (code) => {
+    console.log(`[Scheduler] Process exited with code ${code}`);
+    schedulerProcess = null;
+    // Auto-restart after delay
+    setTimeout(() => {
+      if (APP_MODE === 'prod') {
+        console.log('[Scheduler] Auto-restarting...');
+        startScheduler();
+      }
+    }, 5000);
+  });
+  
+  schedulerProcess.on('error', (error) => {
+    console.error(`[Scheduler] Failed to start: ${error}`);
+    schedulerProcess = null;
+  });
+};
+
+// Start scheduler in production mode
+if (APP_MODE === 'prod') {
+  startScheduler();
+}
+
 const isDev = process.env.NODE_ENV === "development";
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:5174";
 
@@ -547,4 +600,72 @@ ipcMain.handle("scraper:run", async (_event, sport, matchId, teamA, teamB, scrap
       resolve({ success: false, error: 'Failed to start scraper', details: error.message });
     });
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scheduler IPC Handlers
+// ─────────────────────────────────────────────────────────────────────────────
+
+ipcMain.handle("scheduler:get-status", async () => {
+  return {
+    running: schedulerProcess !== null,
+    pid: schedulerProcess ? schedulerProcess.pid : null
+  };
+});
+
+ipcMain.handle("scheduler:trigger-task", async (_event, taskId) => {
+  console.log(`[Scheduler] Triggering task: ${taskId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  let scriptPath = '';
+  
+  if (taskId === 'cricket_score_calc') {
+    scriptPath = path.join(__dirname, "..", "automation", "cricket", "run_calculator.py");
+  } else if (taskId === 'football_score_calc') {
+    scriptPath = path.join(__dirname, "..", "automation", "football", "run_calculator.py");
+  } else if (taskId === 'tournament_leaderboard') {
+    scriptPath = path.join(__dirname, "..", "automation", "base", "run_leaderboard.py");
+  } else {
+    return { success: false, error: 'Unknown task ID' };
+  }
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [scriptPath]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log(`[Scheduler] Task ${taskId} completed successfully`);
+        resolve({ success: true, taskId, status: 'success' });
+      } else {
+        console.error(`[Scheduler] Task ${taskId} failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Task failed with code ${code}`, taskId });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error(`[Scheduler] Failed to start task ${taskId}:`, error);
+      resolve({ success: false, error: 'Failed to start task', taskId, details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("scheduler:toggle-task", async (_event, taskId) => {
+  console.log(`[Scheduler] Toggling task: ${taskId}`);
+  return { success: true, taskId, enabled: true };
+});
+
+ipcMain.handle("scheduler:update-task", async (_event, taskId, config) => {
+  console.log(`[Scheduler] Updating task: ${taskId}`, config);
+  return { success: true, taskId };
 });

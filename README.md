@@ -17,11 +17,44 @@ The project is split into two specialized applications:
 - **Firebase Project**: You need a Realtime Database instance.
 
 ### 2. Initial Setup
-Run the following at the repository root to initialize both environments:
-```bash
-./run.bat  # Select option 4 to clean old artifacts, then follow setups
-```
-*Note: The management script will automatically prompt you to install dependencies if they are missing.*
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up environment variables:
+   - Copy `.env.example` to `.env` in both `frontend/` and `backend/` directories
+   - Fill in your Firebase configuration values
+   ```bash
+   cp frontend/.env.example frontend/.env
+   cp backend/.env.example backend/.env
+   ```
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## Environment Variables
+
+### Frontend (frontend/.env)
+- `VITE_FIREBASE_API_KEY` - Firebase API key
+- `VITE_FIREBASE_AUTH_DOMAIN` - Firebase auth domain
+- `VITE_FIREBASE_DATABASE_URL` - Firebase database URL
+- `VITE_FIREBASE_PROJECT_ID` - Firebase project ID
+- `VITE_FIREBASE_STORAGE_BUCKET` - Firebase storage bucket
+- `VITE_FIREBASE_MESSAGING_SENDER_ID` - Firebase messaging sender ID
+- `VITE_FIREBASE_APP_ID` - Firebase app ID
+- `VITE_FIREBASE_MEASUREMENT_ID` - Firebase measurement ID
+
+### Backend (backend/.env)
+- `FIREBASE_API_KEY` - Firebase API key
+- `FIREBASE_AUTH_DOMAIN` - Firebase auth domain
+- `FIREBASE_DATABASE_URL` - Firebase database URL
+- `FIREBASE_PROJECT_ID` - Firebase project ID
+- `FIREBASE_STORAGE_BUCKET` - Firebase storage bucket
+- `APP_MODE` - Application mode (prod/local)
+- `NODE_ENV` - Node environment (production/development)
 
 ### 3. Running the Apps
 We recommend using the root **`run.bat`** (Windows) or **`run.sh`** (Mac/Linux) as it manages all cross-app dependencies.
