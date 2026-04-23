@@ -46,8 +46,17 @@ function AppLayout() {
   const [forceShowAuth, setForceShowAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [passkeyCopied, setPasskeyCopied] = useState(false);
+
+  const getFirebaseModeFromUrl = (): 'local' | 'prod' => {
+    const origin = window.location.origin;
+    const isLocal = origin.includes('localhost') ||
+                    origin.includes('127.0.0.1') ||
+                    origin.startsWith('http://192.');
+    return isLocal ? 'local' : 'prod';
+  };
+
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
-    return (localStorage.getItem('firebase_mode') as 'local' | 'prod') || 'local';
+    return getFirebaseModeFromUrl();
   });
   const [clientId] = useState(() => {
     const existing = localStorage.getItem('ovr_client_id');
@@ -315,17 +324,19 @@ function AppLayout() {
               >
                 🔄
               </button>
-              <button
-                className="firebase-mode-btn"
-                onClick={handleToggleFirebaseMode}
-                title={`Switch to ${firebaseMode === 'local' ? 'PROD' : 'LOCAL'} mode`}
-                style={{
-                  background: firebaseMode === 'prod' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                  color: firebaseMode === 'prod' ? '#ef4444' : '#10b981',
-                }}
-              >
-                {firebaseMode.toUpperCase()}
-              </button>
+              {firebaseMode === 'local' && (
+                <button
+                  className="firebase-mode-btn"
+                  onClick={handleToggleFirebaseMode}
+                  title="Switch to PROD mode"
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.2)',
+                    color: '#10b981',
+                  }}
+                >
+                  {firebaseMode.toUpperCase()}
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -2,17 +2,25 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { rotatePasskey, setFirebaseMode, saveUserGlobalProfile } from '../firebase/services';
-import { STORAGE_KEYS, MAX_TEAM_CHANGES } from '../config/constants';
+import { MAX_TEAM_CHANGES } from '../config/constants';
 import type { AppContextType, FirebaseMode } from '../types';
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const getFirebaseModeFromUrl = (): FirebaseMode => {
+  const origin = window.location.origin;
+  const isLocal = origin.includes('localhost') ||
+                  origin.includes('127.0.0.1') ||
+                  origin.startsWith('http://192.');
+  return isLocal ? 'local' : 'prod';
+};
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const { username, isAuthed, clientId, handleAuthSuccess } = useAuth();
   const { profile } = useUserProfile(clientId);
-  
+
   const [firebaseMode, setFirebaseModeState] = useState<FirebaseMode>(() => {
-    return (localStorage.getItem(STORAGE_KEYS.FIREBASE_MODE) as FirebaseMode) || 'local';
+    return getFirebaseModeFromUrl();
   });
 
   const passkey = profile.passkey || null;
