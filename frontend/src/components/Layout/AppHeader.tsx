@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { STORAGE_KEYS } from '../../config/constants';
 import PasscodeViewer from '../Auth/PasscodeViewer';
 import { getTeamLogoUrl, getTeamColor } from '../../utils/teamLogos';
@@ -25,6 +26,7 @@ export default function AppHeader({
   onRotatePasskey,
   onSelectFavoriteTeam
 }: AppHeaderProps) {
+  const navigate = useNavigate();
   console.log('[AppHeader] Props received:', { username, isAuthed, passkey, favoriteTeam });
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPasscodeViewer, setShowPasscodeViewer] = useState(false);
@@ -84,7 +86,7 @@ export default function AppHeader({
         }}
       >
         <div className="app-header-content">
-          <div className="app-header-brand">
+          <div className="app-header-brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
             <h1 className="app-header-title">Predicto</h1>
             <span className="app-header-subtitle">Live Sports Chat</span>
           </div>

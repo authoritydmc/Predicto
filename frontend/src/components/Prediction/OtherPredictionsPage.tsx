@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { onValue, get, ref } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
 
-interface OtherPredictionsModalProps {
-  sport: string;
-  tournamentId: string;
-  matchId: string;
-  onClose: () => void;
-}
+interface OtherPredictionsPageProps {}
 
 interface PredictionEntry {
   name: string;
@@ -31,7 +27,9 @@ const getDbRoot = () => {
   return 'local';
 };
 
-export default function OtherPredictionsModal({ sport, tournamentId, matchId, onClose }: OtherPredictionsModalProps) {
+export default function OtherPredictionsPage({}: OtherPredictionsPageProps) {
+  const { sport, tournamentId, matchId } = useParams<{ sport: string; tournamentId: string; matchId: string }>();
+  const navigate = useNavigate();
   const [predictions, setPredictions] = useState<PredictionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<any>(null);
@@ -91,9 +89,9 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
 
               // Get total score if reconciled
               if (userData.second_inn?.reconciled && userData.second_inn?.score) {
-                totalScore = userData.second_inn.score;
+                totalScore = userData.second_inn.reconciled.score;
               } else if (userData.first_inn?.reconciled && userData.first_inn?.score) {
-                totalScore = userData.first_inn.score;
+                totalScore = userData.first_inn.reconciled.score;
               }
 
               return {
@@ -114,7 +112,7 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
 
         return () => unsub();
       } catch (error) {
-        console.error('[OtherPredictionsModal] Error loading predictions:', error);
+        console.error('[OtherPredictionsPage] Error loading predictions:', error);
         setLoading(false);
       }
     };
@@ -122,88 +120,96 @@ export default function OtherPredictionsModal({ sport, tournamentId, matchId, on
     loadPredictions();
   }, [sport, tournamentId, matchId]);
 
+  const handleBack = () => {
+    navigate(`/match/${matchId}`);
+  };
+
   return (
-    <div className="predictions-modal-overlay" onClick={onClose}>
-      <div className="predictions-modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="predictions-modal-header">
-          <button className="back-btn" onClick={onClose}>← Back</button>
-          <div className="match-info">
-            {matchInfo && (
-              <>
-                <span className="match-date">{new Date(matchInfo.date || Date.now()).toLocaleDateString()}</span>
-                <span className="match-teams">{matchInfo.teamA} vs {matchInfo.teamB}</span>
-              </>
-            )}
-          </div>
-          <button className="close-btn" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="predictions-modal-body">
-          <div className="predictions-header">
-            <h2>Player predictions</h2>
-            <p>How each person scored across both innings.</p>
-          </div>
-
-          <div className="predictions-legend">
-            <span className="legend-item positive">POSITIVE PTS</span>
-            <span className="legend-item penalty">PENALTY</span>
-          </div>
-
-          {loading ? (
-            <div className="loading-state">
-              <h3>Loading Predictions</h3>
-              <p>Fetching player predictions from the server...</p>
-            </div>
-          ) : predictions.length === 0 ? (
-            <div className="empty-state">
-              <h3>No Predictions Yet</h3>
-              <p>Be the first to submit your prediction for this match!</p>
-            </div>
-          ) : (
-            <table className="predictions-table">
-              <thead>
-                <tr>
-                  <th>PLAYER</th>
-                  <th>1ST INNINGS CALL</th>
-                  <th>2ND INNINGS CALL</th>
-                  <th>PENALTY</th>
-                  <th>TOTAL</th>
-                  <th>VISUAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {predictions.map((prediction, index) => (
-                  <tr key={index}>
-                    <td className="player-cell" data-label="PLAYER">
-                      <span className={`rank ${index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : ''}`}>
-                        {index + 1}
-                      </span>
-                      <span className="player-name">{prediction.name}</span>
-                    </td>
-                    <td className="call-cell" data-label="1ST INNINGS">{prediction.firstInningsCall}</td>
-                    <td className="call-cell" data-label="2ND INNINGS">{prediction.secondInningsCall}</td>
-                    <td className="penalty-cell" data-label="PENALTY">
-                      {(prediction.penalty || 0) > 0 ? (
-                        <span className="penalty-value">-{prediction.penalty}</span>
-                      ) : (
-                        <span className="no-penalty">-</span>
-                      )}
-                    </td>
-                    <td className="total-cell" data-label="TOTAL">{prediction.totalScore || 0}</td>
-                    <td className="visual-cell">
-                      <div className="score-bar">
-                        <div 
-                          className="score-bar-fill" 
-                          style={{ width: `${Math.min((prediction.totalScore || 0) / 5, 100)}%` }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <div className="predictions-full-page">
+      {/* Header */}
+      <div className="predictions-page-header">
+        <button className="back-btn" onClick={handleBack}>
+          ← Back to Match
+        </button>
+        <div className="match-info">
+          {matchInfo && (
+            <>
+              <span className="match-date">{new Date(matchInfo.date || Date.now()).toLocaleDateString()}</span>
+              <span className="match-teams">{matchInfo.teamA} vs {matchInfo.teamB}</span>
+            </>
           )}
         </div>
+        <button className="close-btn" onClick={handleBack}>
+          ✕
+        </button>
+      </div>
+
+      {/* Main Content */}
+      <div className="predictions-page-body">
+        <div className="predictions-header">
+          <h2>Player predictions</h2>
+          <p>How each person scored across both innings.</p>
+        </div>
+
+        <div className="predictions-legend">
+          <span className="legend-item positive">POSITIVE PTS</span>
+          <span className="legend-item penalty">PENALTY</span>
+        </div>
+
+        {loading ? (
+          <div className="loading-state">
+            <h3>Loading Predictions</h3>
+            <p>Fetching player predictions from server...</p>
+          </div>
+        ) : predictions.length === 0 ? (
+          <div className="empty-state">
+            <h3>No Predictions Yet</h3>
+            <p>Be the first to submit your prediction for this match!</p>
+          </div>
+        ) : (
+          <table className="predictions-table">
+            <thead>
+              <tr>
+                <th>PLAYER</th>
+                <th>1ST INNINGS CALL</th>
+                <th>2ND INNINGS CALL</th>
+                <th>PENALTY</th>
+                <th>TOTAL</th>
+                <th>VISUAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {predictions.map((prediction, index) => (
+                <tr key={index}>
+                  <td className="player-cell" data-label="PLAYER">
+                    <span className={`rank ${index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : ''}`}>
+                      {index + 1}
+                    </span>
+                    <span className="player-name">{prediction.name}</span>
+                  </td>
+                  <td className="call-cell" data-label="1ST INNINGS">{prediction.firstInningsCall}</td>
+                  <td className="call-cell" data-label="2ND INNINGS">{prediction.secondInningsCall}</td>
+                  <td className="penalty-cell" data-label="PENALTY">
+                    {(prediction.penalty || 0) > 0 ? (
+                      <span className="penalty-value">-{prediction.penalty}</span>
+                    ) : (
+                      <span className="no-penalty">-</span>
+                    )}
+                  </td>
+                  <td className="total-cell" data-label="TOTAL">{prediction.totalScore || 0}</td>
+                  <td className="visual-cell">
+                    <div className="score-bar">
+                      <div 
+                        className="score-bar-fill" 
+                        style={{ width: `${Math.min((prediction.totalScore || 0) / 5, 100)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

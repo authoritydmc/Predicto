@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react';
 import { onValue, ref, get } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
+import { getTeamLogoUrl } from '../../utils/teamLogos';
 
 interface AudienceGateProps {
   onJoinMatch: (matchCode: string) => void;
   onJoinTournament: (tournamentCode: string) => void;
+}
+
+interface MatchMeta {
+  teamA?: string;
+  teamB?: string;
+  matchTitle?: string;
+  status?: string;
 }
 
 interface ActiveMatch {
@@ -13,6 +21,13 @@ interface ActiveMatch {
   tournamentId: string;
   matchId: string;
   updatedAt: any;
+  meta?: MatchMeta;
+}
+
+interface TournamentMeta {
+  tournamentName?: string;
+  status?: string;
+  sport?: string;
 }
 
 interface ActiveTournament {
@@ -22,6 +37,7 @@ interface ActiveTournament {
   tournamentName?: string;
   status?: string;
   updatedAt: any;
+  meta?: TournamentMeta;
 }
 
 const getDbRoot = () => {
@@ -63,7 +79,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
           updatedAt: info.updatedAt
         }));
 
-        // Filter matches by checking their actual status from meta
+        // Filter matches by checking their actual status from meta and fetch team info
         const liveMatches = await Promise.all(
           matches.map(async (match) => {
             try {
@@ -71,7 +87,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
               const metaSnap = await get(metaRef);
               const meta = metaSnap.val();
               if (meta && (meta.status === 'live' || meta.status === 'active')) {
-                return match;
+                return { ...match, meta };
               }
               return null;
             } catch (err) {
@@ -119,7 +135,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
               const metaSnap = await get(metaRef);
               const meta = metaSnap.val();
               if (meta && meta.status === 'active') {
-                return tournament;
+                return { ...tournament, meta };
               }
               return null;
             } catch (err) {
@@ -129,7 +145,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
           })
         );
 
-        setActiveTournaments(activeTournaments.filter((t): t is NonNullable<typeof t> => t !== null));
+        setActiveTournaments(activeTournaments.filter((t): t is ActiveTournament => t !== null));
       } else {
         setActiveTournaments([]);
       }
@@ -241,11 +257,42 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
               <button
                 key={match.matchCode}
                 onClick={() => handleQuickJoinMatch(match.matchCode)}
-                className="discovery-chip"
+                className="discovery-chip match-chip"
               >
                 <span className="pulse-dot"></span>
-                <span className="discovery-sport-icon">{getSportIcon(match.sport)}</span>
-                <span className="discovery-chip-text">{match.matchCode}</span>
+                {match.meta?.teamA && match.meta?.teamB ? (
+                  <div className="match-chip-content">
+                    <div className="match-chip-teams">
+                      <div className="match-chip-team">
+                        {getTeamLogoUrl(match.meta.teamA) && (
+                          <img 
+                            src={getTeamLogoUrl(match.meta.teamA)!} 
+                            alt={match.meta.teamA}
+                            className="match-chip-logo"
+                          />
+                        )}
+                        <span className="match-chip-team-name">{match.meta.teamA}</span>
+                      </div>
+                      <span className="match-chip-vs">VS</span>
+                      <div className="match-chip-team">
+                        {getTeamLogoUrl(match.meta.teamB) && (
+                          <img 
+                            src={getTeamLogoUrl(match.meta.teamB)!} 
+                            alt={match.meta.teamB}
+                            className="match-chip-logo"
+                          />
+                        )}
+                        <span className="match-chip-team-name">{match.meta.teamB}</span>
+                      </div>
+                    </div>
+                    <span className="match-chip-id">{match.matchCode}</span>
+                  </div>
+                ) : (
+                  <>
+                    <span className="discovery-sport-icon">{getSportIcon(match.sport)}</span>
+                    <span className="discovery-chip-text">{match.matchCode}</span>
+                  </>
+                )}
               </button>
             ))}
           </div>
@@ -268,11 +315,16 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
               <button
                 key={tournament.tournamentCode}
                 onClick={() => handleQuickJoinTournament(tournament.tournamentCode)}
-                className="discovery-chip"
+                className="discovery-chip tournament-chip"
               >
                 <span className="pulse-dot"></span>
                 <span className="discovery-sport-icon">{getSportIcon(tournament.sport)}</span>
-                <span className="discovery-chip-text">{tournament.tournamentName || tournament.tournamentCode}</span>
+                <div className="tournament-chip-content">
+                  <span className="tournament-chip-name">
+                    {tournament.meta?.tournamentName || tournament.tournamentName || tournament.tournamentCode}
+                  </span>
+                  <span className="tournament-chip-id">{tournament.tournamentCode}</span>
+                </div>
               </button>
             ))}
           </div>

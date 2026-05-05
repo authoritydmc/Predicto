@@ -853,17 +853,34 @@ ipcMain.handle("automation:get-logs", async (_event, component, level, limit) =>
     });
   });
 });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log(`[Automation] Task ${taskId} completed successfully`);
+        resolve({ success: true, taskId, status: 'success' });
+      } else {
+        console.error(`[Automation] Task ${taskId} failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Task failed with code ${code}`, taskId });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error(`[Automation] Failed to start task ${taskId}:`, error);
+      resolve({ success: false, error: 'Failed to start task', taskId, details: error.message });
+    });
+  });
+});
 
-// Additional automation trigger handlers for specific tasks
-ipcMain.handle("automation:trigger-task", async (_event, taskId) => {
-  console.log(`[Automation] Triggering enhanced automation task: ${taskId}`);
+// Discord notification handlers
+ipcMain.handle("automation:test-discord", async () => {
+  console.log('[Discord] Testing Discord notification');
   
   const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
   const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
   
   return new Promise((resolve) => {
     const pythonProcess = spawn(pythonPath, [
-      scriptPath, '--trigger-task', taskId
+      scriptPath, '--test-discord'
     ], {
       cwd: path.join(__dirname, ".."),
       env: {
@@ -885,19 +902,540 @@ ipcMain.handle("automation:trigger-task", async (_event, taskId) => {
     
     pythonProcess.on('close', (code) => {
       if (code === 0) {
-        console.log(`[Automation] Task ${taskId} completed successfully`);
-        resolve({ success: true, taskId, status: 'success' });
+        try {
+          const result = JSON.parse(stdout);
+          console.log('[Discord] Test result:', result);
+          resolve(result);
+        } catch (e) {
+          console.error('[Discord] Failed to parse test result:', e);
+          resolve({ success: false, error: 'Failed to parse test result' });
+        }
       } else {
-        console.error(`[Automation] Task ${taskId} failed with code ${code}:`, stderr);
-        resolve({ success: false, error: `Task failed with code ${code}`, taskId });
+        console.error(`[Discord] Test failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Test failed with code ${code}` });
       }
     });
     
     pythonProcess.on('error', (error) => {
-      console.error(`[Automation] Failed to start task ${taskId}:`, error);
-      resolve({ success: false, error: 'Failed to start task', taskId, details: error.message });
+      console.error('[Discord] Failed to run test:', error);
+      resolve({ success: false, error: 'Failed to run test', details: error.message });
     });
   });
+});
+
+ipcMain.handle("automation:update-discord-config", async (_event, config) => {
+  console.log('[Discord] Updating Discord configuration:', config);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--update-discord-config', JSON.stringify(config)
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log('[Discord] Config update result:', result);
+          resolve(result);
+        } catch (e) {
+          console.error('[Discord] Failed to parse config update result:', e);
+          resolve({ success: false, error: 'Failed to parse result' });
+        }
+      } else {
+        console.error(`[Discord] Config update failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Config update failed with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Discord] Failed to update config:', error);
+      resolve({ success: false, error: 'Failed to update config', details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("automation:get-notification-status", async () => {
+  console.log('[Discord] Getting notification status');
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--notification-status'
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          resolve(result);
+        } catch (e) {
+          console.error('[Discord] Failed to parse status result:', e);
+          resolve({ success: false, error: 'Failed to parse status' });
+        }
+      } else {
+        console.error(`[Discord] Status check failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Status check failed with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Discord] Failed to get status:', error);
+      resolve({ success: false, error: 'Failed to get status', details: error.message });
+    });
+  });
+});
+
+// Push notification handlers
+ipcMain.handle("push:register-device", async (_event, userId, deviceInfo) => {
+  console.log(`[Push] Registering device for user ${userId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--register-device', userId, JSON.stringify(deviceInfo)
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log('[Push] Device registration result:', result);
+          resolve(result);
+        } catch (e) {
+          console.error('[Push] Failed to parse registration result:', e);
+          resolve({ success: false, error: 'Failed to parse result' });
+        }
+      } else {
+        console.error(`[Push] Device registration failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Registration failed with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Push] Failed to register device:', error);
+      resolve({ success: false, error: 'Failed to register device', details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("push:unregister-device", async (_event, userId, deviceId) => {
+  console.log(`[Push] Unregistering device ${deviceId} for user ${userId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--unregister-device', userId, deviceId
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log('[Push] Device unregistration result:', result);
+          resolve(result);
+        } catch (e) {
+          console.error('[Push] Failed to parse unregistration result:', e);
+          resolve({ success: false, error: 'Failed to parse result' });
+        }
+      } else {
+        console.error(`[Push] Device unregistration failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Unregistration failed with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Push] Failed to unregister device:', error);
+      resolve({ success: false, error: 'Failed to unregister device', details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("push:get-user-settings", async (_event, userId) => {
+  console.log(`[Push] Getting notification settings for user ${userId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--get-user-settings', userId
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          resolve(result);
+        } catch (e) {
+          console.error('[Push] Failed to parse user settings:', e);
+          resolve({ success: false, error: 'Failed to parse settings' });
+        }
+      } else {
+        console.error(`[Push] Failed to get user settings with code ${code}:`, stderr);
+        resolve({ success: false, error: `Failed to get settings with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Push] Failed to get user settings:', error);
+      resolve({ success: false, error: 'Failed to get settings', details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("push:update-user-settings", async (_event, userId, settings) => {
+  console.log(`[Push] Updating notification settings for user ${userId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--update-user-settings', userId, JSON.stringify(settings)
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log('[Push] User settings update result:', result);
+          resolve(result);
+        } catch (e) {
+          console.error('[Push] Failed to parse settings update result:', e);
+          resolve({ success: false, error: 'Failed to parse result' });
+        }
+      } else {
+        console.error(`[Push] Settings update failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Settings update failed with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Push] Failed to update user settings:', error);
+      resolve({ success: false, error: 'Failed to update settings', details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("push:get-user-devices", async (_event, userId) => {
+  console.log(`[Push] Getting devices for user ${userId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--get-user-devices', userId
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          resolve(result);
+        } catch (e) {
+          console.error('[Push] Failed to parse user devices:', e);
+          resolve({ success: false, error: 'Failed to parse devices' });
+        }
+      } else {
+        console.error(`[Push] Failed to get user devices with code ${code}:`, stderr);
+        resolve({ success: false, error: `Failed to get devices with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Push] Failed to get user devices:', error);
+      resolve({ success: false, error: 'Failed to get devices', details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("push:test-notification", async (_event, userId) => {
+  console.log(`[Push] Testing push notification for user ${userId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--test-push-notification', userId || 'test'
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log('[Push] Test notification result:', result);
+          resolve(result);
+        } catch (e) {
+          console.error('[Push] Failed to parse test result:', e);
+          resolve({ success: false, error: 'Failed to parse test result' });
+        }
+      } else {
+        console.error(`[Push] Test notification failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Test failed with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Push] Failed to test push notification:', error);
+      resolve({ success: false, error: 'Failed to test notification', details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("push:get-vapid-key", async () => {
+  console.log('[Push] Getting VAPID public key');
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--get-vapid-key'
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          resolve(result);
+        } catch (e) {
+          console.error('[Push] Failed to parse VAPID key:', e);
+          resolve({ success: false, error: 'Failed to parse VAPID key' });
+        }
+      } else {
+        console.error(`[Push] Failed to get VAPID key with code ${code}:`, stderr);
+        resolve({ success: false, error: `Failed to get VAPID key with code ${code}` });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error('[Push] Failed to get VAPID key:', error);
+      resolve({ success: false, error: 'Failed to get VAPID key', details: error.message });
+    });
+  });
+});
+
+// Setup guide handlers
+ipcMain.handle("app:open-setup-guide", async (_event, guideType) => {
+  console.log(`[App] Opening setup guide: ${guideType}`);
+  
+  const guidePaths = {
+    'discord': path.join(__dirname, "..", "automation", "notifications", "DISCORD_SETUP_GUIDE.md"),
+    'push': path.join(__dirname, "..", "automation", "notifications", "PUSH_NOTIFICATION_SETUP_GUIDE.md")
+  };
+  
+  const guidePath = guidePaths[guideType];
+  if (!guidePath) {
+    return { success: false, error: 'Invalid guide type' };
+  }
+  
+  try {
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(guidePath)) {
+      return { success: false, error: 'Guide file not found' };
+    }
+    
+    // Open with default application
+    const { shell } = require('electron');
+    await shell.openPath(guidePath);
+    
+    return { success: true, message: 'Setup guide opened' };
+  } catch (error) {
+    console.error('[App] Error opening setup guide:', error);
+    return { success: false, error: 'Failed to open setup guide' };
+  }
+});
+
+ipcMain.handle("app:get-setup-guide-content", async (_event, guideType) => {
+  console.log(`[App] Getting setup guide content: ${guideType}`);
+  
+  const guidePaths = {
+    'discord': path.join(__dirname, "..", "automation", "notifications", "DISCORD_SETUP_GUIDE.md"),
+    'push': path.join(__dirname, "..", "automation", "notifications", "PUSH_NOTIFICATION_SETUP_GUIDE.md")
+  };
+  
+  const guidePath = guidePaths[guideType];
+  if (!guidePath) {
+    return { success: false, error: 'Invalid guide type' };
+  }
+  
+  try {
+    const fs = require('fs');
+    if (!fs.existsSync(guidePath)) {
+      return { success: false, error: 'Guide file not found' };
+    }
+    
+    const content = fs.readFileSync(guidePath, 'utf8');
+    return { success: true, content };
+  } catch (error) {
+    console.error('[App] Error reading setup guide:', error);
+    return { success: false, error: 'Failed to read setup guide' };
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -5,9 +5,11 @@ import { matchDiscoveryRef, matchMetaRef, matchLiveScoreRef, userRef, usernameDa
 import AudienceGate from './components/Gate/AudienceGate';
 import AppHeader from './components/Layout/AppHeader';
 import TournamentBrowser from './components/Tournament/TournamentBrowser';
-import ChatPanel from './components/Chat/ChatPanel';
 import PredictionPanel from './components/Prediction/PredictionPanel';
+import ChatPanel from './components/Chat/ChatPanel';
+import OtherPredictionsPage from './components/Prediction/OtherPredictionsPage';
 import PredictionPage from './components/Prediction/PredictionPage';
+import TournamentLeaderboardPage from './components/Leaderboard/TournamentLeaderboardPage';
 import LeaderboardPage from './components/Leaderboard/LeaderboardPage';
 import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
 import UserAuth from './components/Auth/UserAuth';
@@ -624,7 +626,7 @@ function MatchPage() {
                 )}
               </div>
             )}
-            <button 
+            <button
               onClick={() => {
                 const url = `${window.location.origin}/match/${matchCode}`;
                 navigator.clipboard.writeText(url).then(() => {
@@ -632,7 +634,6 @@ function MatchPage() {
                 });
               }}
               className="share-btn"
-              title="Copy link"
             >
               🔗
             </button>
@@ -671,10 +672,10 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/match/:matchCode" element={<MatchPage />} />
-          <Route path="/match/:matchCode/prediction" element={<PredictionPage />} />
           <Route path="/tournament/:tournamentCode" element={<TournamentPage />} />
-          <Route path="/tournament/:tournamentCode/leaderboard" element={<LeaderboardPage />} />
         </Route>
+        <Route path="/match/:matchCode/predictions" element={<OtherPredictionsPage />} />
+        <Route path="/tournament/:tournamentCode/leaderboard" element={<TournamentLeaderboardPage />} />
       </Routes>
     </BrowserRouter>
   );

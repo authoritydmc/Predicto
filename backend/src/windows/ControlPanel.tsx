@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Toggle } from '../ui/Toggle';
+import { SetupGuideViewer } from '../components/Notifications/SetupGuideViewer';
 import { 
   db, isFirebaseConfigured, onValue, query, ref, schemaRef, update, set,
   saveRoomMeta, clearRoomNode, getOnce, setDiscovery,
@@ -287,6 +289,8 @@ const ControlPanel: React.FC = () => {
     windowEngine: false,
     history: true,
     scheduler: false,
+    discordNotifications: false,
+    pushNotifications: false,
     userManagement: true
   });
 
@@ -375,6 +379,9 @@ const ControlPanel: React.FC = () => {
   const [automationTasks, setAutomationTasks] = useState<Record<string, any>>({});
   const [automationLogs, setAutomationLogs] = useState<any[]>([]);
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
+
+  // ── Setup Guide State
+  const [setupGuideViewer, setSetupGuideViewer] = useState<{ open: boolean; type: 'discord' | 'push' | null }>({ open: false, type: null });
 
   // ── Opacity
   const [opacity, setOpacity] = useState(1);
@@ -2976,43 +2983,7 @@ const ControlPanel: React.FC = () => {
                 <Toggle checked={windowVisibility.reactionVisible} onChange={(v) => handleWindowVisibilityChange('reactionVisible', v)} />
               </label>
             </div>
-            <div className="cp-divider" />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                className="cp-action-btn" 
-                type="button" 
-                onClick={() => {
-                  // @ts-ignore
-                  window.overlayDesktop.showOverlay();
-                }}
-                style={{ flex: 1 }}
-              >
-                Show Overlay
-              </button>
-              <button 
-                className="cp-action-btn" 
-                type="button" 
-                onClick={() => {
-                  // @ts-ignore
-                  window.overlayDesktop.showTicker();
-                }}
-                style={{ flex: 1 }}
-              >
-                Show Ticker
-              </button>
-              <button 
-                className="cp-action-btn" 
-                type="button" 
-                onClick={() => {
-                  // @ts-ignore
-                  window.overlayDesktop.showReaction();
-                }}
-                style={{ flex: 1 }}
-              >
-                Show Reaction
-              </button>
-            </div>
-            <p className="cp-panel-note">Control overlay windows visibility and access.</p>
+            <p className="cp-panel-note">Toggle overlay windows on/off. Only one instance of each window type is allowed.</p>
           </div>
         </section>
 
@@ -3373,6 +3344,493 @@ const ControlPanel: React.FC = () => {
                 Check Status
               </button>
             </div>
+          </div>
+        </section>
+
+        {/* ── Discord Notifications ── */}
+        <section className="cp-panel-group">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('discordNotifications')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Discord Notifications</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.discordNotifications ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card" style={{ display: collapsedSections.discordNotifications ? 'none' : 'block' }}>
+            {/* Discord Status */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600 }}>
+                  Discord Integration
+                </span>
+                <span className={`cp-dot ${wsConnection ? 'active' : 'inactive'}`} />
+              </div>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                {wsConnection ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+
+            {/* Discord Configuration */}
+            <div className="cp-section-header">
+              <span>Webhook Configuration</span>
+            </div>
+            
+            <div className="cp-form-row">
+              <label>Webhook URL</label>
+              <input 
+                type="url" 
+                placeholder="https://discord.com/api/webhooks/..."
+                style={{ 
+                  background: 'rgba(0,0,0,0.2)', 
+                  border: '1px solid var(--panel-border)', 
+                  borderRadius: '6px', 
+                  color: 'var(--text)',
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  width: '100%'
+                }}
+                onChange={(e) => {
+                  // TODO: Save to Firebase
+                  console.log('Discord webhook URL:', e.target.value);
+                }}
+              />
+            </div>
+
+            <div className="cp-dual-row">
+              <div className="cp-form-row">
+                <label>Bot Username</label>
+                <input 
+                  type="text" 
+                  placeholder="Automation Bot"
+                  maxLength={32}
+                  style={{ 
+                    background: 'rgba(0,0,0,0.2)', 
+                    border: '1px solid var(--panel-border)', 
+                    borderRadius: '6px', 
+                    color: 'var(--text)',
+                    padding: '8px 12px',
+                    fontSize: '13px'
+                  }}
+                  onChange={(e) => {
+                    // TODO: Save to Firebase
+                    console.log('Bot username:', e.target.value);
+                  }}
+                />
+              </div>
+              <div className="cp-form-row">
+                <label>Avatar URL (Optional)</label>
+                <input 
+                  type="url" 
+                  placeholder="https://example.com/avatar.png"
+                  style={{ 
+                    background: 'rgba(0,0,0,0.2)', 
+                    border: '1px solid var(--panel-border)', 
+                    borderRadius: '6px', 
+                    color: 'var(--text)',
+                    padding: '8px 12px',
+                    fontSize: '13px'
+                  }}
+                  onChange={(e) => {
+                    // TODO: Save to Firebase
+                    console.log('Avatar URL:', e.target.value);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="cp-form-row">
+              <label className="cp-toggle-row">
+                <span>Enable Rich Embeds</span>
+                <Toggle checked={true} onChange={(v) => {
+                  // TODO: Save to Firebase
+                  console.log('Rich embeds:', v);
+                }} />
+              </label>
+            </div>
+
+            <div className="cp-form-row">
+              <label className="cp-toggle-row">
+                <span>Enable Notifications</span>
+                <Toggle checked={true} onChange={(v) => {
+                  // TODO: Save to Firebase
+                  console.log('Enable notifications:', v);
+                }} />
+              </label>
+            </div>
+
+            <div className="cp-divider" />
+
+            {/* Notification Types */}
+            <div className="cp-section-header">
+              <span>Notification Types</span>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '16px' }}>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Match Created</span>
+                <Toggle checked={true} onChange={(v) => console.log('Match created:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Match Started</span>
+                <Toggle checked={true} onChange={(v) => console.log('Match started:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Match Completed</span>
+                <Toggle checked={true} onChange={(v) => console.log('Match completed:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Score Updates</span>
+                <Toggle checked={false} onChange={(v) => console.log('Score updates:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Automation Errors</span>
+                <Toggle checked={true} onChange={(v) => console.log('Automation errors:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>System Alerts</span>
+                <Toggle checked={true} onChange={(v) => console.log('System alerts:', v)} />
+              </label>
+            </div>
+
+            {/* Rate Limiting */}
+            <div className="cp-form-row">
+              <label>Rate Limit (messages per minute)</label>
+              <input 
+                type="number" 
+                min="1" 
+                max="60" 
+                defaultValue="10"
+                style={{ 
+                  background: 'rgba(0,0,0,0.2)', 
+                  border: '1px solid var(--panel-border)', 
+                  borderRadius: '6px', 
+                  color: 'var(--text)',
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  width: '120px'
+                }}
+                onChange={(e) => {
+                  // TODO: Save to Firebase
+                  console.log('Rate limit:', e.target.value);
+                }}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={async () => {
+                  try {
+                    // @ts-ignore
+                    const result = await window.overlayDesktop.testDiscordNotification();
+                    if (result.success) {
+                      alert('Test notification sent successfully!');
+                    } else {
+                      alert(`Test failed: ${result.error}`);
+                    }
+                  } catch (error) {
+                    console.error('Error testing Discord:', error);
+                    alert('Failed to test Discord notification');
+                  }
+                }}
+              >
+                Test Notification
+              </button>
+              <button 
+                className="cp-primary-btn cp-small"
+                onClick={() => {
+                  // TODO: Save configuration to Firebase
+                  alert('Configuration saved!');
+                }}
+              >
+                Save Configuration
+              </button>
+            </div>
+
+            <div className="cp-divider" />
+
+            {/* Setup Guide Link */}
+            <div style={{ 
+              padding: '12px', 
+              background: 'rgba(255,255,255,0.02)', 
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#818cf8' }}>
+                📖 Setup Guide
+              </h4>
+              <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8px 0' }}>
+                Need help setting up Discord notifications? Follow our comprehensive setup guide.
+              </p>
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={() => setSetupGuideViewer({ open: true, type: 'discord' })}
+              >
+                View Setup Guide
+              </button>
+            </div>
+
+            <p className="cp-panel-note" style={{ marginTop: '12px' }}>
+              Discord notifications provide real-time updates about match events, automation status, and system alerts directly to your Discord server.
+            </p>
+          </div>
+        </section>
+
+        {/* ── Push Notifications ── */}
+        <section className="cp-panel-group">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('pushNotifications')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Push Notifications</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.pushNotifications ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card" style={{ display: collapsedSections.pushNotifications ? 'none' : 'block' }}>
+            {/* Push Notification Status */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#10b981', fontWeight: 600 }}>
+                  Push Notification System
+                </span>
+                <span className={`cp-dot ${wsConnection ? 'active' : 'inactive'}`} />
+              </div>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                {wsConnection ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+
+            {/* User Statistics */}
+            <div className="cp-section-header">
+              <span>User Statistics</span>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: '600', color: '#10b981' }}>0</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Total Users</div>
+              </div>
+              <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: '600', color: '#3b82f6' }}>0</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Active Devices</div>
+              </div>
+              <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>0</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Sent Today</div>
+              </div>
+            </div>
+
+            {/* Push Notification Configuration */}
+            <div className="cp-section-header">
+              <span>Push Notification Configuration</span>
+            </div>
+            
+            <div className="cp-form-row">
+              <label className="cp-toggle-row">
+                <span>Enable Push Notifications</span>
+                <Toggle checked={true} onChange={(v) => {
+                  // TODO: Save to Firebase
+                  console.log('Enable push notifications:', v);
+                }} />
+              </label>
+            </div>
+
+            <div className="cp-form-row">
+              <label>Firebase Project ID</label>
+              <input 
+                type="text" 
+                placeholder="your-project-id"
+                style={{ 
+                  background: 'rgba(0,0,0,0.2)', 
+                  border: '1px solid var(--panel-border)', 
+                  borderRadius: '6px', 
+                  color: 'var(--text)',
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  width: '100%'
+                }}
+                onChange={(e) => {
+                  // TODO: Save to Firebase
+                  console.log('Firebase project ID:', e.target.value);
+                }}
+              />
+            </div>
+
+            <div className="cp-form-row">
+              <label>Service Account Key (JSON)</label>
+              <textarea 
+                placeholder="Paste Firebase service account key JSON..."
+                rows={4}
+                style={{ 
+                  background: 'rgba(0,0,0,0.2)', 
+                  border: '1px solid var(--panel-border)', 
+                  borderRadius: '6px', 
+                  color: 'var(--text)',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  width: '100%',
+                  fontFamily: 'monospace'
+                }}
+                onChange={(e) => {
+                  // TODO: Save to Firebase
+                  console.log('Service account key updated');
+                }}
+              />
+            </div>
+
+            <div className="cp-form-row">
+              <label>VAPID Public Key</label>
+              <input 
+                type="text" 
+                placeholder="Generated automatically"
+                readOnly
+                style={{ 
+                  background: 'rgba(0,0,0,0.1)', 
+                  border: '1px solid var(--panel-border)', 
+                  borderRadius: '6px', 
+                  color: 'var(--muted)',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  width: '100%',
+                  fontFamily: 'monospace'
+                }}
+                value="Generated when Web Push is configured"
+              />
+            </div>
+
+            <div className="cp-divider" />
+
+            {/* Notification Types */}
+            <div className="cp-section-header">
+              <span>Default Notification Types</span>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '16px' }}>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Match Created</span>
+                <Toggle checked={true} onChange={(v) => console.log('Push match created:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Match Started</span>
+                <Toggle checked={true} onChange={(v) => console.log('Push match started:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Match Completed</span>
+                <Toggle checked={true} onChange={(v) => console.log('Push match completed:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Score Updates</span>
+                <Toggle checked={false} onChange={(v) => console.log('Push score updates:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>Automation Errors</span>
+                <Toggle checked={true} onChange={(v) => console.log('Push automation errors:', v)} />
+              </label>
+              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
+                <span>System Alerts</span>
+                <Toggle checked={true} onChange={(v) => console.log('Push system alerts:', v)} />
+              </label>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={async () => {
+                  try {
+                    // @ts-ignore
+                    const result = await window.overlayDesktop.testPushNotification();
+                    if (result.success) {
+                      alert('Test push notification sent successfully!');
+                    } else {
+                      alert(`Test failed: ${result.error}`);
+                    }
+                  } catch (error) {
+                    console.error('Error testing push notification:', error);
+                    alert('Failed to test push notification');
+                  }
+                }}
+              >
+                Test Push Notification
+              </button>
+              <button 
+                className="cp-primary-btn cp-small"
+                onClick={() => {
+                  // TODO: Save configuration to Firebase
+                  alert('Push notification configuration saved!');
+                }}
+              >
+                Save Configuration
+              </button>
+            </div>
+
+            <div className="cp-divider" />
+
+            {/* User Management */}
+            <div className="cp-section-header">
+              <span>User Management</span>
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Search users by ID or email..."
+                style={{ 
+                  background: 'rgba(0,0,0,0.2)', 
+                  border: '1px solid var(--panel-border)', 
+                  borderRadius: '6px', 
+                  color: 'var(--text)',
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  width: '100%',
+                  marginBottom: '8px'
+                }}
+                onChange={(e) => {
+                  // TODO: Implement user search
+                  console.log('Search users:', e.target.value);
+                }}
+              />
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={() => {
+                  // TODO: Load user list
+                  alert('User management feature coming soon!');
+                }}
+              >
+                Manage Users
+              </button>
+            </div>
+
+            {/* Setup Guide Link */}
+            <div style={{ 
+              padding: '12px', 
+              background: 'rgba(255,255,255,0.02)', 
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#10b981' }}>
+                📱 Push Notification Setup
+              </h4>
+              <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8px 0' }}>
+                Configure Firebase Cloud Messaging and Web Push API to deliver notifications directly to users' devices.
+              </p>
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={() => setSetupGuideViewer({ open: true, type: 'push' })}
+              >
+                View Setup Guide
+              </button>
+            </div>
+
+            <p className="cp-panel-note" style={{ marginTop: '12px' }}>
+              Push notifications deliver messages directly to individual users' devices based on their preferences. Unlike Discord, users can control exactly what they receive.
+            </p>
           </div>
         </section>
 
@@ -3923,6 +4381,14 @@ const ControlPanel: React.FC = () => {
             </footer>
           </div>
         </div>
+      )}
+
+      {/* Setup Guide Viewer */}
+      {setupGuideViewer.open && setupGuideViewer.type && (
+        <SetupGuideViewer
+          guideType={setupGuideViewer.type}
+          onClose={() => setSetupGuideViewer({ open: false, type: null })}
+        />
       )}
     </div>
   );
