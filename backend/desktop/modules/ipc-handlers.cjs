@@ -29,6 +29,15 @@ const registerIpcHandlers = (config, windowManager, scheduler, deps) => {
     return settings;
   });
 
+  ipcMain.handle("firebase:set-mode", (_event, mode) => {
+    console.log(`[Firebase] Switching mode to: ${mode}`);
+    const settings = windowManager.getSettings();
+    settings.firebaseMode = mode;
+    saveSettingsToFile(settings);
+    windowManager.broadcastState();
+    return settings;
+  });
+
   const currentMode = () => global.APP_MODE || windowManager.getSettings().firebaseMode || APP_MODE;
 
   const windowActions = {

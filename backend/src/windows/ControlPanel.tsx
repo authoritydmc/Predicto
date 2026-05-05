@@ -20,6 +20,7 @@ import { CricketMatchDetails } from '../components/sports/CricketMatchDetails';
 import { FootballMatchDetails } from '../components/sports/FootballMatchDetails';
 import { CricketLiveScore } from '../components/sports/CricketLiveScore';
 import { FootballLiveScore } from '../components/sports/FootballLiveScore';
+import { MatchControlPanel } from './components/MatchControlPanel';
 
 // ── LocalStorage Helpers ────────────────────────────────────────────────────────
 const STORAGE_KEY = 'controlpanel_ui_state';
@@ -3132,226 +3133,55 @@ const ControlPanel: React.FC = () => {
                   </form>
                 </div>
 
-                {/* Live Score Tab */}
+                {/* Match Control Tab - Refactored */}
                 <div className={`cp-tab-content ${activeMatchTab === 'live' ? 'active' : ''}`}>
-                  {/* Match Status Section */}
-                  <div className="cp-section-header">
-                    <span>Match Status</span>
-                  </div>
-                  <div className="cp-form-row">
-                    <label>Status</label>
-                    <select value={fMatchStatus} onChange={e => setFMatchStatus(e.target.value as any)}>
-                      <option value="scheduled">Scheduled</option>
-                      <option value="live">Live</option>
-                      <option value="done">Done</option>
-                    </select>
-                  </div>
-
-                  {/* Prediction Controls Section */}
-                  <div className="cp-section-header">
-                    <span>Prediction Controls</span>
-                    <div style={{ 
-                      fontSize: '11px', 
-                      color: 'var(--muted)',
-                      marginLeft: '8px',
-                      padding: '2px 8px',
-                      background: fPredictionsEnabled ? 'rgba(52, 199, 89, 0.2)' : 'rgba(255, 59, 48, 0.2)',
-                      borderRadius: '12px',
-                      border: `1px solid ${fPredictionsEnabled ? 'rgba(52, 199, 89, 0.3)' : 'rgba(255, 59, 48, 0.3)'}`
-                    }}>
-                      {fPredictionsEnabled ? '🟢 Active' : '🔴 Disabled'}
-                    </div>
-                  </div>
-                  <div className="cp-form-row">
-                    <label className="cp-toggle-row" title="Enable or disable predictions for this match">
-                      <span>Enable Predictions</span>
-                      <Toggle checked={fPredictionsEnabled} onChange={handleTogglePredictions} />
-                      <div style={{ 
-                        fontSize: '10px', 
-                        color: 'var(--muted)',
-                        marginLeft: '8px'
-                      }}>
-                        {fPredictionsEnabled ? 'Click to disable' : 'Click to enable'}
-                      </div>
-                    </label>
-                  </div>
-                  <div className="cp-form-row">
-                    <label className="cp-toggle-row" title="Temporarily pause predictions (requires predictions to be enabled)">
-                      <span>Pause Predictions</span>
-                      <Toggle checked={fPredictionsPaused} onChange={handlePausePredictionsWithReason} />
-                      <div style={{ 
-                        fontSize: '10px', 
-                        color: 'var(--muted)',
-                        marginLeft: '8px'
-                      }}>
-                        {fPredictionsPaused ? 'Click to resume' : 'Click to pause (optional reason)'}
-                      </div>
-                    </label>
-                  </div>
-                  {fPredictionsPaused && (
-                    <div className="cp-form-row">
-                      <label>Pause Reason</label>
-                      <input
-                        type="text"
-                        value={fPauseReason}
-                        onChange={e => setFPauseReason(e.target.value)}
-                        placeholder="Reason for pausing predictions..."
-                        style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text)' }}
-                      />
-                    </div>
-                  )}
-
-                  <div className="cp-form-row">
-                    <label className="cp-toggle-row">
-                      <span>Allow re-prediction</span>
-                      <Toggle checked={fAllowReprediction} onChange={handleToggleReprediction} />
-                      <div style={{ 
-                        fontSize: '10px', 
-                        color: 'var(--muted)',
-                        marginLeft: '8px'
-                      }}>
-                        {fAllowReprediction ? 'Click to disable' : 'Click to enable'}
-                      </div>
-                    </label>
-                  </div>
-                  
-                  <div className="cp-form-row">
-                    <div style={{ 
-                      padding: '8px 12px', 
-                      background: 'rgba(99, 102, 241, 0.1)', 
-                      borderRadius: '6px', 
-                      border: '1px solid rgba(99, 102, 241, 0.2)', 
-                      fontSize: '11px',
-                      color: 'var(--muted)',
-                      marginTop: '8px'
-                    }}>
-                      <strong>💡 Toggle Behavior:</strong> All toggles update Firebase immediately. No separate button click needed - changes take effect instantly with visual confirmation.
-                    </div>
-                  </div>
-
-                  <div className="cp-divider" />
-                  
-                  {/* Sport-specific Match Controls */}
-                  {fSport === 'cricket' && (
-                    <CricketMatchDetails
-                      fTeamA={fTeamA}
-                      fTeamB={fTeamB}
-                      fBattingTeam={fBattingTeam}
-                      fInnings={fInnings}
-                      setFBattingTeam={setFBattingTeam}
-                      setFInnings={setFInnings}
-                    />
-                  )}
-                  {fSport === 'football' && (
-                    <FootballMatchDetails
-                      fTeamA={fTeamA}
-                      fTeamB={fTeamB}
-                    />
-                  )}
-
-                  <div className="cp-divider" />
-                  
-                  {/* Live Score Controls */}
-                  <div className="cp-section-header">
-                    <span>Live Score Management</span>
-                  </div>
-                  <div className="cp-form-row">
-                    <label>Score Source</label>
-                    <select value={scoreSource} onChange={e => setScoreSource(e.target.value as any)}>
-                      <option value="manual">Manual</option>
-                      <option value="scraper">Scraper</option>
-                      <option value="api">API</option>
-                      <option value="prediction">Prediction Fallback</option>
-                    </select>
-                  </div>
-                  
-                  {/* Sport-specific Live Score */}
-                  {fSport === 'cricket' && (
-                    <CricketLiveScore
-                      fTeamA={fTeamA}
-                      fTeamB={fTeamB}
-                      fTossWinner={fTossWinner}
-                      fTossDecision={fTossDecision}
-                      fBattingTeam={fBattingTeam}
-                      fInnings={fInnings}
-                      scoreTeamARuns={scoreTeamARuns}
-                      scoreTeamAWickets={scoreTeamAWickets}
-                      scoreTeamAOvers={scoreTeamAOvers}
-                      scoreTeamBRuns={scoreTeamBRuns}
-                      scoreTeamBWickets={scoreTeamBWickets}
-                      scoreTeamBOvers={scoreTeamBOvers}
-                      setFTossWinner={setFTossWinner}
-                      setFTossDecision={setFTossDecision}
-                      setFBattingTeam={setFBattingTeam}
-                      setFInnings={setFInnings}
-                      setScoreTeamARuns={setScoreTeamARuns}
-                      setScoreTeamAWickets={setScoreTeamAWickets}
-                      setScoreTeamAOvers={setScoreTeamAOvers}
-                      setScoreTeamBRuns={setScoreTeamBRuns}
-                      setScoreTeamBWickets={setScoreTeamBWickets}
-                      setScoreTeamBOvers={setScoreTeamBOvers}
-                      setIsEditingScore={setIsEditingScore}
-                    />
-                  )}
-                  {fSport === 'football' && (
-                    <FootballLiveScore
-                      fTeamA={fTeamA}
-                      fTeamB={fTeamB}
-                      scoreTeamARuns={scoreTeamARuns}
-                      scoreTeamBRuns={scoreTeamBRuns}
-                      setScoreTeamARuns={setScoreTeamARuns}
-                      setScoreTeamBRuns={setScoreTeamBRuns}
-                    />
-                  )}
-                  <div className="cp-divider" />
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      className="cp-action-btn" 
-                      type="button" 
-                      onClick={handleUpdateLiveScore}
-                      style={{ flex: 1 }}
-                    >
-                      Update Live Score
-                    </button>
-                    <button 
-                      className="cp-secondary-btn" 
-                      type="button" 
-                      onClick={handleRunScraper}
-                      disabled={scraperRunning}
-                      style={{ flex: 1 }}
-                    >
-                      {scraperRunning ? 'Running...' : 'Run Scraper'}
-                    </button>
-                  </div>
-                  {scraperStatus && (
-                    <p className="cp-panel-note" style={{ color: scraperStatus.includes('Success') ? '#34c759' : scraperStatus.includes('Failed') || scraperStatus.includes('Error') ? '#ef4444' : 'var(--muted)' }}>
-                      {scraperStatus}
-                    </p>
-                  )}
-                  <div className="cp-form-row">
-                    <label>Scraper Order (comma-separated)</label>
-                    <input 
-                      type="text" 
-                      value={scraperOrder} 
-                      onChange={e => setScraperOrder(e.target.value)}
-                      placeholder="cricbuzz,google,cricapi"
-                      style={{ fontSize: '11px' }}
-                    />
-                  </div>
-                  <div className="cp-form-row">
-                    <label>Match URL (optional - for direct scraping)</label>
-                    <input 
-                      type="text" 
-                      value={scraperMatchUrl} 
-                      onChange={e => setScraperMatchUrl(e.target.value)}
-                      placeholder="https://www.cricbuzz.com/live-cricket-scores/..."
-                      style={{ fontSize: '11px' }}
-                    />
-                    <p className="cp-panel-note" style={{ marginTop: '4px', fontSize: '10px' }}>
-                      Paste a direct match URL from Cricbuzz, ESPNcricinfo, etc. for more accurate scraping.
-                    </p>
-                  </div>
-                  <p className="cp-panel-note">Updates will be reflected in real-time on the audience match page.</p>
+                  <MatchControlPanel
+                    fSport={fSport}
+                    fTeamA={fTeamA}
+                    fTeamB={fTeamB}
+                    matchId={matchId}
+                    tournamentId={tournamentId}
+                    scraperRunning={scraperRunning}
+                    scraperStatus={scraperStatus}
+                    scraperOrder={scraperOrder}
+                    scraperMatchUrl={scraperMatchUrl}
+                    onRunScraper={handleRunScraper}
+                    onUpdateScraperOrder={setScraperOrder}
+                    onUpdateScraperUrl={setScraperMatchUrl}
+                    scoreSource={scoreSource}
+                    onScoreSourceChange={(source) => setScoreSource(source as any)}
+                    scoreTeamARuns={scoreTeamARuns}
+                    scoreTeamAWickets={scoreTeamAWickets}
+                    scoreTeamAOvers={scoreTeamAOvers}
+                    scoreTeamBRuns={scoreTeamBRuns}
+                    scoreTeamBWickets={scoreTeamBWickets}
+                    scoreTeamBOvers={scoreTeamBOvers}
+                    setScoreTeamARuns={setScoreTeamARuns}
+                    setScoreTeamAWickets={setScoreTeamAWickets}
+                    setScoreTeamAOvers={setScoreTeamAOvers}
+                    setScoreTeamBRuns={setScoreTeamBRuns}
+                    setScoreTeamBWickets={setScoreTeamBWickets}
+                    setScoreTeamBOvers={setScoreTeamBOvers}
+                    fMatchStatus={fMatchStatus}
+                    setFMatchStatus={setFMatchStatus}
+                    fBattingTeam={fBattingTeam}
+                    fInnings={fInnings}
+                    fTossWinner={fTossWinner}
+                    fTossDecision={fTossDecision}
+                    setFBattingTeam={setFBattingTeam}
+                    setFInnings={setFInnings}
+                    setFTossWinner={setFTossWinner}
+                    setFTossDecision={setFTossDecision}
+                    fPredictionsEnabled={fPredictionsEnabled}
+                    fPredictionsPaused={fPredictionsPaused}
+                    fPauseReason={fPauseReason}
+                    fAllowReprediction={fAllowReprediction}
+                    onTogglePredictions={handleTogglePredictions}
+                    onTogglePause={handlePausePredictionsWithReason}
+                    onToggleReprediction={handleToggleReprediction}
+                    onUpdatePauseReason={setFPauseReason}
+                    onUpdateLiveScore={handleUpdateLiveScore}
+                  />
                 </div>
               </>
             )}
