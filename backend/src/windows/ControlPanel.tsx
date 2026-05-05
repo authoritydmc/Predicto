@@ -755,7 +755,6 @@ const ControlPanel: React.FC = () => {
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       if (unsubMetaRef.current) unsubMetaRef.current();
-      if (winProbIntervalRef.current) clearInterval(winProbIntervalRef.current);
     };
   }, []);
 

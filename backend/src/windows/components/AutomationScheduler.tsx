@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Toggle } from './Toggle';
 
 interface AutomationStatus {
   total_tasks?: number;
@@ -52,6 +53,7 @@ const TaskStatusBadge: React.FC<{ status: string }> = ({ status }) => {
     running: '#34c759',
     completed: '#007aff',
     error: '#ff3b30',
+    disabled: '#8e8e93',
   };
   return (
     <span
@@ -253,19 +255,17 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <span style={{ fontWeight: 600, fontSize: '13px' }}>{task.name}</span>
-                    <TaskStatusBadge status={task.status} />
+                    <TaskStatusBadge status={task.enabled ? task.status : 'disabled'} />
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
                     ID: <span style={{ fontFamily: 'monospace' }}>{task.task_id}</span> • Type: {task.type}
                   </div>
                 </div>
-                <div className="cp-toggle" style={{ transform: 'scale(0.8)' }}>
-                  <input 
-                    type="checkbox" 
+                <div style={{ transform: 'scale(0.8)' }}>
+                  <Toggle 
                     checked={task.enabled} 
                     onChange={() => onToggleTask(task.task_id)}
                   />
-                  <span className="cp-toggle-track" />
                 </div>
               </div>
 
@@ -381,11 +381,29 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
               </div>
               <div className="cp-form-row">
                 <label>Cron Expression (Optional)</label>
-                <input 
-                  value={formData.cron_expression || ''} 
-                  onChange={e => setFormData({ ...formData, cron_expression: e.target.value })}
-                  placeholder="e.g. */5 * * * * (min hour day month dow)"
-                />
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input 
+                    value={formData.cron_expression || ''} 
+                    onChange={e => setFormData({ ...formData, cron_expression: e.target.value })}
+                    placeholder="e.g. */5 * * * *"
+                    style={{ flex: 1 }}
+                  />
+                  <select 
+                    onChange={e => setFormData({ ...formData, cron_expression: e.target.value })}
+                    style={{ width: '120px' }}
+                    value=""
+                  >
+                    <option value="" disabled>Presets</option>
+                    <option value="* * * * *">Every Min</option>
+                    <option value="*/5 * * * *">Every 5m</option>
+                    <option value="0 19 * * 1-5">IPL Weekdays (7PM)</option>
+                    <option value="30 15,19 * * 6,0">IPL Weekends (Double)</option>
+                    <option value="0 0 * * *">Daily @ Midnight</option>
+                  </select>
+                </div>
+                <div style={{ padding: '8px', background: 'rgba(255,165,0,0.05)', borderRadius: '4px', border: '1px solid rgba(255,165,0,0.1)', fontSize: '10px' }}>
+                  <strong style={{ color: 'orange' }}>IPL Tip:</strong> Weekday matches start at 7:30 PM IST (19:30). Weekend double-headers usually start at 3:30 PM and 7:30 PM.
+                </div>
                 <span style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px' }}>
                   If set, takes precedence over interval. Use <a href="https://crontab.guru" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-blue)' }}>crontab.guru</a> for help.
                 </span>
@@ -404,27 +422,19 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
               <div className="cp-form-row">
                 <label className="cp-toggle-row">
                   <span>Enable Job Logging</span>
-                  <div className="cp-toggle">
-                    <input 
-                      type="checkbox" 
-                      checked={formData.logging_enabled} 
-                      onChange={e => setFormData({ ...formData, logging_enabled: e.target.checked })}
-                    />
-                    <span className="cp-toggle-track" />
-                  </div>
+                  <Toggle 
+                    checked={formData.logging_enabled || false} 
+                    onChange={v => setFormData({ ...formData, logging_enabled: v })}
+                  />
                 </label>
               </div>
               <div className="cp-form-row">
                 <label className="cp-toggle-row">
                   <span>Enabled</span>
-                  <div className="cp-toggle">
-                    <input 
-                      type="checkbox" 
-                      checked={formData.enabled} 
-                      onChange={e => setFormData({ ...formData, enabled: e.target.checked })}
-                    />
-                    <span className="cp-toggle-track" />
-                  </div>
+                  <Toggle 
+                    checked={formData.enabled || false} 
+                    onChange={v => setFormData({ ...formData, enabled: v })}
+                  />
                 </label>
               </div>
               

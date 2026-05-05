@@ -11,3 +11,4 @@ export { DiscordNotifications } from './DiscordNotifications';
 export { PushNotifications } from './PushNotifications';
 export { TournamentManagement } from './TournamentManagement';
 export { MatchManagement } from './MatchManagement';
+export { Toggle } from './Toggle';
