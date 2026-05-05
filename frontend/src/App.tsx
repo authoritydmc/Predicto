@@ -659,15 +659,6 @@ function MatchPage() {
             <div className="panel"><p>Match setup in progress. Please wait...</p></div>
           )}
         </div>
-
-        {/* Full screen prediction button */}
-        <button
-          onClick={() => navigate(`/match/${matchCode}/prediction`)}
-          className="fullscreen-prediction-btn"
-          title="Open predictions in full screen"
-        >
-          📊 Full Screen Predictions
-        </button>
       </div>
     </main>
   );

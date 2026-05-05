@@ -302,7 +302,7 @@ const ensureDebugWindow = () => {
 const ensureControlWindow = () => {
   if (controlWindow && !controlWindow.isDestroyed()) { controlWindow.focus(); return controlWindow; }
   controlWindow = new BrowserWindow({
-    width: 560, height: 760, minWidth: 420, minHeight: 720,
+    width: 800, height: 760, minWidth: 680, minHeight: 720,
     autoHideMenuBar: true, backgroundColor: "#08121e", webPreferences: commonWebPrefs
   });
   controlWindow.loadURL(getWindowUrl("control"));
@@ -613,13 +613,301 @@ ipcMain.handle("scraper:run", async (_event, sport, matchId, teamA, teamB, scrap
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scheduler IPC Handlers
+// Enhanced Automation Orchestrator IPC Handlers
+// ─────────────────────────────────────────────────────────────────────────────
+
+let enhancedOrchestratorProcess = null;
+
+const startEnhancedOrchestrator = () => {
+  if (enhancedOrchestratorProcess) {
+    console.log('[Enhanced Orchestrator] Already running');
+    return;
+  }
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  console.log('[Enhanced Orchestrator] Starting enhanced orchestrator process...');
+  
+  enhancedOrchestratorProcess = spawn(pythonPath, [scriptPath], {
+    cwd: path.join(__dirname, ".."),
+    env: {
+      ...process.env,
+      PYTHONPATH: path.join(__dirname, "..")
+    }
+  });
+  
+  enhancedOrchestratorProcess.stdout.on('data', (data) => {
+    console.log(`[Enhanced Orchestrator] ${data.toString()}`);
+  });
+  
+  enhancedOrchestratorProcess.stderr.on('data', (data) => {
+    console.error(`[Enhanced Orchestrator] Error: ${data.toString()}`);
+  });
+  
+  enhancedOrchestratorProcess.on('close', (code) => {
+    console.log(`[Enhanced Orchestrator] Process exited with code ${code}`);
+    enhancedOrchestratorProcess = null;
+    // Auto-restart in production mode
+    if (APP_MODE === 'prod') {
+      setTimeout(() => {
+        console.log('[Enhanced Orchestrator] Auto-restarting...');
+        startEnhancedOrchestrator();
+      }, 5000);
+    }
+  });
+  
+  enhancedOrchestratorProcess.on('error', (error) => {
+    console.error(`[Enhanced Orchestrator] Failed to start: ${error}`);
+    enhancedOrchestratorProcess = null;
+  });
+};
+
+// Start enhanced orchestrator in production mode
+if (APP_MODE === 'prod') {
+  startEnhancedOrchestrator();
+}
+
+// Enhanced Orchestrator IPC Handlers
+ipcMain.handle("automation:get-status", async () => {
+  return {
+    running: enhancedOrchestratorProcess !== null,
+    pid: enhancedOrchestratorProcess ? enhancedOrchestratorProcess.pid : null
+  };
+});
+
+ipcMain.handle("automation:trigger-task", async (_event, taskId) => {
+  console.log(`[Automation] Triggering task: ${taskId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [scriptPath, '--trigger-task', taskId], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log(`[Automation] Task ${taskId} completed successfully`);
+        resolve({ success: true, taskId, status: 'success' });
+      } else {
+        console.error(`[Automation] Task ${taskId} failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Task failed with code ${code}`, taskId });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error(`[Automation] Failed to start task ${taskId}:`, error);
+      resolve({ success: false, error: 'Failed to start task', taskId, details: error.message });
+    });
+  });
+});
+
+ipcMain.handle("automation:update-config", async (_event, component, updates) => {
+  console.log(`[Automation] Updating config for ${component}:`, updates);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--update-config', component, JSON.stringify(updates)
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log(`[Automation] Config updated successfully:`, result);
+          resolve(result);
+        } catch (e) {
+          console.error(`[Automation] Failed to parse config update result:`, e);
+          resolve({ success: false, error: 'Failed to parse result' });
+        }
+      } else {
+        console.error(`[Automation] Config update failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Config update failed with code ${code}` });
+      }
+    });
+  });
+});
+
+ipcMain.handle("automation:test-scraper", async (_event, scraperName, testMatch) => {
+  console.log(`[Automation] Testing scraper: ${scraperName}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--test-scraper', scraperName, JSON.stringify(testMatch)
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          console.log(`[Automation] Scraper test completed:`, result);
+          resolve(result);
+        } catch (e) {
+          console.error(`[Automation] Failed to parse scraper test result:`, e);
+          resolve({ success: false, error: 'Failed to parse result' });
+        }
+      } else {
+        console.error(`[Automation] Scraper test failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Scraper test failed with code ${code}` });
+      }
+    });
+  });
+});
+
+ipcMain.handle("automation:get-logs", async (_event, component, level, limit) => {
+  console.log(`[Automation] Getting logs for ${component}, level: ${level}, limit: ${limit}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--get-logs', component || 'all', level || 'all', limit || '100'
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const result = JSON.parse(stdout);
+          resolve(result);
+        } catch (e) {
+          resolve({ success: false, error: 'Failed to parse logs' });
+        }
+      } else {
+        resolve({ success: false, error: `Failed to get logs with code ${code}` });
+      }
+    });
+  });
+});
+
+// Additional automation trigger handlers for specific tasks
+ipcMain.handle("automation:trigger-task", async (_event, taskId) => {
+  console.log(`[Automation] Triggering enhanced automation task: ${taskId}`);
+  
+  const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, "..", "automation", "orchestrator", "main.py");
+  
+  return new Promise((resolve) => {
+    const pythonProcess = spawn(pythonPath, [
+      scriptPath, '--trigger-task', taskId
+    ], {
+      cwd: path.join(__dirname, ".."),
+      env: {
+        ...process.env,
+        PYTHONPATH: path.join(__dirname, "..")
+      }
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log(`[Automation] Task ${taskId} completed successfully`);
+        resolve({ success: true, taskId, status: 'success' });
+      } else {
+        console.error(`[Automation] Task ${taskId} failed with code ${code}:`, stderr);
+        resolve({ success: false, error: `Task failed with code ${code}`, taskId });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      console.error(`[Automation] Failed to start task ${taskId}:`, error);
+      resolve({ success: false, error: 'Failed to start task', taskId, details: error.message });
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy Scheduler IPC Handlers (for backward compatibility)
 // ─────────────────────────────────────────────────────────────────────────────
 
 ipcMain.handle("scheduler:get-status", async () => {
   return {
-    running: schedulerProcess !== null,
-    pid: schedulerProcess ? schedulerProcess.pid : null
+    running: enhancedOrchestratorProcess !== null,
+    pid: enhancedOrchestratorProcess ? enhancedOrchestratorProcess.pid : null
   };
 });
 

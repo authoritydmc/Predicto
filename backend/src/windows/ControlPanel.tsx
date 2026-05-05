@@ -370,6 +370,12 @@ const ControlPanel: React.FC = () => {
   const [schedulerLogs, setSchedulerLogs] = useState<any[]>([]);
   const [activeSchedulerTab, setActiveSchedulerTab] = useState<'tasks' | 'logs'>('tasks');
 
+  // ── Enhanced Automation State
+  const [automationStatus, setAutomationStatus] = useState<any>(null);
+  const [automationTasks, setAutomationTasks] = useState<Record<string, any>>({});
+  const [automationLogs, setAutomationLogs] = useState<any[]>([]);
+  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
+
   // ── Opacity
   const [opacity, setOpacity] = useState(1);
   const [reactionOpacity, setReactionOpacity] = useState(1);
@@ -475,6 +481,119 @@ const ControlPanel: React.FC = () => {
       if (winProbIntervalRef.current) clearInterval(winProbIntervalRef.current);
     };
   }, []);
+
+  // WebSocket connection for enhanced automation monitoring
+  useEffect(() => {
+    // Initialize WebSocket connection to automation orchestrator
+    const connectWebSocket = () => {
+      try {
+        const ws = new WebSocket('ws://localhost:9222');
+        
+        ws.onopen = () => {
+          console.log('[ControlPanel] Connected to automation orchestrator');
+          setWsConnection(ws);
+          
+          // Request initial status
+          ws.send(JSON.stringify({
+            type: 'get_status',
+            timestamp: Date.now()
+          }));
+        };
+        
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            handleWebSocketMessage(message);
+          } catch (error) {
+            console.error('[ControlPanel] Error parsing WebSocket message:', error);
+          }
+        };
+        
+        ws.onclose = () => {
+          console.log('[ControlPanel] Disconnected from automation orchestrator');
+          setWsConnection(null);
+          setSchedulerRunning(false);
+          
+          // Attempt to reconnect after 5 seconds
+          setTimeout(connectWebSocket, 5000);
+        };
+        
+        ws.onerror = (error) => {
+          console.error('[ControlPanel] WebSocket error:', error);
+          setSchedulerRunning(false);
+        };
+        
+        return ws;
+      } catch (error) {
+        console.error('[ControlPanel] Failed to connect to automation orchestrator:', error);
+        return null;
+      }
+    };
+
+    const ws = connectWebSocket();
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, []);
+
+  // Handle WebSocket messages from automation orchestrator
+  const handleWebSocketMessage = (message: any) => {
+    const { type, data, timestamp } = message;
+    
+    switch (type) {
+      case 'status_update':
+        if (data.automation_status) {
+          setAutomationStatus(data.automation_status);
+          setSchedulerRunning(data.automation_status.orchestrator_running);
+        }
+        if (data.component_health) {
+          // Update component health status
+          Object.entries(data.component_health).forEach(([component, health]: [string, any]) => {
+            if (component === 'match_manager' || component === 'scraper_manager' || component === 'scoring_engine') {
+              // Update scheduler running status based on component health
+              setSchedulerRunning(health.status === 'running');
+            }
+          });
+        }
+        break;
+        
+      case 'task_update':
+        if (data.task) {
+          setAutomationTasks(prev => ({
+            ...prev,
+            [data.task.task_id]: data.task
+          }));
+        }
+        break;
+        
+      case 'log_entry':
+        if (data.data) {
+          setAutomationLogs(prev => [data.data, ...prev.slice(0, 999)]); // Keep last 1000 logs
+        }
+        break;
+        
+      case 'alert':
+        console.warn('[ControlPanel] Automation alert:', data);
+        // Could show toast notifications for alerts
+        break;
+        
+      case 'component_status':
+        if (data.data) {
+          // Update individual component status
+          const component = data.data.name;
+          if (component === 'orchestrator') {
+            setSchedulerRunning(data.data.status === 'running');
+          }
+        }
+        break;
+        
+      default:
+        console.log('[ControlPanel] Unknown WebSocket message type:', type);
+    }
+  };
 
   // Auto-fetch interval
   useEffect(() => {
@@ -2031,48 +2150,6 @@ const ControlPanel: React.FC = () => {
                   <span className="mode-indicator"></span>
                 </button>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginLeft: 16 }}>
-                <button 
-                  className={`cp-glass-btn cp-small ${windowVisibility.overlayVisible ? 'active' : ''}`}
-                  onClick={() => handleWindowVisibilityChange('overlayVisible', !windowVisibility.overlayVisible)}
-                  title="Toggle Overlay Window"
-                  style={{ 
-                    padding: '4px 8px', 
-                    fontSize: '10px',
-                    background: windowVisibility.overlayVisible ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                    border: windowVisibility.overlayVisible ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)'
-                  }}
-                >
-                  Overlay
-                </button>
-                <button 
-                  className={`cp-glass-btn cp-small ${windowVisibility.tickerVisible ? 'active' : ''}`}
-                  onClick={() => handleWindowVisibilityChange('tickerVisible', !windowVisibility.tickerVisible)}
-                  title="Toggle Ticker Window"
-                  style={{ 
-                    padding: '4px 8px', 
-                    fontSize: '10px',
-                    background: windowVisibility.tickerVisible ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                    border: windowVisibility.tickerVisible ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)'
-                  }}
-                >
-                  Ticker
-                </button>
-                <button 
-                  className={`cp-glass-btn cp-small ${windowVisibility.reactionVisible ? 'active' : ''}`}
-                  onClick={() => handleWindowVisibilityChange('reactionVisible', !windowVisibility.reactionVisible)}
-                  title="Toggle Reaction Window"
-                  style={{ 
-                    padding: '4px 8px', 
-                    fontSize: '10px',
-                    background: windowVisibility.reactionVisible ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                    border: windowVisibility.reactionVisible ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)'
-                  }}
-                >
-                  Reaction
-                </button>
-              </div>
-            </div>
             <h1>Control Panel</h1>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <p style={{ margin: 0 }}>
@@ -2119,6 +2196,7 @@ const ControlPanel: React.FC = () => {
           <button className="cp-primary-btn cp-small" onClick={copyAudienceUrl}>
             Share Link
           </button>
+        </div>
         </div>
       </header>
 
@@ -2690,127 +2768,6 @@ const ControlPanel: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="cp-form-row">
-                      <label className="cp-toggle-row">
-                        <span>Allow re-prediction</span>
-                        <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
-                      </label>
-                    </div>
-                    <div className="cp-form-row">
-                      <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
-                        <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
-                        <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
-                      </label>
-                    </div>
-
-                    {/* Prediction Controls Section */}
-                    <div className="cp-section-header">
-                      <span>Prediction Controls</span>
-                    </div>
-                    <div className="cp-form-row">
-                      <label className="cp-toggle-row" title="Enable or disable predictions for this match">
-                        <span>Enable Predictions</span>
-                        <Toggle checked={fPredictionsEnabled} onChange={setFPredictionsEnabled} />
-                      </label>
-                    </div>
-                    <div className="cp-form-row">
-                      <label className="cp-toggle-row" title="Temporarily pause predictions (requires predictions to be enabled)">
-                        <span>Pause Predictions</span>
-                        <Toggle checked={fPredictionsPaused} onChange={setFPredictionsPaused} />
-                      </label>
-                    </div>
-                    {fPredictionsPaused && (
-                      <div className="cp-form-row">
-                        <label>Pause Reason</label>
-                        <input
-                          type="text"
-                          value={fPauseReason}
-                          onChange={e => setFPauseReason(e.target.value)}
-                          placeholder="Reason for pausing predictions..."
-                        />
-                      </div>
-                    )}
-                    
-                    {/* Match Status Section */}
-                    <div className="cp-section-header">
-                      <span>Match Status</span>
-                    </div>
-                    <div className="cp-form-row">
-                      <label>Status</label>
-                      <select value={fMatchStatus} onChange={e => setFMatchStatus(e.target.value as any)}>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="live">Live</option>
-                        <option value="done">Done</option>
-                      </select>
-                    </div>
-
-                    {/* Prediction Controls - Only show for live/done matches */}
-                    {(fMatchStatus === 'live' || fMatchStatus === 'done') && (
-                      <>
-                        <div className="cp-section-header">
-                          <span>Prediction Controls</span>
-                        </div>
-                        <div className="cp-form-row">
-                          <label className="cp-toggle-row" title="Enable or disable predictions for this match">
-                            <span>Enable Predictions</span>
-                            <Toggle checked={fPredictionsEnabled} onChange={setFPredictionsEnabled} />
-                          </label>
-                        </div>
-                        <div className="cp-form-row">
-                          <label className="cp-toggle-row" title="Temporarily pause predictions (requires predictions to be enabled)">
-                            <span>Pause Predictions</span>
-                            <Toggle checked={fPredictionsPaused} onChange={setFPredictionsPaused} />
-                          </label>
-                        </div>
-                        {fPredictionsPaused && (
-                          <div className="cp-form-row">
-                            <label>Pause Reason</label>
-                            <input
-                              type="text"
-                              value={fPauseReason}
-                              onChange={e => setFPauseReason(e.target.value)}
-                              placeholder="Reason for pausing predictions..."
-                            />
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Scheduled Match Note */}
-                    {fMatchStatus === 'scheduled' && (
-                      <div style={{
-                        padding: '12px 16px',
-                        background: 'rgba(255, 159, 10, 0.1)',
-                        border: '1px solid rgba(255, 159, 10, 0.3)',
-                        borderRadius: '10px',
-                        fontSize: '12px',
-                        color: '#ff9f0a',
-                        marginTop: '8px',
-                      }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span>ℹ️</span>
-                          <span>For scheduled matches, use the Match Control tab to set toss, batting team, and live score when the match starts.</span>
-                        </span>
-                      </div>
-                    )}
-                    
-                    {/* Sport-specific Match Details */}
-                    {fSport === 'cricket' && (
-                      <CricketMatchDetails
-                        fTeamA={fTeamA}
-                        fTeamB={fTeamB}
-                        fBattingTeam={fBattingTeam}
-                        fInnings={fInnings}
-                        setFBattingTeam={setFBattingTeam}
-                        setFInnings={setFInnings}
-                      />
-                    )}
-                    {fSport === 'football' && (
-                      <FootballMatchDetails
-                        fTeamA={fTeamA}
-                        fTeamB={fTeamB}
-                      />
-                    )}
                     <div className="cp-divider" />
                     <button className="cp-primary-btn cp-wide-btn" type="submit">{matchId ? 'Update Match' : 'Create Match & Connect'}</button>
                   </form>
@@ -2818,16 +2775,88 @@ const ControlPanel: React.FC = () => {
 
                 {/* Live Score Tab */}
                 <div className={`cp-tab-content ${activeMatchTab === 'live' ? 'active' : ''}`}>
-                  <div className="cp-form-row">
-                    <label>Match Status</label>
-                    <select value={scoreMatchStatus} onChange={e => setScoreMatchStatus(e.target.value as any)}>
-                      <option value="live">Live</option>
-                      <option value="completed">Completed</option>
-                      <option value="scheduled">Scheduled</option>
-                    </select>
+                  {/* Match Status Section */}
+                  <div className="cp-section-header">
+                    <span>Match Status</span>
                   </div>
                   <div className="cp-form-row">
-                    <label>Source</label>
+                    <label>Status</label>
+                    <select value={fMatchStatus} onChange={e => setFMatchStatus(e.target.value as any)}>
+                      <option value="scheduled">Scheduled</option>
+                      <option value="live">Live</option>
+                      <option value="done">Done</option>
+                    </select>
+                  </div>
+
+                  {/* Prediction Controls Section */}
+                  <div className="cp-section-header">
+                    <span>Prediction Controls</span>
+                  </div>
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row" title="Enable or disable predictions for this match">
+                      <span>Enable Predictions</span>
+                      <Toggle checked={fPredictionsEnabled} onChange={setFPredictionsEnabled} />
+                    </label>
+                  </div>
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row" title="Temporarily pause predictions (requires predictions to be enabled)">
+                      <span>Pause Predictions</span>
+                      <Toggle checked={fPredictionsPaused} onChange={setFPredictionsPaused} />
+                    </label>
+                  </div>
+                  {fPredictionsPaused && (
+                    <div className="cp-form-row">
+                      <label>Pause Reason</label>
+                      <input
+                        type="text"
+                        value={fPauseReason}
+                        onChange={e => setFPauseReason(e.target.value)}
+                        placeholder="Reason for pausing predictions..."
+                      />
+                    </div>
+                  )}
+
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row">
+                      <span>Allow re-prediction</span>
+                      <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
+                    </label>
+                  </div>
+                  <div className="cp-form-row">
+                    <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
+                      <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
+                      <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
+                    </label>
+                  </div>
+
+                  <div className="cp-divider" />
+                  
+                  {/* Sport-specific Match Controls */}
+                  {fSport === 'cricket' && (
+                    <CricketMatchDetails
+                      fTeamA={fTeamA}
+                      fTeamB={fTeamB}
+                      fBattingTeam={fBattingTeam}
+                      fInnings={fInnings}
+                      setFBattingTeam={setFBattingTeam}
+                      setFInnings={setFInnings}
+                    />
+                  )}
+                  {fSport === 'football' && (
+                    <FootballMatchDetails
+                      fTeamA={fTeamA}
+                      fTeamB={fTeamB}
+                    />
+                  )}
+
+                  <div className="cp-divider" />
+                  
+                  {/* Live Score Controls */}
+                  <div className="cp-section-header">
+                    <span>Live Score Management</span>
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Score Source</label>
                     <select value={scoreSource} onChange={e => setScoreSource(e.target.value as any)}>
                       <option value="manual">Manual</option>
                       <option value="scraper">Scraper</option>
@@ -2913,6 +2942,77 @@ const ControlPanel: React.FC = () => {
                 </div>
               </>
             )}
+          </div>
+        </section>
+
+        {/* ── Window Management ── */}
+        <section className="cp-panel-group">
+          <div 
+            className="cp-group-header" 
+            onClick={() => toggleSection('windowEngine')}
+            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Window Management</h2>
+            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
+              {collapsedSections.windowEngine ? '▶' : '▼'}
+            </span>
+          </div>
+          <div className="cp-glass-card" style={{ display: collapsedSections.windowEngine ? 'none' : 'block' }}>
+            <div className="cp-form-row">
+              <label className="cp-toggle-row">
+                <span>Overlay Window</span>
+                <Toggle checked={windowVisibility.overlayVisible} onChange={(v) => handleWindowVisibilityChange('overlayVisible', v)} />
+              </label>
+            </div>
+            <div className="cp-form-row">
+              <label className="cp-toggle-row">
+                <span>Ticker Window</span>
+                <Toggle checked={windowVisibility.tickerVisible} onChange={(v) => handleWindowVisibilityChange('tickerVisible', v)} />
+              </label>
+            </div>
+            <div className="cp-form-row">
+              <label className="cp-toggle-row">
+                <span>Reaction Window</span>
+                <Toggle checked={windowVisibility.reactionVisible} onChange={(v) => handleWindowVisibilityChange('reactionVisible', v)} />
+              </label>
+            </div>
+            <div className="cp-divider" />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="cp-action-btn" 
+                type="button" 
+                onClick={() => {
+                  // @ts-ignore
+                  window.overlayDesktop.showOverlay();
+                }}
+                style={{ flex: 1 }}
+              >
+                Show Overlay
+              </button>
+              <button 
+                className="cp-action-btn" 
+                type="button" 
+                onClick={() => {
+                  // @ts-ignore
+                  window.overlayDesktop.showTicker();
+                }}
+                style={{ flex: 1 }}
+              >
+                Show Ticker
+              </button>
+              <button 
+                className="cp-action-btn" 
+                type="button" 
+                onClick={() => {
+                  // @ts-ignore
+                  window.overlayDesktop.showReaction();
+                }}
+                style={{ flex: 1 }}
+              >
+                Show Reaction
+              </button>
+            </div>
+            <p className="cp-panel-note">Control overlay windows visibility and access.</p>
           </div>
         </section>
 
@@ -3056,21 +3156,120 @@ const ControlPanel: React.FC = () => {
             onClick={() => toggleSection('scheduler')}
             style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
           >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>Automation Scheduler</h2>
+            <h2 className="cp-group-title" style={{ margin: 0 }}>Enhanced Automation</h2>
             <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
               {collapsedSections.scheduler ? '▶' : '▼'}
             </span>
           </div>
           <div className="cp-glass-card" style={{ display: collapsedSections.scheduler ? 'none' : 'block' }}>
-            {/* Scheduler Status */}
+            {/* Enhanced Automation Status */}
             <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600 }}>
-                  Scheduler Status
+                  Enhanced Automation Status
                 </span>
                 <span className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
               </div>
               <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                {schedulerRunning ? 'Running' : 'Offline'}
+              </span>
+              {wsConnection && (
+                <span style={{ fontSize: '10px', color: '#34c759', marginLeft: '8px' }}>
+                  ● Connected
+                </span>
+              )}
+            </div>
+
+            {/* Automation Tasks */}
+            {automationStatus && (
+              <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                <div className="cp-section-header">
+                  <span>Active Tasks ({automationStatus.total_tasks || 0})</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Running:</span>
+                    <span style={{ color: '#34c759' }}>{automationStatus.running_tasks || 0}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Errors:</span>
+                    <span style={{ color: '#ff3b30' }}>{automationStatus.error_tasks || 0}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Uptime:</span>
+                    <span>{Math.floor((automationStatus.uptime || 0) / 60000)}m</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Control Buttons */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={async () => {
+                  try {
+                    // @ts-ignore
+                    const result = await window.overlayDesktop.triggerAutomationTask('live_scraping');
+                    if (result.success) {
+                      console.log('Live scraping triggered');
+                    } else {
+                      console.error('Failed to trigger live scraping:', result.error);
+                    }
+                  } catch (error) {
+                    console.error('Error triggering live scraping:', error);
+                  }
+                }}
+              >
+                Trigger Scraping
+              </button>
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={async () => {
+                  try {
+                    // @ts-ignore
+                    const result = await window.overlayDesktop.triggerAutomationTask('score_processing');
+                    if (result.success) {
+                      console.log('Score processing triggered');
+                    } else {
+                      console.error('Failed to trigger score processing:', result.error);
+                    }
+                  } catch (error) {
+                    console.error('Error triggering score processing:', error);
+                  }
+                }}
+              >
+                Process Scores
+              </button>
+              <button 
+                className="cp-action-btn cp-small"
+                onClick={async () => {
+                  try {
+                    // @ts-ignore
+                    const result = await window.overlayDesktop.triggerAutomationTask('match_creation');
+                    if (result.success) {
+                      console.log('Match creation triggered');
+                    } else {
+                      console.error('Failed to trigger match creation:', result.error);
+                    }
+                  } catch (error) {
+                    console.error('Error triggering match creation:', error);
+                  }
+                }}
+              >
+                Create Matches
+              </button>
+            </div>
+
+            {/* Legacy Scheduler Status */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>
+                  Legacy Scheduler
+                </span>
+                <span className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
                 {schedulerRunning ? 'Running' : 'Stopped'}
               </span>
             </div>
@@ -3446,6 +3645,11 @@ const ControlPanel: React.FC = () => {
               <span className={`cp-dot ${sortMode === 'score' ? 'active' : 'warning'}`} />
               <span className="cp-status-label">Sort Priority</span>
               <span className="cp-status-value">{sortMode === 'score' ? 'Score (Asc)' : 'Newest First'}</span>
+            </div>
+            <div className="cp-status-item">
+              <span className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
+              <span className="cp-status-label">Automation</span>
+              <span className="cp-status-value">{schedulerRunning ? 'Running' : 'Offline'}</span>
             </div>
           </div>
         </section>
