@@ -13,11 +13,24 @@ interface TaskInfo {
   type: string;
   status: 'pending' | 'running' | 'completed' | 'error' | 'idle';
   interval_seconds: number;
+  cron_expression?: string;
   enabled: boolean;
+  logging_enabled: boolean;
   last_run?: number;
   next_run?: number;
   error_message?: string;
   progress?: number;
+}
+
+interface JobLog {
+  id: number;
+  task_id: string;
+  task_name: string;
+  start_time: number;
+  end_time?: number;
+  status: string;
+  error?: string;
+  metadata?: any;
 }
 
 interface AutomationSchedulerProps {
@@ -69,14 +82,33 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
   onToggleTask,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyTask, setHistoryTask] = useState<TaskInfo | null>(null);
+  const [jobHistory, setJobHistory] = useState<JobLog[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  
   const [editingTask, setEditingTask] = useState<TaskInfo | null>(null);
   const [formData, setFormData] = useState<Partial<TaskInfo>>({
     task_id: '',
     name: '',
     type: 'scraping',
     interval_seconds: 60,
+    cron_expression: '',
     enabled: true,
+    logging_enabled: true,
   });
+
+  const generateTaskId = (name: string) => {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  };
+
+  const handleNameChange = (name: string) => {
+    setFormData(prev => ({
+      ...prev,
+      name,
+      task_id: prev.task_id || !editingTask ? generateTaskId(name) : prev.task_id
+    }));
+  };
 
   const handleOpenAdd = () => {
     setEditingTask(null);
@@ -98,12 +130,60 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const dataToSubmit = { ...formData };
+    if (!dataToSubmit.task_id && dataToSubmit.name) {
+      dataToSubmit.task_id = generateTaskId(dataToSubmit.name);
+    }
+    
     if (editingTask) {
-      onUpdateTask(editingTask.task_id, formData);
+      onUpdateTask(editingTask.task_id, dataToSubmit);
     } else {
-      onAddTask(formData);
+      onAddTask(dataToSubmit);
     }
     setShowAddModal(false);
+  };
+
+  const fetchHistory = (task: TaskInfo) => {
+    if (!wsConnection) return;
+    
+    setHistoryTask(task);
+    setLoadingHistory(true);
+    setShowHistoryModal(true);
+    setJobHistory([]);
+
+    // Send request via WebSocket
+    wsConnection.send(JSON.stringify({
+      type: 'get_job_history',
+      task_id: task.task_id,
+      limit: 50
+    }));
+
+    // Listener for history response is usually handled in the parent component
+    // but for simplicity, we'll assume the parent updates automationTasks or a similar mechanism
+    // In this specific implementation, we might need to handle the response in the parent and pass it down.
+    // However, since we are inside the component, we can add a one-time listener if needed or rely on parent.
+    // Given the current architecture, I'll add a temporary listener for the response.
+    
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'get_job_history_response' && data.data.success) {
+          setJobHistory(data.data.history);
+          setLoadingHistory(false);
+          wsConnection.removeEventListener('message', handleMessage);
+        }
+      } catch (err) {
+        console.error("Error parsing history response", err);
+      }
+    };
+    
+    wsConnection.addEventListener('message', handleMessage);
+    
+    // Timeout to stop loading if no response
+    setTimeout(() => {
+      setLoadingHistory(false);
+      wsConnection.removeEventListener('message', handleMessage);
+    }, 5000);
   };
 
   return (
@@ -215,6 +295,15 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                   >
                     ▶
                   </button>
+                  {task.logging_enabled && (
+                    <button 
+                      className="cp-action-btn cp-small" 
+                      onClick={() => fetchHistory(task)}
+                      title="View History"
+                    >
+                      📋
+                    </button>
+                  )}
                   <button 
                     className="cp-action-btn cp-small" 
                     onClick={() => handleOpenEdit(task)}
@@ -256,23 +345,27 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
             
             <form onSubmit={handleSubmit}>
               <div className="cp-form-row">
-                <label>Task ID *</label>
-                <input 
-                  value={formData.task_id} 
-                  onChange={e => setFormData({ ...formData, task_id: e.target.value })}
-                  placeholder="e.g. daily_maintenance"
-                  required
-                  disabled={!!editingTask}
-                />
-              </div>
-              <div className="cp-form-row">
                 <label>Task Name *</label>
                 <input 
                   value={formData.name} 
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  onChange={e => handleNameChange(e.target.value)}
                   placeholder="e.g. Daily Data Sync"
                   required
                 />
+              </div>
+              <div className="cp-form-row">
+                <label>Task ID (Optional)</label>
+                <input 
+                  value={formData.task_id} 
+                  onChange={e => setFormData({ ...formData, task_id: e.target.value })}
+                  placeholder="Leave blank to auto-generate"
+                  disabled={!!editingTask}
+                />
+                {!editingTask && formData.name && (
+                  <span style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px' }}>
+                    Preview: {generateTaskId(formData.name || '')}
+                  </span>
+                )}
               </div>
               <div className="cp-form-row">
                 <label>Task Type *</label>
@@ -287,6 +380,17 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                 </select>
               </div>
               <div className="cp-form-row">
+                <label>Cron Expression (Optional)</label>
+                <input 
+                  value={formData.cron_expression || ''} 
+                  onChange={e => setFormData({ ...formData, cron_expression: e.target.value })}
+                  placeholder="e.g. */5 * * * * (min hour day month dow)"
+                />
+                <span style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px' }}>
+                  If set, takes precedence over interval. Use <a href="https://crontab.guru" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-blue)' }}>crontab.guru</a> for help.
+                </span>
+              </div>
+              <div className="cp-form-row">
                 <label>Interval (seconds) *</label>
                 <input 
                   type="number" 
@@ -294,7 +398,21 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                   onChange={e => setFormData({ ...formData, interval_seconds: parseInt(e.target.value) })}
                   min="5"
                   required
+                  disabled={!!formData.cron_expression}
                 />
+              </div>
+              <div className="cp-form-row">
+                <label className="cp-toggle-row">
+                  <span>Enable Job Logging</span>
+                  <div className="cp-toggle">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.logging_enabled} 
+                      onChange={e => setFormData({ ...formData, logging_enabled: e.target.checked })}
+                    />
+                    <span className="cp-toggle-track" />
+                  </div>
+                </label>
               </div>
               <div className="cp-form-row">
                 <label className="cp-toggle-row">
@@ -315,6 +433,62 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                 <button type="submit" className="cp-primary-btn" style={{ flex: 1 }}>{editingTask ? 'Save Changes' : 'Create Task'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {showHistoryModal && historyTask && (
+        <div className="cp-overlay" style={{ zIndex: 1001 }}>
+          <div className="cp-glass-card" style={{ width: '600px', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Job History: {historyTask.name}</h3>
+                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Last 50 executions (SQLite)</span>
+              </div>
+              <button onClick={() => setShowHistoryModal(false)} className="cp-close-btn">&times;</button>
+            </div>
+            
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              {loadingHistory ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>Loading history...</div>
+              ) : jobHistory.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>No history found for this task.</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                      <th style={{ padding: '8px' }}>Time</th>
+                      <th style={{ padding: '8px' }}>Duration</th>
+                      <th style={{ padding: '8px' }}>Status</th>
+                      <th style={{ padding: '8px' }}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobHistory.map(log => (
+                      <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '8px' }}>
+                          {new Date(log.start_time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td style={{ padding: '8px' }}>
+                          {log.end_time ? `${Math.round((log.end_time - log.start_time) / 1000)}s` : 'N/A'}
+                        </td>
+                        <td style={{ padding: '8px' }}>
+                          <TaskStatusBadge status={log.status} />
+                        </td>
+                        <td style={{ padding: '8px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {log.error || (log.metadata ? JSON.stringify(log.metadata) : '-')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            
+            <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'right' }}>
+              <button onClick={() => setShowHistoryModal(false)} className="cp-secondary-btn">Close</button>
+            </div>
           </div>
         </div>
       )}

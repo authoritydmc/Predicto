@@ -8,10 +8,10 @@ import asyncio
 import json
 import threading
 import time
-from typing import Dict, List, Optional, Any, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from enum import Enum
+import re
 
 from ..base.firebase_client import FirebaseClient
 from ..scheduler.websocket_logger import WebSocketLogger
@@ -20,6 +20,12 @@ from .match_manager import MatchManager
 from .scraper_manager import ScraperManager
 from .scoring_engine import ScoringEngine
 from .status_monitor import StatusMonitor
+from .job_logger import JobLogger
+
+try:
+    from croniter import croniter
+except ImportError:
+    croniter = None
 
 
 class AutomationStatus(Enum):
@@ -33,10 +39,12 @@ class AutomationStatus(Enum):
 class AutomationTask:
     task_id: str
     name: str
-    type: str  # 'match_creation', 'scraping', 'scoring'
+    type: str  # 'match_creation', 'scraping', 'scoring', 'reconciliation'
     status: AutomationStatus
     interval_seconds: int = 60
+    cron_expression: Optional[str] = None
     enabled: bool = True
+    logging_enabled: bool = True
     last_run: Optional[int] = None
     next_run: Optional[int] = None
     error_message: Optional[str] = None
@@ -88,6 +96,10 @@ class AutomationOrchestrator:
             'failed_tasks': 0,
             'average_task_duration': 0.0
         }
+
+        # Job Logging
+        self.job_logger = JobLogger()
+        self.enable_job_logging = self.config.get('enable_job_logging', True)
 
         # Task handlers
         self.task_handlers: Dict[str, Callable] = {
@@ -184,6 +196,9 @@ class AutomationOrchestrator:
         
         # Start main orchestration loop as a background task
         asyncio.create_task(self._orchestration_loop())
+        
+        # Start cleanup loop
+        asyncio.create_task(self._cleanup_loop())
     
     async def stop(self):
         """Stop the automation orchestrator"""
@@ -257,6 +272,11 @@ class AutomationOrchestrator:
         task.progress = 0.0
         task.error_message = None
         
+        # Job Logging
+        job_id = None
+        if self.enable_job_logging and task.logging_enabled:
+            job_id = self.job_logger.log_job_start(task.task_id, task.name)
+        
         # Broadcast status update
         self._broadcast_task_update(task)
         
@@ -275,10 +295,18 @@ class AutomationOrchestrator:
             # Schedule next run
             self._schedule_next_run(task)
             
+            # Log success
+            if job_id:
+                self.job_logger.log_job_finish(job_id, 'completed', metadata=task.metadata)
+            
         except Exception as e:
             task.status = AutomationStatus.ERROR
             task.error_message = str(e)
             self.logger.error('orchestrator', f'Task {task_id} failed: {str(e)}')
+            
+            # Log failure
+            if job_id:
+                self.job_logger.log_job_finish(job_id, 'error', error=str(e), metadata=task.metadata)
         
         # Broadcast final status
         self._broadcast_task_update(task)
@@ -401,9 +429,38 @@ class AutomationOrchestrator:
     
     def _schedule_next_run(self, task: AutomationTask):
         """Schedule next run for a task"""
-        interval = task.interval_seconds
-        task.next_run = int(time.time() * 1000) + (interval * 1000)
+        if task.cron_expression and croniter:
+            try:
+                # Get current time or last run time as base
+                base_time = datetime.fromtimestamp((task.last_run or int(time.time() * 1000)) / 1000)
+                iter = croniter(task.cron_expression, base_time)
+                next_date = iter.get_next(datetime)
+                task.next_run = int(next_date.timestamp() * 1000)
+            except Exception as e:
+                self.logger.error('orchestrator', f'Failed to parse cron for task {task.task_id}: {str(e)}')
+                # Fallback to interval
+                interval = task.interval_seconds
+                task.next_run = int(time.time() * 1000) + (interval * 1000)
+        else:
+            interval = task.interval_seconds
+            task.next_run = int(time.time() * 1000) + (interval * 1000)
+            
         self._save_tasks()
+
+    async def _cleanup_loop(self):
+        """Periodic cleanup of old job logs"""
+        while self.running:
+            try:
+                days = self.config.get('log_retention_days', 15)
+                count = self.job_logger.clear_old_logs(days=days)
+                if count > 0:
+                    self.logger.info('orchestrator', f'Purged {count} old job logs (older than {days} days)')
+                
+                # Sleep for 12 hours between cleanups
+                await asyncio.sleep(12 * 3600)
+            except Exception as e:
+                self.logger.error('orchestrator', f'Cleanup loop error: {str(e)}')
+                await asyncio.sleep(3600)
     
     def _update_overall_status(self):
         """Update overall automation status"""
@@ -477,9 +534,20 @@ class AutomationOrchestrator:
 
     def add_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """Add a new automation task"""
+        # Auto-generate task ID if not provided
+        if not task_data.get('task_id') and task_data.get('name'):
+            name_slug = re.sub(r'[^a-z0-9]+', '_', task_data['name'].lower()).strip('_')
+            # Ensure uniqueness
+            task_id = name_slug
+            counter = 1
+            while task_id in self.tasks:
+                task_id = f"{name_slug}_{counter}"
+                counter += 1
+            task_data['task_id'] = task_id
+
         task_id = task_data.get('task_id')
         if not task_id:
-            return {'success': False, 'error': 'task_id is required'}
+            return {'success': False, 'error': 'task_id or name is required'}
         
         if task_id in self.tasks:
             return {'success': False, 'error': f'Task {task_id} already exists'}
@@ -496,6 +564,14 @@ class AutomationOrchestrator:
             
             self.logger.info('orchestrator', f'Task added: {task.name}', {'task_id': task_id})
             return {'success': True, 'task': asdict(task)}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def get_job_history(self, task_id: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
+        """Get job execution history from SQLite"""
+        try:
+            history = self.job_logger.get_history(task_id, limit)
+            return {'success': True, 'history': history}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 

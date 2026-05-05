@@ -88,6 +88,11 @@ class EnhancedAutomationSystem:
             elif message_type == 'update_config':
                 config = data.get('config')
                 result = self.orchestrator.update_config(config)
+
+            elif message_type == 'get_job_history':
+                task_id = data.get('task_id')
+                limit = data.get('limit', 50)
+                result = self.orchestrator.get_job_history(task_id, limit)
             
             if result:
                 # Send response back via WebSocket

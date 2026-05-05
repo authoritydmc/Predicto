@@ -27,9 +27,12 @@ import {
   ActionLog,
   WindowManagement,
   MatchResolution,
-  WinProbability,
   AutomationScheduler,
   UserManagement,
+  TournamentManagement,
+  MatchManagement,
+  DiscordNotifications,
+  PushNotifications,
 } from './components';
 
 // ── LocalStorage Helpers ────────────────────────────────────────────────────────
@@ -229,7 +232,6 @@ const ControlPanel: React.FC = () => {
     tournament: true,
     match: false,
     resolution: false,
-    winProb: false,
     liveScore: false,
     windowEngine: false,
     history: true,
@@ -293,12 +295,6 @@ const ControlPanel: React.FC = () => {
   const [fActualResult, setFActualResult] = useState('');
   const [resolutionStatus, setResolutionStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
   const [resolutionMessage, setResolutionMessage] = useState('');
-
-  // ── Win Prob
-  const [googleUrl, setGoogleUrl] = useState('');
-  const [autoFetch, setAutoFetch] = useState(false);
-  const [showWinProb, setShowWinProb] = useState(false);
-  const [fetchStatus, setFetchStatus] = useState('Status: Not started');
 
   // ── Live Score
   const [liveScore, setLiveScore] = useState<any>(null);
@@ -394,7 +390,6 @@ const ControlPanel: React.FC = () => {
   // ── Refs for subscriptions
   const heartbeatRef = useRef<any>(null);
   const unsubMetaRef = useRef<any>(null);
-  const winProbIntervalRef = useRef<any>(null);
 
   // ── Firebase Mode State
   const [firebaseMode, setFirebaseModeState] = useState<'local' | 'prod'>(() => {
@@ -896,17 +891,6 @@ const ControlPanel: React.FC = () => {
     }
   };
 
-  // Auto-fetch interval
-  useEffect(() => {
-    if (winProbIntervalRef.current) clearInterval(winProbIntervalRef.current);
-    if (autoFetch) {
-      winProbIntervalRef.current = setInterval(() => {
-        if (googleUrl.trim()) performWinProbFetch();
-      }, 30000);
-    }
-    return () => { if (winProbIntervalRef.current) clearInterval(winProbIntervalRef.current); };
-  }, [autoFetch, googleUrl]);
-
   // Load available tournaments when sport changes
   useEffect(() => {
     const loadTournaments = async () => {
@@ -1128,8 +1112,6 @@ const ControlPanel: React.FC = () => {
           setFTeamB(merged.teamB || '');
           setFAllowReprediction(Boolean(merged.allowReprediction));
           setFAutomationPaused(Boolean(merged.automationPaused));
-          setGoogleUrl(merged.googleMatchUrl || '');
-          setShowWinProb(Boolean(merged.showWinProb));
           if (!merged.disableScoreA && merged.disableScoreB) setFBattingTeam('teamA');
           else if (!merged.disableScoreB && merged.disableScoreA) setFBattingTeam('teamB');
           setFInnings(merged.secondInnings ? '2' : '1');
@@ -2033,44 +2015,6 @@ const ControlPanel: React.FC = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Win Probability
-  // ─────────────────────────────────────────────────────────────────────────────
-  const performWinProbFetch = async () => {
-    if (!googleUrl.trim()) { setFetchStatus('Status: No URL provided'); return; }
-    setFetchStatus('Status: Fetching...');
-    try {
-      // @ts-ignore
-      const result = await window.overlayDesktop.fetchWinProbability(googleUrl);
-      if (result?.probA && result?.probB) {
-        setFetchStatus(`Status: Success (${result.probA} / ${result.probB})`);
-        if (isFirebaseConfigured && db && matchId && tournamentId) {
-          await update(matchMetaRef(fSport, tournamentId, matchId), { 
-            winProbabilityA: parseInt(result.probA), 
-            winProbabilityB: parseInt(result.probB) 
-          });
-        }
-      } else {
-        setFetchStatus('Status: Failed (Widget not found)');
-      }
-    } catch {
-      setFetchStatus('Status: Error (Check console)');
-    }
-  };
-
-  const handleShowWinProbToggle = async (v: boolean) => {
-    setShowWinProb(v);
-    if (isFirebaseConfigured && db && matchId && tournamentId) {
-      await update(matchMetaRef(fSport, tournamentId, matchId), { showWinProb: v });
-    }
-  };
-
-  const handleGoogleUrlSave = async () => {
-    if (isFirebaseConfigured && db && matchId && tournamentId) {
-      await update(matchMetaRef(fSport, tournamentId, matchId), { googleMatchUrl: googleUrl.trim() });
-    }
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────────
   // Overlay Controls
   // ─────────────────────────────────────────────────────────────────────────────
   const updateS = async (partial: any) => {
@@ -2831,25 +2775,6 @@ const ControlPanel: React.FC = () => {
             onResolve={resolveMatch}
             onViewStandings={viewFinalStandings}
             chasingTeam={chasingTeam}
-          />
-        </CollapsibleSection>
-
-        {/* ── Live Win Probability ── */}
-        <CollapsibleSection
-          title="Live Win Probability (Google)"
-          isCollapsed={collapsedSections.winProb}
-          onToggle={() => toggleSection('winProb')}
-        >
-          <WinProbability
-            googleUrl={googleUrl}
-            setGoogleUrl={setGoogleUrl}
-            autoFetch={autoFetch}
-            setAutoFetch={setAutoFetch}
-            showWinProb={showWinProb}
-            setShowWinProb={setShowWinProb}
-            fetchStatus={fetchStatus}
-            onFetch={performWinProbFetch}
-            onSaveUrl={handleGoogleUrlSave}
           />
         </CollapsibleSection>
 

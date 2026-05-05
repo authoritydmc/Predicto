@@ -150,7 +150,7 @@ export const MatchManagement: React.FC<MatchManagementProps> = ({
                     const now = new Date();
                     const matchDateOnly = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
                     const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    return matchDateOnly >= nowDateOnly;
+                    return (matchDateOnly >= nowDateOnly);
                   })
                   .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
                   .slice(0, 1)
