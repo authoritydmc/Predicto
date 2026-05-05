@@ -7,6 +7,8 @@ import os
 import sys
 import signal
 import threading
+import argparse
+import json
 from typing import Dict, Any, Optional
 
 # Add parent directory to path for imports
@@ -160,12 +162,34 @@ class EnhancedAutomationSystem:
 
 def main():
     """Main entry point"""
+    parser = argparse.ArgumentParser(description='Enhanced automation orchestrator')
+    parser.add_argument('--trigger-task', type=str, help='Run one automation task and exit')
+    args = parser.parse_args()
+
     print("=" * 80)
     print("ENHANCED AUTOMATION ORCHESTRATOR")
     print("=" * 80)
     
     # Create and start system
     system = EnhancedAutomationSystem()
+
+    if args.trigger_task:
+        try:
+            if args.trigger_task not in system.orchestrator.tasks:
+                print(json.dumps({'success': False, 'error': 'Task not found'}))
+                sys.exit(1)
+
+            system.orchestrator._run_task(args.trigger_task)
+            task = system.orchestrator.tasks.get(args.trigger_task)
+            if task and getattr(task.status, 'value', task.status) == 'error':
+                print(json.dumps({'success': False, 'task_id': args.trigger_task, 'status': 'error'}))
+                sys.exit(1)
+
+            print(json.dumps({'success': True, 'task_id': args.trigger_task}))
+            sys.exit(0)
+        except Exception as e:
+            print(json.dumps({'success': False, 'error': str(e)}))
+            sys.exit(1)
     
     try:
         system.start()

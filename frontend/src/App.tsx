@@ -13,6 +13,7 @@ import FavoriteTeamModal from './components/TeamSelection/FavoriteTeamModal';
 import UserAuth from './components/Auth/UserAuth';
 import { getTeamLogoUrl, getTeamColor } from './utils/teamLogos';
 import './styles/App.css';
+import './styles/match-page.css';
 
 // Context for shared app state
 interface AppContextType {
@@ -496,7 +497,7 @@ function MatchPage() {
       } as React.CSSProperties}
     >
       <div id="audienceApp" className="audience-app-container">
-        <header className="audience-header audience-header-merged">
+        <header className="audience-header audience-header-merged match-shell-header">
           <div className="audience-header-left">
             <button onClick={() => navigate('/')} className="back-btn" title="Return to home">
               ← Back
@@ -507,7 +508,7 @@ function MatchPage() {
             </div>
           </div>
           <div className="audience-header-right">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="match-badge-row">
                <span className="badge-mini sport">
                  {tournamentContext.sport.toUpperCase()}
                </span>
@@ -579,13 +580,13 @@ function MatchPage() {
 
             {/* Cricket Match Info */}
             {tournamentContext.sport === 'cricket' && meta?.teamA && meta?.teamB && (
-              <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div className="match-cricket-context">
                 
                 {/* Second Innings Info */}
                 {meta.secondInnings && liveScore?.teamA && liveScore?.teamB && (
                   <>
                     {/* Runs/Wickets Required */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="match-cricket-note">
                       <span style={{ color: '#34c759' }}>🎯</span>
                       <span>
                         {(() => {
@@ -613,7 +614,7 @@ function MatchPage() {
                     
                     {/* Chasing Team Start Time */}
                     {liveScore.secondInningsStart && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div className="match-cricket-note">
                         <span style={{ color: '#007aff' }}>⏱️</span>
                         <span>
                           Chasing started: {new Date(liveScore.secondInningsStart).toLocaleTimeString()}
@@ -638,7 +639,7 @@ function MatchPage() {
           </div>
         </header>
 
-        <div className="grid-two">
+        <div className="match-content-grid grid-two">
           {activeMatch ? (
             <>
                <PredictionPanel
@@ -672,7 +673,9 @@ function App() {
           <Route path="/match/:matchCode" element={<MatchPage />} />
           <Route path="/tournament/:tournamentCode" element={<TournamentPage />} />
         </Route>
+        <Route path="/tournament/:sport/:tournamentId/match/:matchId/predictions" element={<OtherPredictionsPage />} />
         <Route path="/match/:matchCode/predictions" element={<OtherPredictionsPage />} />
+        <Route path="/tournament/:sport/:tournamentId/leaderboard" element={<TournamentLeaderboardPage />} />
         <Route path="/tournament/:tournamentCode/leaderboard" element={<TournamentLeaderboardPage />} />
       </Routes>
     </BrowserRouter>

@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef, matchPredictionsRef } from '../../firebase/services';
 import { onValue, get } from 'firebase/database';
 import CricketPrediction from './CricketPrediction';
 import FootballPrediction from './FootballPrediction';
-import TournamentLeaderboardModal from '../Leaderboard/TournamentLeaderboardModal';
-import OtherPredictionsModal from './OtherPredictionsModal';
 
 interface PredictionPanelProps {
   sport: string;
@@ -17,6 +15,7 @@ interface PredictionPanelProps {
 
 export default function PredictionPanel({ sport, id, matchId, clientId }: PredictionPanelProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [name, setName] = useState('');
   const [teamA, setTeamA] = useState('');
   const [teamB, setTeamB] = useState('');
@@ -33,8 +32,6 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
   const [hasPredicted, setHasPredicted] = useState(false);
   const [previousPrediction, setPreviousPrediction] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
-  const [showOtherPredictionsModal, setShowOtherPredictionsModal] = useState(false);
 
   console.log('[PredictionPanel] Component mounted with props:', { sport, id, matchId, clientId });
 
@@ -275,6 +272,23 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
     }
   };
 
+  const navigationState = {
+    from: `${location.pathname}${location.search}`,
+  };
+
+  const openOtherPredictions = () => {
+    if (!matchId) return;
+    navigate(`/tournament/${sport}/${id}/match/${matchId}/predictions`, {
+      state: navigationState,
+    });
+  };
+
+  const openTournamentLeaderboard = () => {
+    navigate(`/tournament/${sport}/${id}/leaderboard`, {
+      state: navigationState,
+    });
+  };
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -282,18 +296,17 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           <p className="panel-kicker">Predict & Win • {sport.toUpperCase()}</p>
           <h2>Submit your call</h2>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="prediction-panel-actions">
           <button
-            onClick={() => setShowOtherPredictionsModal(true)}
+            onClick={openOtherPredictions}
             className="link-btn"
-            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+            disabled={!matchId}
           >
             📊 Other Predictions
           </button>
           <button
-            onClick={() => navigate(`/tournament/${id}/leaderboard`)}
+            onClick={openTournamentLeaderboard}
             className="link-btn"
-            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
           >
             🏆 Tournament Leaderboard
           </button>
@@ -342,24 +355,6 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           onNameChange={setName}
           onSubmit={handlePredictionSubmit}
           loading={loading}
-        />
-      )}
-
-      {/* Modals */}
-      {showLeaderboardModal && (
-        <TournamentLeaderboardModal
-          sport={sport}
-          tournamentId={id}
-          onClose={() => setShowLeaderboardModal(false)}
-        />
-      )}
-
-      {showOtherPredictionsModal && matchId && (
-        <OtherPredictionsModal
-          sport={sport}
-          tournamentId={id}
-          matchId={matchId}
-          onClose={() => setShowOtherPredictionsModal(false)}
         />
       )}
     </section>

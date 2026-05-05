@@ -27,6 +27,35 @@ interface CricketPredictionProps {
   loading: boolean;
 }
 
+const sanitizeRunsInput = (value: string) => value.replace(/\D/g, '').slice(0, 3);
+
+const sanitizeRunsOrOversInput = (value: string) => {
+  const cleaned = value.replace(/[^\d.]/g, '');
+  const [whole = '', ...rest] = cleaned.split('.');
+  const decimal = rest.join('').slice(0, 1);
+  return cleaned.includes('.') ? `${whole.slice(0, 2)}.${decimal}` : whole.slice(0, 3);
+};
+
+const isRunsValue = (value: string) => /^\d{1,3}$/.test(value) && Number(value) > 0;
+
+const isOversValue = (value: string) => {
+  if (!/^\d{1,2}\.[0-5]$/.test(value)) return false;
+  const [overs, balls] = value.split('.').map(Number);
+  return overs >= 0 && (overs < 20 || (overs === 20 && balls === 0));
+};
+
+const getRunsError = (value: string) => {
+  if (!value.trim()) return '';
+  return isRunsValue(value) ? '' : 'Enter runs only, for example 185. Do not include wickets like 185/4.';
+};
+
+const getRunsOrOversError = (value: string) => {
+  if (!value.trim()) return '';
+  return isRunsValue(value) || isOversValue(value)
+    ? ''
+    : 'Use runs like 180, or overs like 18.2. Overs ball must be 0-5.';
+};
+
 export default function CricketPrediction({
   teamA,
   teamB,
@@ -54,6 +83,8 @@ export default function CricketPrediction({
   const [runs, setRuns] = useState('');
   const [secondInningsWinnerTeam, setSecondInningsWinnerTeam] = useState<'teamA' | 'teamB' | ''>('');
   const [secondInningsRunsOrOvers, setSecondInningsRunsOrOvers] = useState('');
+  const runsError = getRunsError(runs);
+  const secondInningsValueError = getRunsOrOversError(secondInningsRunsOrOvers);
 
   // Pre-select winner based on previous prediction
   useEffect(() => {
@@ -63,14 +94,14 @@ export default function CricketPrediction({
         const winnerTeamLower = previousPrediction.winnerTeam.toLowerCase();
         const winnerValue = winnerTeamLower === teamA.toLowerCase() ? 'teamA' : 'teamB';
         setWinnerTeam(winnerValue);
-        setRuns(previousPrediction.runs || '');
+        setRuns(sanitizeRunsInput(String(previousPrediction.runs || '')));
       }
       if (previousPrediction.winnerTeam) {
         // Use same winner for 2nd innings
         const winnerTeamLower = previousPrediction.winnerTeam.toLowerCase();
         const winnerValue = winnerTeamLower === teamA.toLowerCase() ? 'teamA' : 'teamB';
         setSecondInningsWinnerTeam(winnerValue);
-        setSecondInningsRunsOrOvers(previousPrediction.runsOrOvers || '');
+        setSecondInningsRunsOrOvers(sanitizeRunsOrOversInput(String(previousPrediction.runsOrOvers || '')));
       }
     }
   }, [previousPrediction, teamA, teamB]);
@@ -85,6 +116,10 @@ export default function CricketPrediction({
     
     if (!runs.trim()) {
       alert('Please enter predicted runs.');
+      return;
+    }
+
+    if (runsError) {
       return;
     }
     
@@ -116,6 +151,10 @@ export default function CricketPrediction({
     
     if (!secondInningsRunsOrOvers.trim()) {
       alert('Please enter the prediction value (runs or overs).');
+      return;
+    }
+
+    if (secondInningsValueError) {
       return;
     }
     
@@ -243,14 +282,21 @@ export default function CricketPrediction({
               </span>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={runs}
-                onChange={e => setRuns(e.target.value)}
+                onChange={e => setRuns(sanitizeRunsInput(e.target.value))}
                 placeholder="e.g. 185"
+                aria-invalid={!!runsError}
+                aria-describedby="scheduled-runs-hint"
                 required
               />
+              <span id="scheduled-runs-hint" className={`field-hint ${runsError ? 'field-error' : ''}`}>
+                {runsError || 'Runs only. Example: 185'}
+              </span>
             </label>
 
-            <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
+            <button type="submit" className="primary-btn" disabled={loading || !!runsError || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
               {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
@@ -314,14 +360,21 @@ export default function CricketPrediction({
               </span>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={runs}
-                onChange={e => setRuns(e.target.value)}
-                placeholder="e.g. 185/4"
+                onChange={e => setRuns(sanitizeRunsInput(e.target.value))}
+                placeholder="e.g. 185"
+                aria-invalid={!!runsError}
+                aria-describedby="live-runs-hint"
                 required
               />
+              <span id="live-runs-hint" className={`field-hint ${runsError ? 'field-error' : ''}`}>
+                {runsError || 'Runs only. Wickets are not used for scoring.'}
+              </span>
             </label>
 
-            <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
+            <button type="submit" className="primary-btn" disabled={loading || !!runsError || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
               {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
@@ -422,14 +475,20 @@ export default function CricketPrediction({
               </span>
               <input
                 type="text"
+                inputMode="decimal"
                 value={secondInningsRunsOrOvers}
-                onChange={e => setSecondInningsRunsOrOvers(e.target.value)}
+                onChange={e => setSecondInningsRunsOrOvers(sanitizeRunsOrOversInput(e.target.value))}
                 placeholder="e.g. 180 (runs) or 18.2 (overs)"
+                aria-invalid={!!secondInningsValueError}
+                aria-describedby="second-innings-value-hint"
                 required
               />
+              <span id="second-innings-value-hint" className={`field-hint ${secondInningsValueError ? 'field-error' : ''}`}>
+                {secondInningsValueError || 'Runs are plain numbers. Overs use balls after the dot, e.g. 18.2'}
+              </span>
             </label>
 
-            <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
+            <button type="submit" className="primary-btn" disabled={loading || !!secondInningsValueError || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
               {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>

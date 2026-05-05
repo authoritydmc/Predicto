@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { get, ref } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
-
-interface TournamentLeaderboardPageProps {}
 
 interface LeaderboardEntry {
   rank: number;
@@ -11,6 +9,12 @@ interface LeaderboardEntry {
   totalScore: number;
   predictionsCount: number;
   accuracy: number;
+}
+
+interface RouteState {
+  from?: string;
+  sport?: string;
+  tournamentId?: string;
 }
 
 const getDbRoot = () => {
@@ -26,15 +30,24 @@ const getDbRoot = () => {
   return 'local';
 };
 
-export default function TournamentLeaderboardPage({}: TournamentLeaderboardPageProps) {
-  const { sport, tournamentId } = useParams<{ sport: string; tournamentId: string }>();
+export default function TournamentLeaderboardPage() {
+  const params = useParams<{ sport: string; tournamentId: string; tournamentCode: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeState = (location.state ?? {}) as RouteState;
+  const sport = params.sport ?? routeState.sport ?? 'cricket';
+  const tournamentId = params.tournamentId ?? params.tournamentCode ?? routeState.tournamentId;
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [tournamentInfo, setTournamentInfo] = useState<any>(null);
 
   useEffect(() => {
     const loadLeaderboard = async () => {
+      if (!sport || !tournamentId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const dbRoot = getDbRoot();
@@ -103,7 +116,7 @@ export default function TournamentLeaderboardPage({}: TournamentLeaderboardPageP
   }, [sport, tournamentId]);
 
   const handleBack = () => {
-    navigate(`/tournament/${tournamentId}`);
+    navigate(routeState.from || (tournamentId ? `/tournament/${tournamentId}` : '/'));
   };
 
   return (

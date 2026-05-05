@@ -13,6 +13,10 @@ interface MatchMeta {
   teamB?: string;
   matchTitle?: string;
   status?: string;
+  venue?: string;
+  date?: string;
+  startTime?: string;
+  countdown?: string;
 }
 
 interface ActiveMatch {
@@ -62,6 +66,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
   const [activeTournaments, setActiveTournaments] = useState<ActiveTournament[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
   const [loadingTournaments, setLoadingTournaments] = useState(true);
+  const [activeTab, setActiveTab] = useState<'matches' | 'tournaments'>('matches');
 
   // Fetch active matches from discovery and filter by status='live'
   useEffect(() => {
@@ -162,10 +167,8 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
     e.preventDefault();
     if (code.trim()) {
       if (inputType === 'match') {
-        console.log('[AudienceGate] Joining match:', code.trim().toLowerCase());
         onJoinMatch(code.trim().toLowerCase());
       } else {
-        console.log('[AudienceGate] Joining tournament:', code.trim().toLowerCase());
         onJoinTournament(code.trim().toLowerCase());
       }
     }
@@ -179,157 +182,201 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
     onJoinTournament(tournamentCode.toLowerCase());
   };
 
-  const getSportIcon = (sport: string) => {
-    const icons: Record<string, string> = {
-      cricket: '🏏',
-      football: '⚽',
-      basketball: '🏀',
-      hockey: '🏒',
-      tennis: '🎾',
-      baseball: '⚾',
-      volleyball: '🏐',
-    };
-    return icons[sport.toLowerCase()] || '🏆';
-  };
-
   return (
-    <section className="panel audience-gate">
-      <div className="panel-header">
-        <div>
-          <p className="panel-kicker">Welcome</p>
-          <h1>Join a Live Match</h1>
-          <p style={{ color: 'var(--muted)', marginTop: 8, fontSize: '0.9rem', lineHeight: 1.5 }}>
-            Enter a match code to join predictions and chat with other fans
-          </p>
+    <div className="audience-gate-container">
+      {/* Header Section */}
+      <div className="gate-hero">
+        <div className="gate-hero-content">
+          <div className="gate-logo">
+            <span className="gate-logo-icon">🔮</span>
+          </div>
+          <h1 className="gate-title">Predicto</h1>
+          <p className="gate-subtitle">Predict live. Win together.</p>
         </div>
       </div>
-      
-      {/* Input Type Toggle */}
-      <div className="gate-toggle-group">
-        <button
-          type="button"
-          onClick={() => setInputType('match')}
-          className={`gate-toggle-btn ${inputType === 'match' ? 'active' : ''}`}
-        >
-          Match Code
-        </button>
-        <button
-          type="button"
-          onClick={() => setInputType('tournament')}
-          className={`gate-toggle-btn ${inputType === 'tournament' ? 'active' : ''}`}
-        >
-          Tournament Code
-        </button>
-      </div>
 
-      <form onSubmit={handleSubmit} className="stack-form gate-form">
-        <label className="gate-label">
-          <span className="gate-label-text">
-            {inputType === 'match' ? 'Match Code' : 'Tournament Code'}
-          </span>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            maxLength={40}
-            placeholder={inputType === 'match' ? 'e.g. mi-vs-csk' : 'e.g. ipl-2026'}
-            required
-            className="gate-input"
-          />
-        </label>
-        <button type="submit" className="primary-btn gate-submit-btn">
-          {inputType === 'match' ? 'Join Match →' : 'Browse Tournament →'}
-        </button>
-      </form>
-
-      {/* Active Matches List */}
-      <div className="active-discovery">
-        <div className="discovery-header">
-          <p className="discovery-kicker">Live Matches</p>
-          <span className="discovery-count">{activeMatches.length}</span>
-        </div>
-        {loadingMatches ? (
-          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading live matches...</p>
-        ) : activeMatches.length === 0 ? (
-          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>No live matches at the moment</p>
-        ) : (
-          <div className="active-sessions-grid">
-            {activeMatches.map((match) => (
+      {/* Main Card with Input */}
+      <div className="gate-card gate-card-compact">
+        <form onSubmit={handleSubmit} className="gate-form-inline">
+          <div className="gate-input-row">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              maxLength={40}
+              placeholder={inputType === 'match' ? 'Enter match code...' : 'Enter tournament code...'}
+              required
+              className="gate-input-modern"
+            />
+            <button type="submit" className="gate-submit-btn-icon" aria-label="Join">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          <div className="gate-form-footer">
+            <div className="gate-tabs-mini">
               <button
-                key={match.matchCode}
-                onClick={() => handleQuickJoinMatch(match.matchCode)}
-                className="discovery-chip match-chip"
+                type="button"
+                onClick={() => {
+                  setInputType('match');
+                  setCode('');
+                }}
+                className={`gate-tab-mini ${inputType === 'match' ? 'active' : ''}`}
               >
-                <span className="pulse-dot"></span>
-                {match.meta?.teamA && match.meta?.teamB ? (
-                  <div className="match-chip-content">
-                    <div className="match-chip-teams">
-                      <div className="match-chip-team">
-                        {getTeamLogoUrl(match.meta.teamA) && (
+                <span>�</span> Match
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setInputType('tournament');
+                  setCode('');
+                }}
+                className={`gate-tab-mini ${inputType === 'tournament' ? 'active' : ''}`}
+              >
+                <span>🏆</span> Tournament
+              </button>
+            </div>
+            <span className="gate-input-hint-inline">
+              {inputType === 'match' ? 'e.g., dc-vs-csk-2026' : 'e.g., ipl26'}
+            </span>
+          </div>
+        </form>
+      </div>
+
+      {/* Live Content Section - Tabs for Matches/Tournaments */}
+      <div className="gate-section">
+        <div className="gate-section-tabs">
+          <button
+            className={`gate-section-tab ${activeTab === 'matches' ? 'active' : ''}`}
+            onClick={() => setActiveTab('matches')}
+          >
+            <span className="live-pulse"></span>
+            <span>Matches</span>
+            {!loadingMatches && activeMatches.length > 0 && (
+              <span className="gate-tab-badge">{activeMatches.length}</span>
+            )}
+          </button>
+          <button
+            className={`gate-section-tab ${activeTab === 'tournaments' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tournaments')}
+          >
+            <span>Tournaments</span>
+            {!loadingTournaments && activeTournaments.length > 0 && (
+              <span className="gate-tab-badge">{activeTournaments.length}</span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === 'matches' ? (
+          loadingMatches ? (
+            <div className="gate-skeleton-list">
+              <div className="gate-skeleton-card"></div>
+              <div className="gate-skeleton-card"></div>
+            </div>
+          ) : activeMatches.length === 0 ? (
+            <div className="gate-empty-state-compact">
+              <span className="gate-empty-icon">📭</span>
+              <span className="gate-empty-text">No live matches right now</span>
+            </div>
+          ) : (
+            <div className="gate-grid">
+              {activeMatches.map((match) => (
+                <button
+                  key={match.matchCode}
+                  onClick={() => handleQuickJoinMatch(match.matchCode)}
+                  className="gate-match-card-compact"
+                >
+                  {match.meta?.teamA && match.meta?.teamB ? (
+                    <>
+                      <div className="gate-team-compact">
+                        {getTeamLogoUrl(match.meta.teamA) ? (
                           <img 
                             src={getTeamLogoUrl(match.meta.teamA)!} 
                             alt={match.meta.teamA}
-                            className="match-chip-logo"
+                            className="gate-logo-compact"
                           />
+                        ) : (
+                          <div className="gate-logo-compact-placeholder">
+                            {match.meta.teamA.slice(0, 2).toUpperCase()}
+                          </div>
                         )}
-                        <span className="match-chip-team-name">{match.meta.teamA}</span>
+                        <span className="gate-team-abbr">{match.meta.teamA.slice(0, 3).toUpperCase()}</span>
                       </div>
-                      <span className="match-chip-vs">VS</span>
-                      <div className="match-chip-team">
-                        {getTeamLogoUrl(match.meta.teamB) && (
+                      <div className="gate-vs-center">
+                        <span className="gate-vs-text">VS</span>
+                        {(match.meta.venue || match.meta.startTime) && (
+                          <div className="gate-match-meta">
+                            {match.meta.startTime && (
+                              <span className="gate-match-time">{match.meta.startTime}</span>
+                            )}
+                            {match.meta.venue && (
+                              <span className="gate-match-venue">{match.meta.venue}</span>
+                            )}
+                          </div>
+                        )}
+                        <span className="gate-code-text">{match.matchCode}</span>
+                      </div>
+                      <div className="gate-team-compact">
+                        {getTeamLogoUrl(match.meta.teamB) ? (
                           <img 
                             src={getTeamLogoUrl(match.meta.teamB)!} 
                             alt={match.meta.teamB}
-                            className="match-chip-logo"
+                            className="gate-logo-compact"
                           />
+                        ) : (
+                          <div className="gate-logo-compact-placeholder">
+                            {match.meta.teamB.slice(0, 2).toUpperCase()}
+                          </div>
                         )}
-                        <span className="match-chip-team-name">{match.meta.teamB}</span>
+                        <span className="gate-team-abbr">{match.meta.teamB.slice(0, 3).toUpperCase()}</span>
                       </div>
-                    </div>
-                    <span className="match-chip-id">{match.matchCode}</span>
-                  </div>
-                ) : (
-                  <>
-                    <span className="discovery-sport-icon">{getSportIcon(match.sport)}</span>
-                    <span className="discovery-chip-text">{match.matchCode}</span>
-                  </>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Active Tournaments List */}
-      <div className="active-discovery">
-        <div className="discovery-header">
-          <p className="discovery-kicker">Live Tournaments</p>
-          <span className="discovery-count">{activeTournaments.length}</span>
-        </div>
-        {loadingTournaments ? (
-          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading tournaments...</p>
-        ) : activeTournaments.length === 0 ? (
-          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>No active tournaments</p>
+                    </>
+                  ) : (
+                    <span className="gate-match-code-full">{match.matchCode}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )
         ) : (
-          <div className="active-sessions-grid">
-            {activeTournaments.map((tournament) => (
-              <button
-                key={tournament.tournamentCode}
-                onClick={() => handleQuickJoinTournament(tournament.tournamentCode)}
-                className="discovery-chip tournament-chip"
-              >
-                <span className="pulse-dot"></span>
-                <span className="discovery-sport-icon">{getSportIcon(tournament.sport)}</span>
-                <div className="tournament-chip-content">
-                  <span className="tournament-chip-name">
-                    {tournament.meta?.tournamentName || tournament.tournamentName || tournament.tournamentCode}
-                  </span>
-                  <span className="tournament-chip-id">{tournament.tournamentCode}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+          loadingTournaments ? (
+            <div className="gate-skeleton-list">
+              <div className="gate-skeleton-card"></div>
+            </div>
+          ) : activeTournaments.length === 0 ? (
+            <div className="gate-empty-state-compact">
+              <span className="gate-empty-icon">📭</span>
+              <span className="gate-empty-text">No active tournaments</span>
+            </div>
+          ) : (
+            <div className="gate-scroll-list">
+              {activeTournaments.map((tournament) => (
+                <button
+                  key={tournament.tournamentCode}
+                  onClick={() => handleQuickJoinTournament(tournament.tournamentCode)}
+                  className="gate-tournament-card"
+                >
+                  <div className="gate-tournament-icon">
+                    {tournament.sport === 'cricket' ? '🏏' : 
+                     tournament.sport === 'football' ? '⚽' : '🏆'}
+                  </div>
+                  <div className="gate-tournament-info">
+                    <span className="gate-tournament-name">
+                      {tournament.meta?.tournamentName || tournament.tournamentName || tournament.tournamentCode}
+                    </span>
+                    <span className="gate-tournament-id">{tournament.tournamentCode}</span>
+                  </div>
+                  <div className="gate-match-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )
         )}
       </div>
-    </section>
+    </div>
   );
 }

@@ -1,0 +1,374 @@
+/* Match page: mobile-first responsive shell for predictions + chat. */
+
+.page-audience {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100vh - 64px);
+  padding: 12px 12px calc(132px + env(safe-area-inset-bottom, 0px));
+  overflow-x: hidden;
+}
+
+.audience-app-container {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
+.match-shell-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.match-shell-header .audience-header-left,
+.match-shell-header .audience-header-right {
+  min-width: 0;
+}
+
+.match-shell-header .audience-header-left {
+  justify-content: space-between;
+}
+
+.match-shell-header .audience-header-right {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.match-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.match-shell-header .audience-header-title {
+  min-width: 0;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.match-shell-header .audience-header-code {
+  max-width: 56vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-shell-header .back-btn {
+  min-height: 40px;
+  flex-shrink: 0;
+}
+
+.match-teams-display-compact {
+  grid-column: 1 / -1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.match-teams-display-compact .match-team {
+  min-width: 0;
+  gap: 8px;
+}
+
+.match-teams-display-compact .match-team:last-child {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.match-teams-display-compact .match-team-info {
+  min-width: 0;
+}
+
+.match-teams-display-compact .match-team-info > div {
+  min-width: 0;
+}
+
+.match-teams-display-compact .match-team-info span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-teams-display-compact .match-team-score {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-teams-display-compact .match-team:last-child .match-team-score {
+  align-self: flex-end;
+}
+
+.match-cricket-context {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.match-cricket-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.share-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.match-content-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.match-content-grid > .panel,
+.match-content-grid > .chat-panel {
+  width: 100%;
+  min-width: 0;
+}
+
+.match-content-grid > .panel {
+  padding: 14px;
+  border-radius: 12px;
+}
+
+.match-content-grid .panel:hover {
+  transform: none;
+}
+
+.match-content-grid .panel-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.match-content-grid .panel-header h2 {
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+
+.prediction-panel-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  min-width: 0;
+}
+
+.prediction-panel-actions .link-btn,
+.prediction-panel-actions .status-pill {
+  min-height: 38px;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.match-content-grid .stack-form {
+  gap: 12px;
+}
+
+.match-content-grid label {
+  min-width: 0;
+}
+
+.match-content-grid input,
+.match-content-grid select,
+.match-content-grid textarea {
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.match-content-grid input[aria-invalid="true"] {
+  border-color: rgba(239, 68, 68, 0.75);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.16);
+}
+
+.field-hint {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.field-error {
+  color: #fca5a5;
+}
+
+.match-content-grid .primary-btn {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+.match-content-grid .chat-panel {
+  height: clamp(420px, 62vh, 620px);
+  max-height: none;
+  border-radius: 12px;
+}
+
+.match-content-grid .chat-header,
+.match-content-grid .chat-input-area {
+  padding: 12px;
+}
+
+.match-content-grid .chat-messages {
+  padding: 12px;
+}
+
+@media (max-width: 420px) {
+  .page-audience {
+    padding: 8px 8px calc(136px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .match-shell-header .audience-header-code {
+    max-width: 48vw;
+  }
+
+  .match-teams-display-compact {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .match-teams-display-compact .match-team,
+  .match-teams-display-compact .match-team:last-child {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .match-teams-display-compact .match-team:last-child .match-team-score {
+    align-self: flex-start;
+  }
+
+  .match-teams-display-compact .vs-divider {
+    justify-self: flex-start;
+  }
+}
+
+@media (min-width: 640px) {
+  .page-audience {
+    padding: 18px 18px calc(128px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .match-shell-header {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    align-items: start;
+    padding: 16px;
+  }
+
+  .match-shell-header .audience-header-right {
+    justify-items: end;
+  }
+
+  .match-teams-display-compact,
+  .match-cricket-context {
+    grid-column: 1 / -1;
+  }
+
+  .prediction-panel-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prediction-panel-actions .status-pill {
+    grid-column: 1 / -1;
+    width: fit-content;
+    justify-self: end;
+    padding-inline: 14px;
+  }
+}
+
+@media (min-width: 960px) {
+  .page-audience {
+    padding: 24px 24px calc(116px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .match-shell-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .match-shell-header .audience-header-right {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .match-teams-display-compact {
+    width: auto;
+    min-width: min(560px, 100%);
+  }
+
+  .match-cricket-context {
+    flex-basis: 100%;
+    justify-items: end;
+  }
+
+  .match-content-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+    gap: 18px;
+  }
+
+  .match-content-grid .panel-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .prediction-panel-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: 360px;
+  }
+
+  .prediction-panel-actions .link-btn,
+  .prediction-panel-actions .status-pill {
+    width: auto;
+  }
+
+  .match-content-grid .chat-panel {
+    position: sticky;
+    top: 88px;
+    height: calc(100vh - 120px);
+    max-height: 720px;
+  }
+}

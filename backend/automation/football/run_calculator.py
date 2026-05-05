@@ -5,6 +5,7 @@ Can be run standalone or triggered by scheduler
 
 import sys
 import os
+import argparse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from base.firebase_client import FirebaseClient
@@ -15,7 +16,19 @@ from football.football_calculator import FootballCalculator
 
 def main():
     """Main entry point for football score calculation"""
+    parser = argparse.ArgumentParser(description='Football score calculator')
+    parser.add_argument('--tournament', type=str, help='Specific tournament ID to process')
+    parser.add_argument('--match', type=str, help='Specific match ID to process')
+    parser.add_argument('--innings', type=str, default='both',
+                       help='Accepted for control panel compatibility; ignored for football')
+    parser.add_argument('--force', action='store_true',
+                       help='Force reprocessing even if match is already reconciled')
+    parser.add_argument('--env', type=str, choices=['local', 'prod'], default=None,
+                       help='Environment mode: local or prod (overrides APP_MODE env var)')
+    args = parser.parse_args()
+
     print("[Football Calculator] Starting...")
+    print(f"[Football Calculator] Arguments: tournament={args.tournament}, match={args.match}, force={args.force}, env={args.env}")
     
     # Initialize Firebase client
     try:
@@ -28,11 +41,15 @@ def main():
     calculator = FootballCalculator()
     
     # Initialize result processor
-    processor = ResultProcessor(firebase_client, calculator)
+    app_mode = args.env if args.env else os.environ.get('APP_MODE', 'prod')
+    db_root = 'local' if app_mode == 'local' else 'prod'
+    print(f"[Football Calculator] Using database environment: {db_root}")
+
+    processor = ResultProcessor(firebase_client, calculator, db_root)
     
     # Get all football tournaments
     print("[Football Calculator] Fetching football tournaments...")
-    tournaments = firebase_client.get('football')
+    tournaments = firebase_client.get(f'{db_root}/tournaments/football')
     
     if not tournaments:
         print("[Football Calculator] No football tournaments found")
@@ -42,7 +59,14 @@ def main():
     total_matches = 0
     
     # Process each tournament
-    for tournament_id, tournament_data in tournaments.items():
+    tournaments_to_process = tournaments.items()
+    if args.tournament:
+        if args.tournament not in tournaments:
+            print(f"[Football Calculator] ERROR: Tournament {args.tournament} not found")
+            sys.exit(1)
+        tournaments_to_process = [(args.tournament, tournaments[args.tournament])]
+
+    for tournament_id, tournament_data in tournaments_to_process:
         if not isinstance(tournament_data, dict):
             continue
         
@@ -53,7 +77,14 @@ def main():
         print(f"[Football Calculator] Processing tournament: {tournament_id}")
         
         # Process each match
-        for match_id, match_data in matches.items():
+        matches_to_process = matches.items()
+        if args.match:
+            if args.match not in matches:
+                print(f"[Football Calculator] WARNING: Match {args.match} not found in tournament {tournament_id}")
+                continue
+            matches_to_process = [(args.match, matches[args.match])]
+
+        for match_id, match_data in matches_to_process:
             if not isinstance(match_data, dict):
                 continue
             
@@ -63,7 +94,7 @@ def main():
                 continue
             
             # Skip if already reconciled
-            if meta.get('reconciled', False):
+            if meta.get('reconciled', False) and not args.force:
                 continue
             
             # Skip if match is not completed

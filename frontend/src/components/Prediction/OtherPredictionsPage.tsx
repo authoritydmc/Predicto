@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { onValue, get, ref } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
-
-interface OtherPredictionsPageProps {}
 
 interface PredictionEntry {
   name: string;
@@ -12,6 +10,13 @@ interface PredictionEntry {
   penalty?: number;
   totalScore?: number;
   rank?: number;
+}
+
+interface RouteState {
+  from?: string;
+  sport?: string;
+  tournamentId?: string;
+  matchId?: string;
 }
 
 const getDbRoot = () => {
@@ -27,15 +32,25 @@ const getDbRoot = () => {
   return 'local';
 };
 
-export default function OtherPredictionsPage({}: OtherPredictionsPageProps) {
-  const { sport, tournamentId, matchId } = useParams<{ sport: string; tournamentId: string; matchId: string }>();
+export default function OtherPredictionsPage() {
+  const params = useParams<{ sport: string; tournamentId: string; matchId: string; matchCode: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeState = (location.state ?? {}) as RouteState;
+  const sport = params.sport ?? routeState.sport;
+  const tournamentId = params.tournamentId ?? routeState.tournamentId;
+  const matchId = params.matchId ?? params.matchCode ?? routeState.matchId;
   const [predictions, setPredictions] = useState<PredictionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<any>(null);
 
   useEffect(() => {
     const loadPredictions = async () => {
+      if (!sport || !tournamentId || !matchId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const dbRoot = getDbRoot();
@@ -121,7 +136,7 @@ export default function OtherPredictionsPage({}: OtherPredictionsPageProps) {
   }, [sport, tournamentId, matchId]);
 
   const handleBack = () => {
-    navigate(`/match/${matchId}`);
+    navigate(routeState.from || (matchId ? `/match/${matchId}` : '/'));
   };
 
   return (
