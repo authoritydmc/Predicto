@@ -149,8 +149,8 @@ html, body {
 }
 
 .dbg-search {
-  flex: 1;
-  min-width: 0;
+  flex: 3;
+  min-width: 260px;
   height: 32px;
   padding: 0 12px;
   border-radius: 7px;
