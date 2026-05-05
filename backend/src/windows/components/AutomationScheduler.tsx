@@ -45,6 +45,7 @@ interface AutomationSchedulerProps {
   onUpdateTask: (taskId: string, updates: Partial<TaskInfo>) => void;
   onDeleteTask: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
+  onStartOrchestrator: () => void;
 }
 
 const TaskStatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -83,6 +84,7 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
   onUpdateTask,
   onDeleteTask,
   onToggleTask,
+  onStartOrchestrator,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -201,24 +203,33 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
   return (
     <div className="automation-scheduler-container">
       {/* Status Header */}
-      <div className="cp-glass-card" style={{ marginBottom: '16px', borderLeft: `4px solid ${schedulerRunning ? '#34c759' : '#ff3b30'}` }}>
+      <div className="cp-glass-card" style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '14px', color: 'var(--text)' }}>
-              Automation System
-              {wsConnection && <span style={{ marginLeft: '8px', fontSize: '10px', color: '#34c759' }}>● Connected</span>}
-            </h3>
+          <h4 style={{ margin: 0, fontSize: '14px', color: 'var(--text)' }}>
+            Automation Status
+            {wsConnection && <span style={{ marginLeft: '8px', fontSize: '10px', color: '#34c759' }}>● Connected</span>}
+          </h4>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
               {schedulerRunning ? 'Orchestrator active and running tasks' : 'Orchestrator offline'}
             </span>
+            {!schedulerRunning && onStartOrchestrator && (
+              <button 
+                className="cp-action-btn cp-small" 
+                onClick={() => onStartOrchestrator()}
+                title="Start Orchestrator"
+                style={{ marginLeft: '12px' }}
+              >
+                🚀 Start Orchestrator
+              </button>
+            )}
           </div>
-          <div className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
         </div>
-
+        <div className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
         {automationStatus && (
-          <div style={{ display: 'flex', gap: '16px', marginTop: '12px', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '12px' }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase' }}>Tasks</div>
+              <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase' }}>Total</div>
               <div style={{ fontSize: '16px', fontWeight: 700 }}>{automationStatus.total_tasks || 0}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center' }}>

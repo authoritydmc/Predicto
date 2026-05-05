@@ -62,8 +62,9 @@ const getSummary = (entry: any): string => {
  */
 const shouldShowDetail = (entry: any): boolean => {
   const type = entry.type || entry.data?.type;
-  // Small boring ones — no panel needed
+  // Always suppress these noisy infra types
   if (type === 'logger_registration') return false;
+  if (type === 'logger_status')       return false;
   if (type === 'log_entry' && !entry.data?.data) return false;
   // If there's actual nested data, always worth expanding
   return typeof entry === 'object' && entry !== null;
@@ -261,6 +262,7 @@ const DebugWindow: React.FC = () => {
     'Unknown WebSocket message type',
     'Connected to automation orchestrator',
     'Disconnected from automation orchestrator',
+    'Logger status update',
     'logger_status',
   ], []);
 

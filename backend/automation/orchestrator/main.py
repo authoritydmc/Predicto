@@ -110,7 +110,18 @@ class EnhancedAutomationSystem:
                 self.logger.broadcast('enhanced_automation', json.dumps(response))
                 
         except Exception as e:
-            self.logger.error('enhanced_automation', f'Error handling message {message_type}: {str(e)}')
+            import traceback as _tb
+            import time as _time
+            _tb.print_exc()
+            # Handle the case where there's no event loop
+            try:
+                self.logger.error('enhanced_automation', f'Error handling message {message_type}: {str(e)}')
+            except RuntimeError as re:
+                if "no running event loop" in str(re):
+                    # Fallback logging when no event loop is available
+                    print(f"[EnhancedAutomation] Error handling message {message_type} (no event loop): {str(e)}")
+                else:
+                    raise
     
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
@@ -165,26 +176,19 @@ class EnhancedAutomationSystem:
     def _start_monitoring_thread(self):
         """Start monitoring thread for system health"""
         def monitor():
+            import time as _t
             while self.running and not self.shutdown_requested:
                 try:
-                    # Get system status
                     status = self.orchestrator.get_status()
-                    
-                    # Log periodic status
-                    self.logger.debug('enhanced_automation', 'System status check', {
-                        'running_tasks': status['tasks'].get('running_tasks', 0),
-                        'total_tasks': status['tasks'].get('total_tasks', 0),
-                        'component_status': status.get('component_status', {})
-                    })
-                    
-                    # Sleep for monitoring interval
-                    import time
-                    time.sleep(60)  # Check every minute
-                    
+                    auto = status.get('automation_status', {})
+                    running_tasks = auto.get('running_tasks', 0)
+                    total_tasks = auto.get('total_tasks', 0)
+                    print(f'[Monitor] Tasks: {running_tasks} running / {total_tasks} total', flush=True)
+                    _t.sleep(60)
                 except Exception as e:
-                    self.logger.error('enhanced_automation', f'Monitoring error: {str(e)}')
-                    import time
-                    time.sleep(30)
+                    import traceback
+                    traceback.print_exc()
+                    _t.sleep(30)
         
         monitor_thread = threading.Thread(target=monitor, daemon=True)
         monitor_thread.start()

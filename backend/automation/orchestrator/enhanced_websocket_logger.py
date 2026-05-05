@@ -182,7 +182,18 @@ class EnhancedWebSocketLogger:
                 
             self._handle_control_message(data)
         except Exception as e:
+            # Ensure time is available even in error cases
+            import time as _time
             print(f"[WebSocketLogger] Error parsing message: {e}")
+            # Try to send error status if possible
+            try:
+                self._send_message({
+                    'type': 'error',
+                    'error': str(e),
+                    'timestamp': int(_time.time() * 1000)
+                })
+            except:
+                pass  # If we can't send error message, just continue
     
     def _on_error(self, ws, error):
         """WebSocket error"""
@@ -211,11 +222,22 @@ class EnhancedWebSocketLogger:
         
         elif message_type == 'get_status':
             # Send status response
-            self._send_message({
-                'type': 'logger_status',
-                'data': self.get_status(),
-                'timestamp': int(time.time() * 1000)
-            })
+            try:
+                status_data = self.get_status()
+                self._send_message({
+                    'type': 'logger_status',
+                    'data': status_data,
+                    'timestamp': int(time.time() * 1000)
+                })
+            except Exception as e:
+                # Ensure time is available even in error cases
+                import time as _time
+                print(f"[WebSocketLogger] Error getting status: {e}")
+                self._send_message({
+                    'type': 'logger_status',
+                    'data': {'error': str(e)},
+                    'timestamp': int(_time.time() * 1000)
+                })
         
         elif message_type == 'clear_logs':
             # Clear log buffer

@@ -1803,7 +1803,7 @@ const ControlPanel: React.FC = () => {
     );
   };
 
-  const handleRunScraper = async () => {
+  const handleRunScraper = useCallback(async () => {
     if (!matchId || !fTeamA || !fTeamB) {
       alert('Please select a match with team names first');
       return;
@@ -1989,7 +1989,7 @@ const ControlPanel: React.FC = () => {
       setScraperRunning(false);
       setTimeout(() => setScraperStatus(''), 5000);
     }
-  };
+  }, []);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Scheduler Handlers
@@ -2008,36 +2008,45 @@ const ControlPanel: React.FC = () => {
   };
 
   const handleTriggerSchedulerTask = async (taskId: string) => {
-    // @ts-ignore
-    const result = await window.overlayDesktop.triggerSchedulerTask(taskId);
-    if (result.success) {
-      alert(`Task ${taskId} triggered successfully`);
-      loadSchedulerTasks();
-    } else {
-      alert(`Failed to trigger task: ${result.error}`);
+    try {
+      // @ts-ignore
+      const result = await window.overlayDesktop.triggerSchedulerTask(taskId);
+      if (result.success) {
+        alert(`Task ${taskId} triggered successfully`);
+        loadSchedulerTasks();
+      } else {
+        logAction('[Control Panel] ERROR', `Failed to trigger task: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      logAction('[Control Panel] ERROR', `Failed to trigger task: ${error}`);
     }
   };
 
-  const handleToggleSchedulerTask = async (taskId: string) => {
-    // @ts-ignore
-    const result = await window.overlayDesktop.toggleSchedulerTask(taskId);
-    if (result.success) {
-      loadSchedulerTasks();
-    } else {
-      alert(`Failed to toggle task: ${result.error}`);
-    }
-  };
 
-  const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
-    // @ts-ignore
-    const result = await window.overlayDesktop.updateSchedulerTask(taskId, config);
+const handleStartOrchestrator = useCallback(async () => {
+  logAction('[Control Panel] INFO', 'Starting orchestrator manually');
+  try {
+    const result = await window.electronAPI.invoke('automation:start');
     if (result.success) {
-      alert(`Task ${taskId} updated successfully`);
-      loadSchedulerTasks();
+      logAction('[Control Panel] SUCCESS', 'Orchestrator started successfully');
     } else {
-      alert(`Failed to update task: ${result.error}`);
+      logAction('[Control Panel] ERROR', `Failed to start orchestrator: ${result.error || 'Unknown error'}`);
     }
-  };
+  } catch (error) {
+    logAction('[Control Panel] ERROR', `Failed to start orchestrator: ${error}`);
+  }
+}, []);
+
+const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
+  // @ts-ignore
+  const result = await window.overlayDesktop.updateSchedulerTask(taskId, config);
+  if (result.success) {
+    alert(`Task ${taskId} updated successfully`);
+    loadSchedulerTasks();
+  } else {
+    alert(`Failed to update task: ${result.error}`);
+  }
+};
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Overlay Controls
@@ -2820,6 +2829,7 @@ const ControlPanel: React.FC = () => {
             onUpdateTask={handleUpdateTask}
             onDeleteTask={handleDeleteTask}
             onToggleTask={handleToggleTask}
+            onStartOrchestrator={handleStartOrchestrator}
           />
         </CollapsibleSection>
 

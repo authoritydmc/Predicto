@@ -93,6 +93,14 @@ class AutomationOrchestrator:
         self.start_time = None
         self.last_cleanup_time = time.time()
         self.session_id = str(uuid.uuid4())
+        self.loop = None
+        
+        # Thread-safe pending trigger queue (for UI-initiated runs)
+        self._pending_triggers: List[str] = []
+        self._trigger_lock = threading.Lock()
+        # Task execution locks to prevent duplicate runs
+        self._running_tasks: set = set()
+        self._execution_lock = threading.Lock()
         
         # Configuration
         self.config = self._load_config()
@@ -188,6 +196,7 @@ class AutomationOrchestrator:
     async def start(self):
         """Start the automation orchestrator"""
         self.running = True
+        self.loop = asyncio.get_running_loop()  # Capture running loop for thread-safe scheduling
         self.logger.info('orchestrator', 'Starting automation orchestrator')
         
         # Initialize notification system
@@ -288,11 +297,47 @@ class AutomationOrchestrator:
                         os.kill(os.getpid(), signal.SIGTERM)
                         break
                 
-                # Process tasks
+                # Drain manually-triggered tasks (from UI/threads via trigger_task)
+                with self._trigger_lock:
+                    pending = list(self._pending_triggers)
+                    self._pending_triggers.clear()
+                for task_id in pending:
+                    if task_id in self.tasks and self.tasks[task_id].status == AutomationStatus.IDLE:
+                        # Double-check if not already running
+                        with self._execution_lock:
+                            if task_id in self._running_tasks:
+                                self.logger.warning('orchestrator', f'Task {task_id} already running, skipping manual trigger')
+                                continue
+                        try:
+                            self.logger.info('orchestrator', f'Manual trigger: {task_id}')
+                            asyncio.create_task(self._run_task(task_id))
+                        except RuntimeError as re:
+                            if "no running event loop" in str(re):
+                                print(f"[Orchestrator] Cannot create task for {task_id} - no event loop")
+                                # Try to run task synchronously as fallback
+                                try:
+                                    asyncio.run(self._run_task(task_id))
+                                except Exception as e:
+                                    print(f"[Orchestrator] Failed to run task {task_id} synchronously: {e}")
+                            else:
+                                raise
+                
+                # Process scheduled tasks
                 for task_id, task in self.tasks.items():
                     if task.enabled and task.status == AutomationStatus.IDLE and task.next_run and current_time >= task.next_run:
                         # Run in background to not block other tasks
-                        asyncio.create_task(self._run_task(task_id))
+                        try:
+                            asyncio.create_task(self._run_task(task_id))
+                        except RuntimeError as re:
+                            if "no running event loop" in str(re):
+                                print(f"[Orchestrator] Cannot create scheduled task for {task_id} - no event loop")
+                                # Try to run task synchronously as fallback
+                                try:
+                                    asyncio.run(self._run_task(task_id))
+                                except Exception as e:
+                                    print(f"[Orchestrator] Failed to run scheduled task {task_id} synchronously: {e}")
+                            else:
+                                raise
                 
                 # Periodically broadcast status
                 self._broadcast_status()
@@ -310,28 +355,35 @@ class AutomationOrchestrator:
             self.logger.error('orchestrator', f'Unknown task: {task_id}')
             return
         
-        task = self.tasks[task_id]
-        handler = self.task_handlers.get(task.type)
-        
-        if not handler:
-            self.logger.error('orchestrator', f'No handler for task type: {task.type}')
-            return
-        
-        # Update task status
-        task.status = AutomationStatus.RUNNING
-        task.last_run = int(time.time() * 1000)
-        task.progress = 0.0
-        task.error_message = None
-        
-        # Job Logging
-        job_id = None
-        if self.enable_job_logging and task.logging_enabled:
-            job_id = self.job_logger.log_job_start(task.task_id, task.name)
-        
-        # Broadcast status update
-        self._broadcast_task_update(task)
+        # Check if task is already running (prevent duplicates)
+        with self._execution_lock:
+            if task_id in self._running_tasks:
+                self.logger.warning('orchestrator', f'Task {task_id} already running, skipping')
+                return
+            self._running_tasks.add(task_id)
         
         try:
+            task = self.tasks[task_id]
+            handler = self.task_handlers.get(task.type)
+            
+            if not handler:
+                self.logger.error('orchestrator', f'No handler for task type: {task.type}')
+                return
+            
+            # Update task status
+            task.status = AutomationStatus.RUNNING
+            task.last_run = int(time.time() * 1000)
+            task.progress = 0.0
+            task.error_message = None
+            
+            # Job Logging
+            job_id = None
+            if self.enable_job_logging and task.logging_enabled:
+                job_id = self.job_logger.log_job_start(task.task_id, task.name)
+            
+            # Broadcast status update
+            self._broadcast_task_update(task)
+            
             # Run the task handler (await if it's async)
             if asyncio.iscoroutinefunction(handler):
                 await handler(task)
@@ -349,7 +401,7 @@ class AutomationOrchestrator:
             # Log success
             if job_id:
                 self.job_logger.log_job_finish(job_id, 'completed', metadata=task.metadata)
-            
+                
         except Exception as e:
             task.status = AutomationStatus.ERROR
             task.error_message = str(e)
@@ -359,52 +411,212 @@ class AutomationOrchestrator:
             if job_id:
                 self.job_logger.log_job_finish(job_id, 'error', error=str(e), metadata=task.metadata)
         
+        finally:
+            # Always remove from running tasks
+            with self._execution_lock:
+                self._running_tasks.discard(task_id)
+        
         # Broadcast final status
         self._broadcast_task_update(task)
     
     async def _handle_match_creation(self, task: AutomationTask):
         """Handle match creation task (Asynchronous)"""
         self.logger.info('orchestrator', 'Starting match creation task')
+        self.logger.debug('orchestrator', f'Task ID: {task.task_id}, enabled: {task.enabled}')
         
         # Update progress
-        task.progress = 10.0
+        task.progress = 5.0
+        task.metadata = task.metadata or {}
         self._broadcast_task_update(task)
         
-        # Get upcoming matches from external sources
-        # fetch_upcoming_matches is sync, so run in thread
-        upcoming_matches = await asyncio.to_thread(self.match_manager.fetch_upcoming_matches)
+        try:
+            # Step 1: Fetch upcoming matches from external sources
+            self.logger.info('orchestrator', 'Step 1/4: Fetching upcoming matches from external sources')
+            self.logger.debug('orchestrator', f'Available match sources: {list(self.match_manager.match_sources.keys())}')
+            
+            upcoming_matches = await asyncio.to_thread(self.match_manager.fetch_upcoming_matches)
+            
+            if not upcoming_matches:
+                self.logger.warning('orchestrator', 'No upcoming matches found from any source')
+                task.progress = 100.0
+                task.metadata.update({
+                    'matches_processed': 0,
+                    'matches_created': 0,
+                    'sources_checked': list(self.match_manager.match_sources.keys()),
+                    'next_run': self._calculate_next_match_creation_time()
+                })
+                self._broadcast_task_update(task)
+                return
+            
+            self.logger.info('orchestrator', f'Fetched {len(upcoming_matches)} total upcoming matches')
+            task.progress = 25.0
+            self._broadcast_task_update(task)
+            
+            # Step 2: Filter and validate matches
+            self.logger.info('orchestrator', 'Step 2/4: Filtering and validating matches')
+            valid_matches = []
+            filtered_count = 0
+            
+            for i, match in enumerate(upcoming_matches):
+                self.logger.debug('orchestrator', f'Processing match {i+1}/{len(upcoming_matches)}: {match.team_a} vs {match.team_b}')
+                
+                # Validate match data
+                if self._validate_match(match):
+                    valid_matches.append(match)
+                    self.logger.debug('orchestrator', f'✓ Valid match: {match.team_a} vs {match.team_b} at {datetime.fromtimestamp(match.scheduled_time/1000)}')
+                else:
+                    filtered_count += 1
+                    self.logger.warning('orchestrator', f'✗ Invalid match filtered: {match.team_a} vs {match.team_b}')
+                
+                # Update progress
+                progress = 25.0 + (25.0 * (i + 1) / len(upcoming_matches)
+                task.progress = min(50.0, progress)
+                self._broadcast_task_update(task)
+            
+            self.logger.info('orchestrator', f'Validation complete: {len(valid_matches)} valid, {filtered_count} filtered')
+            task.progress = 50.0
+            self._broadcast_task_update(task)
+            
+            # Step 3: Create matches in Firebase
+            self.logger.info('orchestrator', 'Step 3/4: Creating matches in Firebase')
+            created_count = 0
+            updated_count = 0
+            skipped_count = 0
+            
+            for i, match in enumerate(valid_matches):
+                self.logger.debug('orchestrator', f'Creating match {i+1}/{len(valid_matches)}: {match.team_a} vs {match.team_b}')
+                
+                try:
+                    result = await asyncio.to_thread(self.match_manager.create_match_if_not_exists, match)
+                    
+                    if result:
+                        created_count += 1
+                        self.logger.info('orchestrator', f'✓ Created new match: {match.team_a} vs {match.team_b}')
+                        
+                        # Trigger notification for newly created match
+                        if self.notification_integration:
+                            try:
+                                match_data = {
+                                    'match_id': match.id,
+                                    'team_a': match.team_a,
+                                    'team_b': match.team_b,
+                                    'date': datetime.fromtimestamp(match.scheduled_time / 1000).strftime('%Y-%m-%d %H:%M'),
+                                    'venue': match.venue,
+                                    'sport': 'Cricket',
+                                    'tournament_id': match.tournament_id,
+                                    'match_type': match.match_type
+                                }
+                                await self.notification_integration.on_match_created(match_data)
+                                self.logger.debug('orchestrator', f'✓ Notification sent for new match: {match.team_a} vs {match.team_b}')
+                            except Exception as e:
+                                self.logger.error('orchestrator', f'✗ Failed to send match creation notification: {str(e)}')
+                    else:
+                        updated_count += 1
+                        self.logger.debug('orchestrator', f'→ Match already exists: {match.team_a} vs {match.team_b}')
+                        
+                except Exception as e:
+                    skipped_count += 1
+                    self.logger.error('orchestrator', f'✗ Failed to create match {match.team_a} vs {match.team_b}: {str(e)}')
+                
+                # Update progress
+                progress = 50.0 + (40.0 * (i + 1) / len(valid_matches)
+                task.progress = min(90.0, progress)
+                self._broadcast_task_update(task)
+            
+            # Step 4: Schedule next match creation
+            self.logger.info('orchestrator', 'Step 4/4: Scheduling next match creation')
+            next_run_time = self._calculate_next_match_creation_time(valid_matches)
+            
+            task.progress = 95.0
+            self._broadcast_task_update(task)
+            
+            # Final update
+            task.progress = 100.0
+            task.metadata.update({
+                'matches_processed': len(upcoming_matches),
+                'matches_valid': len(valid_matches),
+                'matches_created': created_count,
+                'matches_updated': updated_count,
+                'matches_skipped': skipped_count,
+                'sources_checked': list(self.match_manager.match_sources.keys()),
+                'next_run': next_run_time,
+                'completion_time': int(time.time() * 1000)
+            })
+            
+            self.logger.info('orchestrator', f'Match creation completed: {created_count} new, {updated_count} updated, {skipped_count} skipped')
+            self.logger.info('orchestrator', f'Total processed: {len(upcoming_matches)} fetched, {len(valid_matches)} valid')
+            self.logger.info('orchestrator', f'Next match creation scheduled for: {datetime.fromtimestamp(next_run_time/1000).strftime("%Y-%m-%d %H:%M:%S")}')
+            
+        except Exception as e:
+            self.logger.error('orchestrator', f'Match creation task failed: {str(e)}')
+            task.status = AutomationStatus.ERROR
+            task.error_message = str(e)
+            task.metadata.update({
+                'error': str(e),
+                'error_time': int(time.time() * 1000)
+            })
         
-        task.progress = 50.0
         self._broadcast_task_update(task)
-        
-        # Create matches in Firebase if they don't exist
-        created_count = 0
-        for match in upcoming_matches:
-            # create_match_if_not_exists is sync
-            result = await asyncio.to_thread(self.match_manager.create_match_if_not_exists, match)
-            if result:
-                created_count += 1
-                # Trigger notification for newly created match
-                if self.notification_integration:
-                    try:
-                        # Extract data for notification
-                        match_data = {
-                            'team_a': match.team_a,
-                            'team_b': match.team_b,
-                            'date': datetime.fromtimestamp(match.scheduled_time / 1000).strftime('%Y-%m-%d %H:%M'),
-                            'venue': match.venue,
-                            'sport': 'Cricket',
-                            'tournament_id': match.tournament_id
-                        }
-                        await self.notification_integration.on_match_created(match_data)
-                    except Exception as e:
-                        self.logger.error('orchestrator', f'Failed to send match creation notification: {str(e)}')
-        
-        task.progress = 100.0
-        task.metadata['matches_processed'] = len(upcoming_matches)
-        task.metadata['matches_created'] = created_count
-        
-        self.logger.info('orchestrator', f'Match creation completed: {created_count}/{len(upcoming_matches)} matches created')
+    
+    def _validate_match(self, match) -> bool:
+        """Validate match data before creation"""
+        try:
+            # Check required fields
+            if not all([match.id, match.team_a, match.team_b, match.scheduled_time]):
+                self.logger.warning('orchestrator', f'Match validation failed: missing required fields for {match.team_a} vs {match.team_b}')
+                return False
+            
+            # Check scheduled time is in the future
+            current_time = int(time.time() * 1000)
+            if match.scheduled_time <= current_time:
+                self.logger.warning('orchestrator', f'Match validation failed: scheduled time is in the past for {match.team_a} vs {match.team_b}')
+                return False
+            
+            # Check team names are not empty
+            if not match.team_a.strip() or not match.team_b.strip():
+                self.logger.warning('orchestrator', f'Match validation failed: empty team names')
+                return False
+            
+            # Check match ID format
+            if not isinstance(match.id, str) or len(match.id) < 3:
+                self.logger.warning('orchestrator', f'Match validation failed: invalid match ID format')
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error('orchestrator', f'Match validation error: {str(e)}')
+            return False
+    
+    def _calculate_next_match_creation_time(self, valid_matches=None) -> int:
+        """Calculate when to run the next match creation task"""
+        try:
+            current_time = int(time.time() * 1000)
+            
+            # If no valid matches, schedule for next hour
+            if not valid_matches:
+                next_hour = current_time + (60 * 60 * 1000)  # 1 hour from now
+                self.logger.info('orchestrator', f'No valid matches found, scheduling next check in 1 hour')
+                return next_hour
+            
+            # Find the nearest upcoming match
+            nearest_match_time = min(match.scheduled_time for match in valid_matches)
+            
+            # If nearest match is more than 24 hours away, check every 6 hours
+            if nearest_match_time - current_time > (24 * 60 * 60 * 1000):
+                next_check = current_time + (6 * 60 * 60 * 1000)  # 6 hours from now
+                self.logger.info('orchestrator', f'Nearest match is >24h away, scheduling check in 6 hours')
+                return next_check
+            
+            # If nearest match is within 24 hours, check every 2 hours
+            next_check = current_time + (2 * 60 * 60 * 1000)  # 2 hours from now
+            self.logger.info('orchestrator', f'Nearest match is within 24h, scheduling check in 2 hours')
+            return next_check
+            
+        except Exception as e:
+            self.logger.error('orchestrator', f'Error calculating next match creation time: {str(e)}')
+            # Fallback to 1 hour from now
+            return int(time.time() * 1000) + (60 * 60 * 1000)
     
     def _handle_live_scraping(self, task: AutomationTask):
         """Handle live scraping task"""
@@ -601,7 +813,7 @@ class AutomationOrchestrator:
         }
     
     def trigger_task(self, task_id: str) -> Dict[str, Any]:
-        """Manually trigger a task"""
+        """Queue a manual trigger — safe to call from any thread"""
         if task_id not in self.tasks:
             return {'success': False, 'error': 'Task not found'}
         
@@ -609,8 +821,20 @@ class AutomationOrchestrator:
         if task.status == AutomationStatus.RUNNING:
             return {'success': False, 'error': 'Task already running'}
         
-        # Run the task in the background
-        asyncio.create_task(self._run_task(task_id))
+        # Check if task is already pending to prevent duplicates
+        with self._trigger_lock:
+            if task_id in self._pending_triggers:
+                return {'success': False, 'error': 'Task already pending'}
+            self._pending_triggers.append(task_id)
+        
+        # Safe logging that doesn't require event loop
+        try:
+            self.logger.info('orchestrator', f'Task queued for manual trigger: {task.name}')
+        except RuntimeError as re:
+            if "no running event loop" in str(re):
+                print(f"[Orchestrator] Task queued for manual trigger: {task.name} (no event loop)")
+            else:
+                raise
         
         return {'success': True, 'task_id': task_id}
     
