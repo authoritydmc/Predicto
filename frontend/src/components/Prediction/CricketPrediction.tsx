@@ -135,7 +135,7 @@ export default function CricketPrediction({
     onSubmit(e, data);
   };
 
-  
+
   const handleSecondInningsPrediction = (e: FormEvent) => {
     e.preventDefault();
     console.log('[CricketPrediction] handleSecondInningsPrediction called', { 

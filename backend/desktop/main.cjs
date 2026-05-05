@@ -51,7 +51,6 @@ const listenToMatchStatus = () => {
     const status = `Active - ${timestamp}`;
     if (status !== currentMatchInfo) {
       currentMatchInfo = status;
-      console.log('[Main] Updating window titles:', status);
       
       // Update window titles with match info
       if (windowManager) {
