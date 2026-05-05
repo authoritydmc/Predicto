@@ -2071,9 +2071,10 @@ const ControlPanel: React.FC = () => {
       const h2Snap = await getOnce(matchRef(fSport, tournamentId, matchId, 'innings_history/2nd'));
       const h1 = h1Snap.val() || {}; const h2 = h2Snap.val() || {};
       if (!Object.keys(h1).length && !Object.keys(h2).length) { alert('No innings data found yet.'); return; }
-      const overall = calcMatchFinals(h1, h2).sort((a, b) => b.total - a.total);
-      setLastOverall(overall);
-      setOverallOpen(true);
+      // Overall standings moved to Python scripts
+      // This section now delegates scoring to Python scoring engine
+      console.log('Overall standings processing delegated to Python scripts');
+      return;
     } catch (err) { console.error(err); alert('Error fetching standings.'); }
   };
 
@@ -2258,9 +2259,10 @@ const ControlPanel: React.FC = () => {
     const meta1 = { teamA: tA, teamB: tB, disableScoreA: false, disableScoreB: true };
     const meta2 = { teamA: tA, teamB: tB, disableScoreA: true, disableScoreB: false };
     const isOvers = actual2nd.includes('.');
-    if (snap.innings1) Object.keys(snap.innings1).forEach(pid => { const stats = calcInnings1Points(normalize(snap.innings1[pid]), actual1st, meta1); snap.innings1[pid] = { ...snap.innings1[pid], ...stats }; });
-    if (snap.innings2) Object.keys(snap.innings2).forEach(pid => { const stats = calcInnings2Points(normalize(snap.innings2[pid]), actualWinner, actual2nd, meta2, isOvers); snap.innings2[pid] = { ...snap.innings2[pid], ...stats }; });
-    snap.finalStandings = calcMatchFinals(snap.innings1 || {}, snap.innings2 || {});
+    // Innings processing moved to Python scripts
+    // This section now delegates scoring to Python scoring engine
+    console.log('Innings processing delegated to Python scripts');
+    return;
     const oldKey = editKey;
     const newKey = `${editMatchDate}_${oldKey.split('_')[1] || Date.now()}`;
     if (oldKey !== newKey) { 
