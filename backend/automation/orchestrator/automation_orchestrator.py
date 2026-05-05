@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from enum import Enum
 import re
+import uuid
+from typing import Dict, Any, Optional, List, Callable
 
 from ..base.firebase_client import FirebaseClient
 from ..scheduler.websocket_logger import WebSocketLogger
@@ -89,6 +91,8 @@ class AutomationOrchestrator:
         # System state
         self.running = False
         self.start_time = None
+        self.last_cleanup_time = time.time()
+        self.session_id = str(uuid.uuid4())
         
         # Configuration
         self.config = self._load_config()
@@ -117,7 +121,7 @@ class AutomationOrchestrator:
     
     def _load_config(self) -> Dict[str, Any]:
         """Load automation configuration from Firebase"""
-        config = self.client.get('automation_config') or {}
+        config = self.client.get('scheduler_config') or {}
         
         defaults = {
             'match_creation_interval': 300,  # 5 minutes
@@ -133,7 +137,7 @@ class AutomationOrchestrator:
     
     def _initialize_tasks(self):
         """Initialize automation tasks from Firebase"""
-        tasks_data = self.client.get('automation_config/tasks') or {}
+        tasks_data = self.client.get('scheduler_config/tasks') or {}
         
         # Define IPL default tasks
         ipl_defaults = {
@@ -142,12 +146,12 @@ class AutomationOrchestrator:
                 'name': 'IPL Match Discovery',
                 'type': 'match_creation',
                 'status': 'idle',
-                'cron_expression': '0 10 * * *',
+                'cron_expression': '0 * * * *',  # Every hour
                 'enabled': True
             },
             'ipl_live_scraping': {
                 'task_id': 'ipl_live_scraping',
-                'name': 'IPL Live Scraping (Adaptive)',
+                'name': 'IPL Live Scraping (Weekday/Weekend)',
                 'type': 'scraping',
                 'status': 'idle',
                 'interval_seconds': 60,
@@ -156,10 +160,10 @@ class AutomationOrchestrator:
             },
             'ipl_reconciliation': {
                 'task_id': 'ipl_reconciliation',
-                'name': 'IPL Daily Reconciliation',
+                'name': 'IPL Match Reconciliation',
                 'type': 'reconciliation',
                 'status': 'idle',
-                'cron_expression': '0 0 * * *',
+                'cron_expression': '*/5 * * * *',  # Every 5 minutes
                 'enabled': True
             }
         }
@@ -173,7 +177,7 @@ class AutomationOrchestrator:
                 any_added = True
         
         if any_added:
-            self.client.set('automation_config/tasks', tasks_data)
+            self.client.set('scheduler_config/tasks', tasks_data)
             
         for task_id, data in tasks_data.items():
             self.tasks[task_id] = AutomationTask(**data)
@@ -209,6 +213,9 @@ class AutomationOrchestrator:
         
         # Start main orchestration loop as a background task
         asyncio.create_task(self._orchestration_loop())
+        
+        # Start heartbeat loop for distributed locking
+        asyncio.create_task(self._heartbeat_loop())
         
         # Start cleanup loop
         asyncio.create_task(self._cleanup_loop())
@@ -247,12 +254,39 @@ class AutomationOrchestrator:
             except Exception as e:
                 self.logger.error('orchestrator', f'Failed to stop notifications: {str(e)}')
     
+    async def _heartbeat_loop(self):
+        """Maintain a lock in Firebase so older instances yield"""
+        self.logger.info('orchestrator', f'Started heartbeat loop. Session ID: {self.session_id}')
+        while self.running:
+            try:
+                # Write heartbeat to Firebase
+                self.client.set('scheduler_config/orchestrator_lock', {
+                    'session_id': self.session_id,
+                    'timestamp': int(time.time() * 1000)
+                })
+            except Exception as e:
+                self.logger.error('orchestrator', f'Heartbeat error: {e}')
+            await asyncio.sleep(10)
+
     async def _orchestration_loop(self):
         """Main orchestration loop (Asynchronous)"""
         self.start_time = datetime.now()
         while self.running:
             try:
                 current_time = int(time.time() * 1000)
+                
+                # Check Lock
+                lock_data = self.client.get('scheduler_config/orchestrator_lock')
+                if lock_data and lock_data.get('session_id') != self.session_id:
+                    # Check if the other lock is recent (within 30 seconds)
+                    last_heartbeat = lock_data.get('timestamp', 0)
+                    if current_time - last_heartbeat < 30000:
+                        self.logger.error('orchestrator', f'Another orchestrator instance detected ({lock_data.get("session_id")}). Yielding lock and shutting down.')
+                        await self.stop()
+                        # Also terminate main application
+                        import os, signal
+                        os.kill(os.getpid(), signal.SIGTERM)
+                        break
                 
                 # Process tasks
                 for task_id, task in self.tasks.items():
@@ -488,6 +522,8 @@ class AutomationOrchestrator:
             interval = task.interval_seconds
             task.next_run = int(time.time() * 1000) + (interval * 1000)
             
+        next_run_dt = datetime.fromtimestamp(task.next_run / 1000)
+        self.logger.info('orchestrator', f'Task "{task.name}" scheduled to run next at {next_run_dt.strftime("%Y-%m-%d %H:%M:%S")}')
         self._save_tasks()
 
     async def _cleanup_loop(self):
@@ -534,7 +570,7 @@ class AutomationOrchestrator:
                 task_dict['status'] = task_dict['status'].value
             tasks_data[task_id] = task_dict
             
-        self.client.set('automation_config/tasks', tasks_data)
+        self.client.set('scheduler_config/tasks', tasks_data)
     
     def get_status(self) -> Dict[str, Any]:
         """Get current automation status"""
@@ -583,7 +619,7 @@ class AutomationOrchestrator:
         self.config.update(new_config)
         
         # Save to Firebase
-        self.client.set('automation_config', self.config)
+        self.client.set('scheduler_config', self.config)
         
         self.logger.info('orchestrator', f'Configuration updated: {new_config}')
         
@@ -618,6 +654,7 @@ class AutomationOrchestrator:
             self.tasks[task_id] = task
             self._schedule_next_run(task)
             self._broadcast_task_update(task)
+            self._save_tasks()
             
             self.logger.info('orchestrator', f'Task added: {task.name}', {'task_id': task_id})
             return {'success': True, 'task': asdict(task)}
@@ -651,6 +688,7 @@ class AutomationOrchestrator:
             self._schedule_next_run(task)
             
         self._broadcast_task_update(task)
+        self._save_tasks()
         self.logger.info('orchestrator', f'Task updated: {task.name}', {'task_id': task_id})
         
         return {'success': True, 'task': asdict(task)}
@@ -691,6 +729,7 @@ class AutomationOrchestrator:
             self._schedule_next_run(task)
             
         self._broadcast_task_update(task)
+        self._save_tasks()
         self.logger.info('orchestrator', f'Task {"enabled" if task.enabled else "disabled"}: {task.name}', {'task_id': task_id})
         
         return {'success': True, 'task_id': task_id, 'enabled': task.enabled}

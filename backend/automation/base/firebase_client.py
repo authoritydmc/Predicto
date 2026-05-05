@@ -39,8 +39,11 @@ class FirebaseClient:
         
         # Initialize Firebase Admin SDK if not already initialized
         if not firebase_admin._apps:
-            # Try to use service account from firebase.cert.json (project root)
-            service_account_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'firebase.cert.json')
+            # Try to use service account from firebase.cert.json (project root or backend dir)
+            root_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'firebase.cert.json')
+            backend_path = os.path.join(os.path.dirname(__file__), '..', '..', 'firebase.cert.json')
+            
+            service_account_path = root_path if os.path.exists(root_path) else backend_path
             
             if os.path.exists(service_account_path):
                 # Use service account key file

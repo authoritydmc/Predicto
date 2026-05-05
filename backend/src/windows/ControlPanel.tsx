@@ -611,27 +611,7 @@ const ControlPanel: React.FC = () => {
     }
   };
 
-  // Handle WebSocket responses
-  useEffect(() => {
-    if (!wsConnection) return;
-    
-    const originalOnMessage = wsConnection.onmessage;
-    wsConnection.onmessage = (event) => {
-      if (originalOnMessage) originalOnMessage(event);
-      
-      try {
-        const message = JSON.parse(event.data);
-        if (message.type && message.type.endsWith('_response')) {
-          const { data } = message;
-          if (data && data.success) {
-            showFeedback('success', 'Operation successful');
-          } else if (data && !data.success) {
-            showFeedback('error', `Operation failed: ${data.error || 'Unknown error'}`);
-          }
-        }
-      } catch (e) {}
-    };
-  }, [wsConnection]);
+  // Handle WebSocket responses moved to handleWebSocketMessage
 
   // ── Note: Prediction controls are synced via Firebase subscription in subscribeToMeta
   // No auto-sync needed as changes from other clients will be reflected automatically
@@ -827,7 +807,7 @@ const ControlPanel: React.FC = () => {
 
     if (!type || message.level || message.window || message.source || message.message) {
       // Allow automation messages to pass through even if they lack some fields
-      if (type !== 'status_update' && type !== 'task_update' && type !== 'tasks_full') {
+      if (!['status_update', 'task_update', 'tasks_full', 'get_status_response'].includes(type)) {
         return;
       }
     }
@@ -849,6 +829,29 @@ const ControlPanel: React.FC = () => {
         }
         break;
         
+      case 'get_status_response':
+        if (data) {
+          let autoStatus;
+          let isRunning = false;
+          
+          if (data.orchestrator_status) {
+            autoStatus = data.orchestrator_status.automation_status || data.orchestrator_status;
+            isRunning = data.system_running || data.orchestrator_status.running;
+          } else {
+            autoStatus = data.automation_status || data;
+            isRunning = data.running || autoStatus.orchestrator_running;
+          }
+          
+          if (autoStatus) {
+            setAutomationStatus(autoStatus);
+            if (isRunning !== undefined) setSchedulerRunning(isRunning);
+            if (autoStatus.tasks) {
+              setAutomationTasks(autoStatus.tasks);
+            }
+          }
+        }
+        break;
+        
       case 'task_update':
         if (data.task) {
           setAutomationTasks(prev => ({
@@ -865,8 +868,8 @@ const ControlPanel: React.FC = () => {
         break;
         
       case 'log_entry':
-        if (data.data) {
-          setAutomationLogs(prev => [data.data, ...prev.slice(0, 999)]); // Keep last 1000 logs
+        if (data) {
+          setAutomationLogs(prev => [data, ...prev.slice(0, 999)]); // Keep last 1000 logs
         }
         break;
         
@@ -896,12 +899,20 @@ const ControlPanel: React.FC = () => {
         break;
         
       default:
-        setAutomationLogs(prev => [{
-          level: 'debug',
-          component: 'websocket',
-          message: `Ignored message type: ${type}`,
-          timestamp: timestamp || Date.now()
-        }, ...prev.slice(0, 999)]);
+        if (type && type.endsWith('_response')) {
+          if (data && data.success) {
+            showFeedback('success', 'Operation successful');
+          } else if (data && !data.success) {
+            showFeedback('error', `Operation failed: ${data.error || 'Unknown error'}`);
+          }
+        } else {
+          setAutomationLogs(prev => [{
+            level: 'debug',
+            component: 'websocket',
+            message: `Ignored message type: ${type}`,
+            timestamp: timestamp || Date.now()
+          }, ...prev.slice(0, 999)]);
+        }
     }
   };
 

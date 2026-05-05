@@ -14,7 +14,7 @@ from enum import Enum
 
 from ..base.firebase_client import FirebaseClient
 from ..scheduler.websocket_logger import WebSocketLogger
-from ...scraper.live_score_scraper import ScraperManager as BaseScraperManager
+from scraper.live_score_scraper import ScraperManager as BaseScraperManager
 
 
 class ScraperStatus(Enum):

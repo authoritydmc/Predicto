@@ -190,6 +190,14 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
     }, 5000);
   };
 
+  const formatTime = (timestamp: number | undefined | null) => {
+    if (!timestamp) return 'Never';
+    return new Intl.DateTimeFormat('en-US', { 
+      hour: 'numeric', minute: 'numeric', second: 'numeric',
+      month: 'short', day: 'numeric'
+    }).format(new Date(timestamp));
+  };
+
   return (
     <div className="automation-scheduler-container">
       {/* Status Header */}
@@ -264,8 +272,12 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
                     ID: <span style={{ fontFamily: 'monospace' }}>{task.task_id}</span> • Type: {task.type}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', display: 'flex', gap: '12px' }}>
+                    <span><span style={{opacity: 0.6}}>Last Run:</span> <span style={{color: 'var(--text)'}}>{formatTime(task.last_run)}</span></span>
+                    <span><span style={{opacity: 0.6}}>Next Run:</span> <span style={{color: '#34c759'}}>{formatTime(task.next_run)}</span></span>
                   </div>
                 </div>
                 <div style={{ transform: 'scale(0.8)' }}>

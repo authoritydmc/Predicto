@@ -243,9 +243,12 @@ class EnhancedWebSocketLogger:
         self.log_buffer.clear()
         
         for log_entry in logs_to_send:
+            log_dict = asdict(log_entry)
+            if isinstance(log_dict['level'], LogLevel):
+                log_dict['level'] = log_dict['level'].value
             message = {
                 'type': 'log_entry',
-                'data': asdict(log_entry),
+                'data': log_dict,
                 'timestamp': int(time.time() * 1000)
             }
             self._send_message(message)
@@ -287,9 +290,12 @@ class EnhancedWebSocketLogger:
         
         # Add to buffer or send immediately
         if self.connected:
+            log_dict = asdict(log_entry)
+            if isinstance(log_dict['level'], LogLevel):
+                log_dict['level'] = log_dict['level'].value
             message = {
                 'type': 'log_entry',
-                'data': asdict(log_entry),
+                'data': log_dict,
                 'timestamp': int(time.time() * 1000)
             }
             self._send_message(message)

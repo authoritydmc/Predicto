@@ -93,3 +93,4 @@ scratch/
 
 # assets/firebase-config.js
 # backend/desktop/assets/firebase-config.js
+backend/automation_jobs.db

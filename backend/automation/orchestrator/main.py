@@ -9,10 +9,11 @@ import signal
 import threading
 import argparse
 import json
+import time
 from typing import Dict, Any, Optional
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add backend directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from automation.base.firebase_client import FirebaseClient
 from automation.scheduler.websocket_logger import WebSocketLogger
