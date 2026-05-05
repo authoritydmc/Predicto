@@ -549,6 +549,10 @@ const ControlPanel: React.FC = () => {
   // Handle WebSocket messages from automation orchestrator
   const handleWebSocketMessage = (message: any) => {
     const { type, data, timestamp } = message;
+
+    if (!type || message.level || message.window || message.source || message.message) {
+      return;
+    }
     
     switch (type) {
       case 'status_update':
@@ -598,7 +602,12 @@ const ControlPanel: React.FC = () => {
         break;
         
       default:
-        console.log('[ControlPanel] Unknown WebSocket message type:', type);
+        setAutomationLogs(prev => [{
+          level: 'debug',
+          component: 'websocket',
+          message: `Ignored message type: ${type}`,
+          timestamp: timestamp || Date.now()
+        }, ...prev.slice(0, 999)]);
     }
   };
 

@@ -166,7 +166,9 @@ const createWindowManager = (config, deps) => {
     }
     const currentMode = global.APP_MODE || settings.firebaseMode || config.APP_MODE;
     debugWindow = new BrowserWindow({
-      width: 600, height: 800,
+      width: 980, height: 720,
+      minWidth: 760,
+      minHeight: 520,
       title: "System Debug Log",
       autoHideMenuBar: true,
       backgroundColor: "#020617",

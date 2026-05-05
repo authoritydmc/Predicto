@@ -3,6 +3,11 @@ let reconnectTimer: any = null;
 
 const initLogger = (windowName: string) => {
    if (typeof window === 'undefined') return;
+   if (windowName.toLowerCase() === 'debug') return;
+
+   const loggerState = window as any;
+   if (loggerState.__overlayLoggerInstalled) return;
+   loggerState.__overlayLoggerInstalled = true;
    
    const connect = () => {
       if (logWs && logWs.readyState === WebSocket.OPEN) return;
@@ -30,10 +35,17 @@ const initLogger = (windowName: string) => {
    const sendToStream = (level: string, message: any) => {
       if (logWs && logWs.readyState === WebSocket.OPEN) {
          try {
+            const text = message
+               .map((item: any) => {
+                  if (item instanceof Error) return item.stack || item.message;
+                  return typeof item === 'object' ? JSON.stringify(item) : String(item);
+               })
+               .join(' ');
+
             logWs.send(JSON.stringify({
                level,
                window: windowName,
-               message: typeof message === 'object' ? JSON.stringify(message) : String(message),
+               message: text,
                timestamp: Date.now()
             }));
          } catch (e) {
@@ -48,17 +60,17 @@ const initLogger = (windowName: string) => {
    const originalError = console.error;
 
    console.log = (...args) => {
-      sendToStream('info', args.join(' '));
+      sendToStream('info', args);
       originalLog.apply(console, args);
    };
 
    console.warn = (...args) => {
-      sendToStream('warn', args.join(' '));
+      sendToStream('warn', args);
       originalWarn.apply(console, args);
    };
 
    console.error = (...args) => {
-      sendToStream('error', args.join(' '));
+      sendToStream('error', args);
       originalError.apply(console, args);
    };
 };
