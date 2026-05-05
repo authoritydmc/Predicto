@@ -199,6 +199,12 @@ export default function MatchPage() {
                 </span>
               )}
             </div>
+            {(meta?.series || meta?.venue) && (
+              <div className="match-badge-row" style={{ marginTop: '4px', opacity: 0.8, fontSize: '0.7rem' }}>
+                {meta.series && <span style={{ marginRight: '8px' }}>🏆 {meta.series}</span>}
+                {meta.venue && <span>📍 {meta.venue}</span>}
+              </div>
+            )}
             {meta?.teamA && meta?.teamB ? (
               <div className="match-teams-display match-teams-display-compact">
                 <div className="match-team">
@@ -262,21 +268,33 @@ export default function MatchPage() {
                     <div className="match-cricket-note">
                       <span style={{ color: '#34c759' }}>🎯</span>
                       <span>
-                        {(() => {
+                        {meta.summary || (() => {
                           const firstBattingTeam = meta.battingFirst || (meta.disableScoreA === false && meta.disableScoreB === true ? 'teamA' : 'teamB');
                           const chasingTeam = firstBattingTeam === 'teamA' ? 'teamB' : 'teamA';
                           const firstBattingScore = firstBattingTeam === 'teamA' ? liveScore.teamA.runs : liveScore.teamB.runs;
                           const chasingScore = chasingTeam === 'teamA' ? liveScore.teamA.runs : liveScore.teamB.runs;
                           const chasingOvers = chasingTeam === 'teamA' ? liveScore.teamA.overs : liveScore.teamB.overs;
-                          const target = firstBattingScore + 1;
-                          const runsNeeded = target - chasingScore;
-                          const oversRemaining = 20 - Math.floor(chasingOvers);
+                          
                           const chasingTeamName = chasingTeam === 'teamA' ? meta.teamA : meta.teamB;
 
+                          if (matchStatus === 'completed' || matchStatus === 'done') {
+                            return "Match Completed";
+                          }
+
+                          const target = firstBattingScore + 1;
+                          const runsNeeded = target - chasingScore;
+                          
+                          // Better ball calculation
+                          const totalBalls = 120; // Assuming T20
+                          const oversFloat = parseFloat(chasingOvers) || 0;
+                          const ballsBowled = Math.floor(oversFloat) * 6 + Math.round((oversFloat * 10) % 10);
+                          const ballsRemaining = Math.max(0, totalBalls - ballsBowled);
+                          const oversRemainingStr = `${Math.floor(ballsRemaining / 6)}.${ballsRemaining % 6}`;
+
                           if (runsNeeded > 0) {
-                            return `${chasingTeamName} needs ${runsNeeded} runs in ${oversRemaining} overs to win`;
+                            return `${chasingTeamName} needs ${runsNeeded} runs in ${ballsRemaining} balls (${oversRemainingStr} overs) to win`;
                           } else {
-                            return `${chasingTeamName} won by ${Math.abs(runsNeeded)} runs`;
+                            return `${chasingTeamName} won the match`;
                           }
                         })()}
                       </span>

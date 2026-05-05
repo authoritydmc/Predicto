@@ -49,6 +49,58 @@ class EnhancedAutomationSystem:
             'version': '2.0.0',
             'components': ['match_manager', 'scraper_manager', 'scoring_engine', 'status_monitor', 'config_manager']
         })
+        
+        # Register message handler
+        self.logger.message_handler = self._handle_ws_message
+    
+    def _handle_ws_message(self, data: Dict[str, Any]):
+        """Handle incoming WebSocket messages for automation control"""
+        message_type = data.get('type')
+        if not message_type:
+            return
+            
+        print(f"[EnhancedAutomation] Received message: {message_type}")
+        
+        try:
+            result = None
+            
+            if message_type == 'trigger_task':
+                task_id = data.get('task_id')
+                result = self.orchestrator.trigger_task(task_id)
+            
+            elif message_type == 'add_task':
+                task_data = data.get('task')
+                result = self.orchestrator.add_task(task_data)
+                
+            elif message_type == 'update_task':
+                task_id = data.get('task_id')
+                updates = data.get('updates')
+                result = self.orchestrator.update_task(task_id, updates)
+                
+            elif message_type == 'delete_task':
+                task_id = data.get('task_id')
+                result = self.orchestrator.delete_task(task_id)
+                
+            elif message_type == 'toggle_task':
+                task_id = data.get('task_id')
+                result = self.orchestrator.toggle_task(task_id)
+                
+            elif message_type == 'update_config':
+                config = data.get('config')
+                result = self.orchestrator.update_config(config)
+            
+            if result:
+                # Send response back via WebSocket
+                response = {
+                    'type': f'{message_type}_response',
+                    'data': result,
+                    'timestamp': int(time.time() * 1000)
+                }
+                # Using broadcast for response for now, or could add send_to_client
+                self.logger.broadcast('enhanced_automation', json.dumps(response))
+                
+        except Exception as e:
+            self.logger.error('enhanced_automation', f'Error handling message {message_type}: {str(e)}')
     
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""

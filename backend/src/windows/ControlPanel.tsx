@@ -1052,6 +1052,9 @@ const ControlPanel: React.FC = () => {
           setFPredictionsEnabled(merged.predictionsEnabled !== undefined ? merged.predictionsEnabled : true);
           setFPredictionsPaused(merged.predictionsPaused || false);
           setFPauseReason(merged.pauseReason || '');
+          setFMatchSummary(merged.summary || '');
+          setFVenue(merged.venue || '');
+          setFSeries(merged.series || '');
           
           // Log when Firebase values differ from local state
           if (merged.predictionsEnabled !== undefined && merged.predictionsEnabled !== fPredictionsEnabled) {

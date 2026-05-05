@@ -35,6 +35,8 @@ class AutomationTask:
     name: str
     type: str  # 'match_creation', 'scraping', 'scoring'
     status: AutomationStatus
+    interval_seconds: int = 60
+    enabled: bool = True
     last_run: Optional[int] = None
     next_run: Optional[int] = None
     error_message: Optional[str] = None
@@ -44,6 +46,8 @@ class AutomationTask:
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
+        if isinstance(self.status, str):
+            self.status = AutomationStatus(self.status)
 
 
 class AutomationOrchestrator:
@@ -84,6 +88,16 @@ class AutomationOrchestrator:
             'failed_tasks': 0,
             'average_task_duration': 0.0
         }
+
+        # Task handlers
+        self.task_handlers = {
+            'match_creation': self._handle_match_creation,
+            'scraping': self._handle_live_scraping,
+            'scoring': self._handle_score_processing
+        }
+
+        # Initialize tasks
+        self._initialize_tasks()
     
     def _load_config(self) -> Dict[str, Any]:
         """Load automation configuration from Firebase"""
@@ -102,35 +116,45 @@ class AutomationOrchestrator:
         return {**defaults, **config}
     
     def _initialize_tasks(self):
-        """Initialize default automation tasks"""
-        default_tasks = [
-            AutomationTask(
-                task_id='match_creation',
-                name='Match Creation Service',
-                type='match_creation',
-                status=AutomationStatus.IDLE
-            ),
-            AutomationTask(
-                task_id='live_scraping',
-                name='Live Score Scraping',
-                type='scraping',
-                status=AutomationStatus.IDLE
-            ),
-            AutomationTask(
-                task_id='score_processing',
-                name='Score Processing Engine',
-                type='scoring',
-                status=AutomationStatus.IDLE
-            )
-        ]
+        """Initialize automation tasks from Firebase"""
+        tasks_data = self.client.get('automation_config/tasks') or {}
         
-        for task in default_tasks:
-            self.tasks[task.task_id] = task
-        
-        # Register task handlers
-        self.task_handlers['match_creation'] = self._handle_match_creation
-        self.task_handlers['live_scraping'] = self._handle_live_scraping
-        self.task_handlers['score_processing'] = self._handle_score_processing
+        if not tasks_data:
+            self.logger.info('orchestrator', 'No tasks found in Firebase, creating defaults')
+            default_tasks = {
+                'match_creation': {
+                    'task_id': 'match_creation',
+                    'name': 'Match Creation Service',
+                    'type': 'match_creation',
+                    'status': 'idle',
+                    'interval_seconds': 300,
+                    'enabled': True
+                },
+                'live_scraping': {
+                    'task_id': 'live_scraping',
+                    'name': 'Live Score Scraping',
+                    'type': 'scraping',
+                    'status': 'idle',
+                    'interval_seconds': 60,
+                    'enabled': True
+                },
+                'score_processing': {
+                    'task_id': 'score_processing',
+                    'name': 'Score Processing Engine',
+                    'type': 'scoring',
+                    'status': 'idle',
+                    'interval_seconds': 30,
+                    'enabled': True
+                }
+            }
+            self.client.set('automation_config/tasks', default_tasks)
+            tasks_data = default_tasks
+
+        for task_id, data in tasks_data.items():
+            self.tasks[task_id] = AutomationTask(**data)
+            # Schedule initial run if not already scheduled
+            if not self.tasks[task_id].next_run:
+                self._schedule_next_run(self.tasks[task_id])
     
     async def start(self):
         """Start the automation orchestrator"""
@@ -199,7 +223,7 @@ class AutomationOrchestrator:
                 
                 # Check and run due tasks
                 for task_id, task in self.tasks.items():
-                    if task.status == AutomationStatus.IDLE and task.next_run and current_time >= task.next_run:
+                    if task.enabled and task.status == AutomationStatus.IDLE and task.next_run and current_time >= task.next_run:
                         self._run_task(task_id)
                 
                 # Update status
@@ -214,12 +238,16 @@ class AutomationOrchestrator:
     
     def _run_task(self, task_id: str):
         """Run a specific automation task"""
-        if task_id not in self.tasks or task_id not in self.task_handlers:
+        if task_id not in self.tasks:
             self.logger.error('orchestrator', f'Unknown task: {task_id}')
             return
         
         task = self.tasks[task_id]
-        handler = self.task_handlers[task_id]
+        handler = self.task_handlers.get(task.type)
+        
+        if not handler:
+            self.logger.error('orchestrator', f'No handler for task type: {task.type}')
+            return
         
         # Update task status
         task.status = AutomationStatus.RUNNING
@@ -349,28 +377,40 @@ class AutomationOrchestrator:
     
     def _schedule_next_run(self, task: AutomationTask):
         """Schedule next run for a task"""
-        interval_map = {
-            'match_creation': self.config.get('match_creation_interval', 300),
-            'scraping': self.config.get('scraping_interval', 60),
-            'scoring': self.config.get('scoring_interval', 30)
-        }
-        
-        interval = interval_map.get(task.type, 60)
+        interval = task.interval_seconds
         task.next_run = int(time.time() * 1000) + (interval * 1000)
+        self._save_tasks()
     
     def _update_overall_status(self):
         """Update overall automation status"""
         self.status_monitor.update_automation_status(self.tasks)
     
     def _broadcast_task_update(self, task: AutomationTask):
-        """Broadcast task update via WebSocket"""
+        """Broadcast task update via WebSocket and save to Firebase"""
+        task_dict = asdict(task)
+        # Convert Enum to string for JSON serialization
+        if isinstance(task_dict['status'], AutomationStatus):
+            task_dict['status'] = task_dict['status'].value
+            
         message = {
             'type': 'task_update',
-            'task': asdict(task),
+            'task': task_dict,
             'timestamp': int(time.time() * 1000)
         }
         
         self.logger.broadcast('automation', json.dumps(message))
+        self._save_tasks()
+
+    def _save_tasks(self):
+        """Save all tasks to Firebase"""
+        tasks_data = {}
+        for task_id, task in self.tasks.items():
+            task_dict = asdict(task)
+            if isinstance(task_dict['status'], AutomationStatus):
+                task_dict['status'] = task_dict['status'].value
+            tasks_data[task_id] = task_dict
+            
+        self.client.set('automation_config/tasks', tasks_data)
     
     def get_status(self) -> Dict[str, Any]:
         """Get current automation status"""
@@ -410,3 +450,90 @@ class AutomationOrchestrator:
         self.logger.info('orchestrator', f'Configuration updated: {new_config}')
         
         return {'success': True, 'config': self.config}
+
+    def add_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a new automation task"""
+        task_id = task_data.get('task_id')
+        if not task_id:
+            return {'success': False, 'error': 'task_id is required'}
+        
+        if task_id in self.tasks:
+            return {'success': False, 'error': f'Task {task_id} already exists'}
+        
+        try:
+            # Ensure status is string for initialization
+            if 'status' not in task_data:
+                task_data['status'] = 'idle'
+            
+            task = AutomationTask(**task_data)
+            self.tasks[task_id] = task
+            self._schedule_next_run(task)
+            self._broadcast_task_update(task)
+            
+            self.logger.info('orchestrator', f'Task added: {task.name}', {'task_id': task_id})
+            return {'success': True, 'task': asdict(task)}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def update_task(self, task_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an existing automation task"""
+        if task_id not in self.tasks:
+            return {'success': False, 'error': 'Task not found'}
+        
+        task = self.tasks[task_id]
+        
+        for key, value in updates.items():
+            if hasattr(task, key) and key != 'task_id':
+                if key == 'status' and isinstance(value, str):
+                    setattr(task, key, AutomationStatus(value))
+                else:
+                    setattr(task, key, value)
+        
+        # If interval changed, reschedule
+        if 'interval_seconds' in updates:
+            self._schedule_next_run(task)
+            
+        self._broadcast_task_update(task)
+        self.logger.info('orchestrator', f'Task updated: {task.name}', {'task_id': task_id})
+        
+        return {'success': True, 'task': asdict(task)}
+
+    def delete_task(self, task_id: str) -> Dict[str, Any]:
+        """Delete an automation task"""
+        if task_id not in self.tasks:
+            return {'success': False, 'error': 'Task not found'}
+        
+        # Don't allow deleting core tasks
+        core_tasks = ['match_creation', 'live_scraping', 'score_processing']
+        if task_id in core_tasks:
+            return {'success': False, 'error': 'Cannot delete core automation tasks'}
+            
+        task = self.tasks.pop(task_id)
+        self._save_tasks()
+        
+        # Broadcast deletion (can send a special message or just update tasks)
+        message = {
+            'type': 'task_deleted',
+            'task_id': task_id,
+            'timestamp': int(time.time() * 1000)
+        }
+        self.logger.broadcast('automation', json.dumps(message))
+        
+        self.logger.info('orchestrator', f'Task deleted: {task.name}', {'task_id': task_id})
+        return {'success': True, 'task_id': task_id}
+
+    def toggle_task(self, task_id: str) -> Dict[str, Any]:
+        """Toggle a task's enabled status"""
+        if task_id not in self.tasks:
+            return {'success': False, 'error': 'Task not found'}
+        
+        task = self.tasks[task_id]
+        task.enabled = not task.enabled
+        
+        if task.enabled:
+            self._schedule_next_run(task)
+            
+        self._broadcast_task_update(task)
+        self.logger.info('orchestrator', f'Task {"enabled" if task.enabled else "disabled"}: {task.name}', {'task_id': task_id})
+        
+        return {'success': True, 'task_id': task_id, 'enabled': task.enabled}

@@ -87,6 +87,7 @@ class EnhancedWebSocketLogger:
         }
         
         # Start connection thread
+        self.message_handler = None
         self._start_connection_thread()
     
     def _start_connection_thread(self):
@@ -174,6 +175,11 @@ class EnhancedWebSocketLogger:
         """Handle incoming WebSocket message"""
         try:
             data = json.loads(message)
+            
+            # Call custom handler if registered
+            if self.message_handler:
+                self.message_handler(data)
+                
             self._handle_control_message(data)
         except Exception as e:
             print(f"[WebSocketLogger] Error parsing message: {e}")
