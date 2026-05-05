@@ -10,6 +10,9 @@ interface FootballPredictionProps {
   predictionsPaused: boolean;
   pauseReason: string;
   disableReason: string;
+  hasPredicted?: boolean;
+  previousPrediction?: any;
+  allowReprediction?: boolean;
   onNameChange: (name: string) => void;
   onSubmit: (e: FormEvent, data: any) => void;
   loading: boolean;
@@ -24,6 +27,9 @@ export default function FootballPrediction({
   predictionsPaused,
   pauseReason,
   disableReason,
+  hasPredicted,
+  previousPrediction,
+  allowReprediction,
   onNameChange,
   onSubmit,
   loading
@@ -77,6 +83,64 @@ export default function FootballPrediction({
         </div>
       )}
 
+      {/* Read-only Prediction View when Disabled/Paused */}
+      {!isMatchCompleted && previousPrediction && (!predictionsEnabled || predictionsPaused) && (
+        <div className="football-prediction-form" style={{ opacity: 0.7 }}>
+          <div style={{
+            padding: '16px',
+            background: 'linear-gradient(135deg, rgba(142, 142, 147, 0.15) 0%, rgba(142, 142, 147, 0.05) 100%)',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            border: '1px solid rgba(142, 142, 147, 0.3)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '20px' }}>👁️</span>
+              <p style={{ margin: 0, fontSize: '14px', color: '#8e8e93', fontWeight: 700 }}>
+                Your Prediction (View Only)
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+              You can view your prediction but cannot modify it
+            </p>
+          </div>
+
+          <div className="stack-form" style={{ pointerEvents: 'none' }}>
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>👤</span>
+                Your name
+              </span>
+              <input value={name} readOnly className="readonly-input" />
+            </label>
+
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏆</span>
+                Predicted winner
+              </span>
+              <input value={previousPrediction.winnerTeam || previousPrediction.winner || '-'} readOnly className="readonly-input" />
+            </label>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <label>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚽</span>
+                  {teamA} Goals
+                </span>
+                <input value={previousPrediction.scoreA ?? '-'} readOnly className="readonly-input" />
+              </label>
+              <label>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚽</span>
+                  {teamB} Goals
+                </span>
+                <input value={previousPrediction.scoreB ?? '-'} readOnly className="readonly-input" />
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Predictions Paused Message */}
       {!isMatchCompleted && predictionsEnabled && predictionsPaused && (
         <div style={{
@@ -95,6 +159,25 @@ export default function FootballPrediction({
               {pauseReason}
             </p>
           )}
+        </div>
+      )}
+
+      {/* No Prediction Yet Message when Paused/Disabled */}
+      {!isMatchCompleted && !previousPrediction && (!predictionsEnabled || predictionsPaused) && (
+        <div style={{
+          padding: '16px',
+          background: 'rgba(142, 142, 147, 0.05)',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          border: '1px dashed rgba(142, 142, 147, 0.4)',
+          textAlign: 'center'
+        }}>
+          <p style={{ margin: 0, fontSize: '14px', color: 'var(--muted)', fontWeight: 500 }}>
+            📭 You have not submitted a prediction yet.
+          </p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+            Predictions will open again soon.
+          </p>
         </div>
       )}
 
@@ -177,8 +260,8 @@ export default function FootballPrediction({
               </label>
             </div>
 
-            <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '8px' }}>
-              {loading ? 'Submitting...' : '🚀 Send Prediction'}
+            <button type="submit" className="primary-btn" disabled={loading || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
+              {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
             </button>
           </form>
         </div>

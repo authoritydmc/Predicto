@@ -389,6 +389,9 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           predictionsPaused={predictionsPaused}
           pauseReason={pauseReason}
           disableReason={disableReason}
+          hasPredicted={hasPredicted}
+          previousPrediction={previousPrediction}
+          allowReprediction={allowReprediction}
           onNameChange={setName}
           onSubmit={handlePredictionSubmit}
           loading={loading}

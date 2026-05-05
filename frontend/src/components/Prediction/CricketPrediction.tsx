@@ -204,6 +204,65 @@ export default function CricketPrediction({
         </div>
       )}
 
+      {/* Read-only Prediction View when Paused/Disabled */}
+      {!isMatchCompleted && previousPrediction && (!predictionsEnabled || predictionsPaused) && (
+        <div className="cricket-prediction-form" style={{ opacity: 0.7 }}>
+          <div style={{
+            padding: '16px',
+            background: 'linear-gradient(135deg, rgba(142, 142, 147, 0.15) 0%, rgba(142, 142, 147, 0.05) 100%)',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            border: '1px solid rgba(142, 142, 147, 0.3)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '20px' }}>👁️</span>
+              <p style={{ margin: 0, fontSize: '14px', color: '#8e8e93', fontWeight: 700 }}>
+                Your Prediction (View Only)
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+              You can view your prediction but cannot modify it
+            </p>
+          </div>
+
+          <div className="stack-form" style={{ pointerEvents: 'none' }}>
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>👤</span>
+                Your name
+              </span>
+              <input value={name} readOnly className="readonly-input" />
+            </label>
+
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏆</span>
+                Predicted winner
+              </span>
+              <input value={previousPrediction.winnerTeam || '-'} readOnly className="readonly-input" />
+            </label>
+
+            {previousPrediction.runsOrOvers ? (
+              <label>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📊</span>
+                  Predicted runs or overs
+                </span>
+                <input value={previousPrediction.runsOrOvers} readOnly className="readonly-input" />
+              </label>
+            ) : (
+              <label>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📊</span>
+                  Predicted runs
+                </span>
+                <input value={previousPrediction.runs || '-'} readOnly className="readonly-input" />
+              </label>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Predictions Paused Message */}
       {!isMatchCompleted && predictionsEnabled && predictionsPaused && (
         <div style={{
@@ -222,6 +281,25 @@ export default function CricketPrediction({
               {pauseReason}
             </p>
           )}
+        </div>
+      )}
+
+      {/* No Prediction Yet Message when Paused/Disabled */}
+      {!isMatchCompleted && !previousPrediction && (!predictionsEnabled || predictionsPaused) && (
+        <div style={{
+          padding: '16px',
+          background: 'rgba(142, 142, 147, 0.05)',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          border: '1px dashed rgba(142, 142, 147, 0.4)',
+          textAlign: 'center'
+        }}>
+          <p style={{ margin: 0, fontSize: '14px', color: 'var(--muted)', fontWeight: 500 }}>
+            📭 You have not submitted a prediction yet.
+          </p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+            Predictions will open again soon.
+          </p>
         </div>
       )}
 
