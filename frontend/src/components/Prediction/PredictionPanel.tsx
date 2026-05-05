@@ -129,6 +129,40 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
     };
     loadMatchMeta();
     
+    // Listen for real-time updates to prediction controls
+    const metaListener = onValue(matchMetaRef(sport, id, matchId), (snap) => {
+      const data = snap.val();
+      console.log('[PredictionPanel] Real-time meta update:', data);
+      
+      // Update prediction control states in real-time
+      if (data?.predictionsEnabled !== undefined) {
+        setPredictionsEnabled(data.predictionsEnabled);
+        console.log('[PredictionPanel] Synced predictionsEnabled:', data.predictionsEnabled);
+      }
+      
+      if (data?.predictionsPaused !== undefined) {
+        setPredictionsPaused(data.predictionsPaused);
+        console.log('[PredictionPanel] Synced predictionsPaused:', data.predictionsPaused);
+      }
+      
+      if (data?.pauseReason !== undefined) {
+        setPauseReason(data.pauseReason);
+        console.log('[PredictionPanel] Synced pauseReason:', data.pauseReason);
+      }
+      
+      if (data?.allowReprediction !== undefined) {
+        setAllowReprediction(data.allowReprediction);
+        console.log('[PredictionPanel] Synced allowReprediction:', data.allowReprediction);
+      }
+      
+      if (data?.disableReason !== undefined) {
+        setDisableReason(data.disableReason);
+        console.log('[PredictionPanel] Synced disableReason:', data.disableReason);
+      }
+    }, (error) => {
+      console.error('[PredictionPanel] Error listening to match meta:', error);
+    });
+    
     // Listen for live score updates to detect innings change and calculate target
     const liveScoreListener = onValue(matchLiveScoreRef(sport, id, matchId), (snap) => {
       const data = snap.val();
@@ -154,7 +188,10 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
       }
     });
     
-    return () => liveScoreListener();
+    return () => {
+      metaListener();
+      liveScoreListener();
+    };
   }, [sport, id, matchId, battingFirst, setBattingFirst]);
 
   // Sync with Global Profile

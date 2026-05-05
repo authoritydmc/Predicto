@@ -171,12 +171,64 @@ const calcInnings1Points = (pred: any, actual: number, meta: any) => {
 const calcInnings2Points = (pred: any, actualWinner: string, actualResult: string | number, meta: any, isOvers: boolean) => {
   const tA = (meta.teamA || 'Team A').toLowerCase();
   const tB = (meta.teamB || 'Team B').toLowerCase();
-  let chasingTeam = tB;
-  if (meta.disableScoreA && !meta.disableScoreB) chasingTeam = tB;
-  else if (meta.disableScoreB && !meta.disableScoreA) chasingTeam = tA;
+  
+  // Determine which team was batting based on disableScore flags or explicit battingTeam
+  let chasingTeam: string;
+  if (meta.disableScoreA && !meta.disableScoreB) {
+    chasingTeam = tB; // Team B was batting first
+  } else if (meta.disableScoreB && !meta.disableScoreA) {
+    chasingTeam = tA; // Team A was batting first
+  } else if (meta.battingTeam) {
+    // Use explicitly stored battingTeam
+    chasingTeam = meta.battingTeam;
+  } else {
+    // Default: assume Team A was batting first
+    chasingTeam = tA;
+  }
+  
   const predWinner = (pred.predictedWinner || '').toLowerCase();
   const predVal = chasingTeam === tA ? pred.scoreA : pred.scoreB;
-  if (predWinner !== actualWinner) {
+  
+  if (predWinner === actualWinner) {
+    let base = 0;
+    let near5 = 0;
+    let near10 = 0;
+    let diff = 0;
+    
+    if (isOvers) {
+      // For overs format (e.g., 45.3 overs)
+      const actualOvers = Number(actualResult);
+      const predOvers = oversToBalls(predVal || 0) / 6; // Convert overs to balls (6 balls per over)
+      diff = Math.abs(actualOvers - predOvers);
+      
+      // Calculate points based on how close the prediction was
+      if (diff <= 5) {
+        near5 = 10; near10 = 5;
+      } else if (diff <= 10) {
+        near5 = 5; near10 = 10;
+      }
+      
+      base = 15; // Base points for correct winner
+    } else {
+      // For runs format
+      const actualRuns = Number(actualResult);
+      diff = Math.abs(actualRuns - Number(predVal || 0));
+      
+      // Calculate points based on how close the prediction was
+      if (diff <= 5) {
+        near5 = 10; near10 = 5;
+      } else if (diff <= 10) {
+        near5 = 5; near10 = 10;
+      }
+      
+      base = 20; // Base points for correct winner
+    }
+    
+    // Award points for correct winner prediction
+    const winnerPoints = predWinner === actualWinner ? base : 0;
+    
+    return { points: base + near5 + near10 + diff, diff, rawDiff: diff, isExact: false, isNear5: diff <= 5, isNear10: diff <= 10, guess: predVal, mode: 'Score' };
+  } else {
     let wrongDiff = 0;
     if (isOvers) {
       wrongDiff = Math.abs(oversToBalls(actualResult) - oversToBalls(predVal || 0));
@@ -185,13 +237,6 @@ const calcInnings2Points = (pred: any, actualWinner: string, actualResult: strin
     }
     return { points: 0, diff: '---', rawDiff: wrongDiff, guess: predVal ?? '---', isExact: false, mode: 'Wrong Winner' };
   }
-  if (isOvers) {
-    const aB = oversToBalls(actualResult); const pB = oversToBalls(predVal || 0);
-    const diff = Math.abs(aB - pB);
-    const accuracy = Math.round(Math.max(0, 120 - diff * 1.8));
-    const near3 = diff <= 3 ? 20 : 0; const range = diff <= 9 ? 10 : 0; const exact = diff === 0 ? 70 : 0;
-    return { points: accuracy + near3 + range + exact, diff: ballsToOversDisplay(diff), rawDiff: diff, guess: predVal, isExact: diff === 0, mode: 'Overs' };
-  } else {
     const diff = Math.abs(Number(actualResult) - Number(predVal || 0));
     const base = Math.round(Math.max(0, 120 - diff * 1.2));
     const t1 = diff <= 5 ? 20 : 0; const t2 = diff <= 12 ? 10 : 0; const exact = diff === 0 ? 70 : 0;
@@ -209,7 +254,8 @@ const calcMatchFinals = (h1: Record<string, any>, h2: Record<string, any>) => {
       if (is1) rec.p1 = { pts: p.points || 0, winner: p.predictedWinner || '', guess: p.guess ?? '---' };
       else rec.p2 = { pts: p.points || 0, winner: p.predictedWinner || '', guess: p.guess ?? '---' };
     });
-  merge(h1, true); merge(h2, false);
+  merge(h1, true); 
+  merge(h2, false);
   return Array.from(map.values()).map(r => {
     const penalty = r.p1.winner && r.p2.winner && r.p1.winner.toLowerCase() !== r.p2.winner.toLowerCase() ? -20 : 0;
     return { name: r.displayName, p1Score: r.p1.pts, p1Winner: r.p1.winner, p1Guess: r.p1.guess, p2Score: r.p2.pts, p2Winner: r.p2.winner, p2Guess: r.p2.guess, penalty, total: Math.max(0, r.p1.pts + r.p2.pts + penalty) };
@@ -364,6 +410,7 @@ const ControlPanel: React.FC = () => {
   const [scraperRunning, setScraperRunning] = useState(false);
   const [scraperStatus, setScraperStatus] = useState('');
   const [scraperOrder, setScraperOrder] = useState('cricbuzz,google,cricapi');
+  const [scraperMatchUrl, setScraperMatchUrl] = useState('');
   const [activeMatchTab, setActiveMatchTab] = useState<'details' | 'live'>('details');
   const [isEditingScore, setIsEditingScore] = useState(false);
 
@@ -454,6 +501,139 @@ const ControlPanel: React.FC = () => {
     details?: string;
     firebaseCalls?: string[];
   }[]>([]);
+
+  // ── Enhanced Toggle Handlers with Immediate Feedback
+  const handleTogglePredictions = async (enabled: boolean) => {
+    const action = enabled ? 'Enable' : 'Disable';
+    
+    if (!matchId || !tournamentId) {
+      showFeedback('error', 'Please select a match first', 'Match selection required');
+      return;
+    }
+    
+    const firebaseOperations = [
+      update(matchMetaRef(fSport, tournamentId, matchId), { predictionsEnabled: enabled })
+    ];
+    
+    await executeWithLogging(
+      `${action} Predictions`,
+      firebaseOperations,
+      async () => {
+        await update(matchMetaRef(fSport, tournamentId, matchId), { predictionsEnabled: enabled });
+        setFPredictionsEnabled(enabled);
+        return { enabled };
+      },
+      `Predictions ${enabled ? 'enabled' : 'disabled'} successfully`,
+      `Failed to ${enabled ? 'enable' : 'disable'} predictions`
+    );
+  };
+
+  const handleTogglePausePredictions = async (paused: boolean) => {
+    const action = paused ? 'Pause' : 'Resume';
+    
+    if (!matchId || !tournamentId) {
+      showFeedback('error', 'Please select a match first', 'Match selection required');
+      return;
+    }
+    
+    const firebaseOperations = [
+      update(matchMetaRef(fSport, tournamentId, matchId), { predictionsPaused: paused })
+    ];
+    
+    await executeWithLogging(
+      `${action} Predictions`,
+      firebaseOperations,
+      async () => {
+        await update(matchMetaRef(fSport, tournamentId, matchId), { predictionsPaused: paused });
+        setFPredictionsPaused(paused);
+        return { paused };
+      },
+      `Predictions ${paused ? 'paused' : 'resumed'} successfully`,
+      `Failed to ${paused ? 'pause' : 'resume'} predictions`
+    );
+  };
+
+  const handleToggleReprediction = async (allowed: boolean) => {
+    const action = allowed ? 'Enable' : 'Disable';
+    
+    if (!matchId || !tournamentId) {
+      showFeedback('error', 'Please select a match first', 'Match selection required');
+      return;
+    }
+    
+    const firebaseOperations = [
+      update(matchMetaRef(fSport, tournamentId, matchId), { allowReprediction: allowed })
+    ];
+    
+    await executeWithLogging(
+      `${action} Re-prediction`,
+      firebaseOperations,
+      async () => {
+        await update(matchMetaRef(fSport, tournamentId, matchId), { allowReprediction: allowed });
+        setFAllowReprediction(allowed);
+        return { allowed };
+      },
+      `Re-prediction ${allowed ? 'enabled' : 'disabled'} successfully`,
+      `Failed to ${allowed ? 'enable' : 'disable'} re-prediction`
+    );
+  };
+
+  // ── Pause Reason Dialog State
+  const [showPauseReasonDialog, setShowPauseReasonDialog] = useState(false);
+  const [tempPauseReason, setTempPauseReason] = useState('');
+
+  // ── Handle Pause with Optional Reason Dialog
+  const handlePausePredictionsWithReason = async (pause: boolean) => {
+    if (pause && !fPredictionsPaused) {
+      // Only show dialog when pausing (not unpausing)
+      setTempPauseReason(fPauseReason || '');
+      setShowPauseReasonDialog(true);
+    } else {
+      // Unpausing - just update directly
+      await handleTogglePausePredictions(false);
+    }
+  };
+
+  const confirmPauseReason = async () => {
+    setShowPauseReasonDialog(false);
+    
+    // Update pause reason and pause state together
+    if (!matchId || !tournamentId) {
+      showFeedback('error', 'Please select a match first', 'Match selection required');
+      return;
+    }
+    
+    const firebaseOperations = [
+      update(matchMetaRef(fSport, tournamentId, matchId), { 
+        predictionsPaused: true, 
+        pauseReason: tempPauseReason.trim() || undefined 
+      })
+    ];
+    
+    await executeWithLogging(
+      'Pause Predictions with Reason',
+      firebaseOperations,
+      async () => {
+        await update(matchMetaRef(fSport, tournamentId, matchId), { 
+          predictionsPaused: true, 
+          pauseReason: tempPauseReason.trim() || undefined 
+        });
+        setFPredictionsPaused(true);
+        setFPauseReason(tempPauseReason.trim() || '');
+        return { paused: true, reason: tempPauseReason.trim() || '' };
+      },
+      'Predictions paused successfully',
+      'Failed to pause predictions'
+    );
+  };
+
+  const cancelPauseReason = () => {
+    setShowPauseReasonDialog(false);
+    setTempPauseReason('');
+  };
+
+  // ── Note: Prediction controls are synced via Firebase subscription in subscribeToMeta
+  // No auto-sync needed as changes from other clients will be reflected automatically
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Action Feedback & Logging Helpers
@@ -946,6 +1126,17 @@ const ControlPanel: React.FC = () => {
           setFPredictionsEnabled(merged.predictionsEnabled !== undefined ? merged.predictionsEnabled : true);
           setFPredictionsPaused(merged.predictionsPaused || false);
           setFPauseReason(merged.pauseReason || '');
+          
+          // Log when Firebase values differ from local state
+          if (merged.predictionsEnabled !== undefined && merged.predictionsEnabled !== fPredictionsEnabled) {
+            console.log('[ControlPanel] Synced predictionsEnabled from Firebase:', merged.predictionsEnabled);
+          }
+          if (merged.predictionsPaused !== undefined && merged.predictionsPaused !== fPredictionsPaused) {
+            console.log('[ControlPanel] Synced predictionsPaused from Firebase:', merged.predictionsPaused);
+          }
+          if (merged.pauseReason !== undefined && merged.pauseReason !== fPauseReason) {
+            console.log('[ControlPanel] Synced pauseReason from Firebase:', merged.pauseReason);
+          }
         });
       });
 
@@ -1428,7 +1619,8 @@ const ControlPanel: React.FC = () => {
             teamB: fTeamB,
             allowReprediction: fAllowReprediction,
             automationPaused: fAutomationPaused,
-            status: fMatchStatus,
+            // In scheduler mode, create matches as 'scheduled' by default
+            status: schedulerRunning ? 'scheduled' : fMatchStatus,
             predictionsEnabled: fPredictionsEnabled,
             predictionsPaused: fPredictionsPaused,
             pauseReason: fPauseReason,
@@ -1597,7 +1789,7 @@ const ControlPanel: React.FC = () => {
 
     try {
       // @ts-ignore
-      const result = await window.overlayDesktop.runScraper(fSport, matchId, fTeamA, fTeamB, scraperOrder);
+      const result = await window.overlayDesktop.runScraper(fSport, matchId, fTeamA, fTeamB, scraperOrder, scraperMatchUrl || undefined);
       
       if (result.success) {
         setScraperStatus(`Success! Fetched from ${result.data.source}`);
@@ -1619,6 +1811,18 @@ const ControlPanel: React.FC = () => {
           }
           if (result.data.teamA.battingTeam !== undefined) {
             setFBattingTeam(result.data.teamA.battingTeam ? 'teamA' : 'teamB');
+          }
+          
+          // Extract additional match details if available from direct URL scraping
+          if (result.data.matchDateTime) {
+            // Could update match time/venue info here
+            console.log('[ControlPanel] Match DateTime:', result.data.matchDateTime);
+          }
+          if (result.data.venue) {
+            console.log('[ControlPanel] Venue:', result.data.venue);
+          }
+          if (result.data.series) {
+            console.log('[ControlPanel] Series:', result.data.series);
           }
         } else if (fSport === 'football' && result.data.teamA && result.data.teamB) {
           setScoreTeamARuns(result.data.teamA.goals?.toString() || '');
@@ -1645,28 +1849,32 @@ const ControlPanel: React.FC = () => {
                 : Object.values(predictions).filter((p: any) => p && typeof p === 'object');
               
               // Find a prediction that matches the current batting team
-              const battingTeam = fBattingTeam;
               const relevantPrediction = predictionsArray.find((p: any) => {
                 if (meta?.status === 'scheduled') {
-                  // For scheduled matches, use the predicted batting first
-                  return p.predictedBattingFirst === battingTeam;
+                  // For scheduled matches, allow predictions for both teams
+                  return true; // No restriction - allow bidirectional predictions
                 } else if (meta?.status === 'live') {
                   // For live matches, determine batting first from disableScore flags
                   const actualBattingFirst = meta?.disableScoreA === false ? 'teamA' : meta?.disableScoreB === false ? 'teamB' : null;
-                  return p.battingFirst === actualBattingFirst;
+                  if (actualBattingFirst) {
+                    return p.predictedBattingFirst === actualBattingFirst;
+                  } else {
+                    // If batting first cannot be determined, allow any prediction
+                    return true;
+                  }
                 }
                 return false;
               });
               
               if (relevantPrediction) {
-                const scoreStr = battingTeam === 'teamA' ? relevantPrediction.scoreA : relevantPrediction.scoreB;
-                if (scoreStr) {
+                const predictionScoreStr = fBattingTeam === 'teamA' ? relevantPrediction.scoreA : relevantPrediction.scoreB;
+                if (predictionScoreStr) {
                   // Parse score string like "185/4"
-                  const parts = scoreStr.split('/');
-                  setScoreTeamARuns(battingTeam === 'teamA' ? parts[0] || '' : '');
-                  setScoreTeamAWickets(battingTeam === 'teamA' ? parts[1] || '' : '');
-                  setScoreTeamBRuns(battingTeam === 'teamB' ? parts[0] || '' : '');
-                  setScoreTeamBWickets(battingTeam === 'teamB' ? parts[1] || '' : '');
+                  const parts = predictionScoreStr.split('/');
+                  setScoreTeamARuns(fBattingTeam === 'teamA' ? parts[0] || '' : '');
+                  setScoreTeamAWickets(fBattingTeam === 'teamA' ? parts[1] || '' : '');
+                  setScoreTeamBRuns(fBattingTeam === 'teamB' ? parts[0] || '' : '');
+                  setScoreTeamBWickets(fBattingTeam === 'teamB' ? parts[1] || '' : '');
                   setScraperStatus(`Using prediction data as fallback`);
                   setScoreSource('prediction');
                 }
@@ -3045,7 +3253,7 @@ const ControlPanel: React.FC = () => {
                       </div>
                     </div>
                     <div className="cp-divider" />
-                    <button className="cp-primary-btn cp-wide-btn" type="submit">{matchId ? 'Update Match' : 'Create Match & Connect'}</button>
+                    <button className="cp-primary-btn cp-wide-btn" type="submit">Create Match</button>
                   </form>
                 </div>
 
@@ -3067,17 +3275,42 @@ const ControlPanel: React.FC = () => {
                   {/* Prediction Controls Section */}
                   <div className="cp-section-header">
                     <span>Prediction Controls</span>
+                    <div style={{ 
+                      fontSize: '11px', 
+                      color: 'var(--muted)',
+                      marginLeft: '8px',
+                      padding: '2px 8px',
+                      background: fPredictionsEnabled ? 'rgba(52, 199, 89, 0.2)' : 'rgba(255, 59, 48, 0.2)',
+                      borderRadius: '12px',
+                      border: `1px solid ${fPredictionsEnabled ? 'rgba(52, 199, 89, 0.3)' : 'rgba(255, 59, 48, 0.3)'}`
+                    }}>
+                      {fPredictionsEnabled ? '🟢 Active' : '🔴 Disabled'}
+                    </div>
                   </div>
                   <div className="cp-form-row">
                     <label className="cp-toggle-row" title="Enable or disable predictions for this match">
                       <span>Enable Predictions</span>
-                      <Toggle checked={fPredictionsEnabled} onChange={setFPredictionsEnabled} />
+                      <Toggle checked={fPredictionsEnabled} onChange={handleTogglePredictions} />
+                      <div style={{ 
+                        fontSize: '10px', 
+                        color: 'var(--muted)',
+                        marginLeft: '8px'
+                      }}>
+                        {fPredictionsEnabled ? 'Click to disable' : 'Click to enable'}
+                      </div>
                     </label>
                   </div>
                   <div className="cp-form-row">
                     <label className="cp-toggle-row" title="Temporarily pause predictions (requires predictions to be enabled)">
                       <span>Pause Predictions</span>
-                      <Toggle checked={fPredictionsPaused} onChange={setFPredictionsPaused} />
+                      <Toggle checked={fPredictionsPaused} onChange={handlePausePredictionsWithReason} />
+                      <div style={{ 
+                        fontSize: '10px', 
+                        color: 'var(--muted)',
+                        marginLeft: '8px'
+                      }}>
+                        {fPredictionsPaused ? 'Click to resume' : 'Click to pause (optional reason)'}
+                      </div>
                     </label>
                   </div>
                   {fPredictionsPaused && (
@@ -3088,6 +3321,7 @@ const ControlPanel: React.FC = () => {
                         value={fPauseReason}
                         onChange={e => setFPauseReason(e.target.value)}
                         placeholder="Reason for pausing predictions..."
+                        style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text)' }}
                       />
                     </div>
                   )}
@@ -3095,14 +3329,29 @@ const ControlPanel: React.FC = () => {
                   <div className="cp-form-row">
                     <label className="cp-toggle-row">
                       <span>Allow re-prediction</span>
-                      <Toggle checked={fAllowReprediction} onChange={setFAllowReprediction} />
+                      <Toggle checked={fAllowReprediction} onChange={handleToggleReprediction} />
+                      <div style={{ 
+                        fontSize: '10px', 
+                        color: 'var(--muted)',
+                        marginLeft: '8px'
+                      }}>
+                        {fAllowReprediction ? 'Click to disable' : 'Click to enable'}
+                      </div>
                     </label>
                   </div>
+                  
                   <div className="cp-form-row">
-                    <label className="cp-toggle-row" title="When ON, all cloud automated polling and resolving will stop.">
-                      <span style={{ color: 'var(--accent-blue)' }}>Cloud Bot Override (Pause Automation)</span>
-                      <Toggle checked={fAutomationPaused} onChange={setFAutomationPaused} />
-                    </label>
+                    <div style={{ 
+                      padding: '8px 12px', 
+                      background: 'rgba(99, 102, 241, 0.1)', 
+                      borderRadius: '6px', 
+                      border: '1px solid rgba(99, 102, 241, 0.2)', 
+                      fontSize: '11px',
+                      color: 'var(--muted)',
+                      marginTop: '8px'
+                    }}>
+                      <strong>💡 Toggle Behavior:</strong> All toggles update Firebase immediately. No separate button click needed - changes take effect instantly with visual confirmation.
+                    </div>
                   </div>
 
                   <div className="cp-divider" />
@@ -3213,6 +3462,19 @@ const ControlPanel: React.FC = () => {
                       placeholder="cricbuzz,google,cricapi"
                       style={{ fontSize: '11px' }}
                     />
+                  </div>
+                  <div className="cp-form-row">
+                    <label>Match URL (optional - for direct scraping)</label>
+                    <input 
+                      type="text" 
+                      value={scraperMatchUrl} 
+                      onChange={e => setScraperMatchUrl(e.target.value)}
+                      placeholder="https://www.cricbuzz.com/live-cricket-scores/..."
+                      style={{ fontSize: '11px' }}
+                    />
+                    <p className="cp-panel-note" style={{ marginTop: '4px', fontSize: '10px' }}>
+                      Paste a direct match URL from Cricbuzz, ESPNcricinfo, etc. for more accurate scraping.
+                    </p>
                   </div>
                   <p className="cp-panel-note">Updates will be reflected in real-time on the audience match page.</p>
                 </div>
@@ -4658,6 +4920,88 @@ const ControlPanel: React.FC = () => {
           guideType={setupGuideViewer.type}
           onClose={() => setSetupGuideViewer({ open: false, type: null })}
         />
+      )}
+
+      {/* Pause Reason Dialog */}
+      {showPauseReasonDialog && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'var(--panel-bg)',
+            padding: '24px',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            minWidth: '400px',
+            maxWidth: '500px',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text)' }}>Pause Predictions</h3>
+            <p style={{ margin: '0 0 20px 0', color: 'var(--muted)', fontSize: '14px' }}>
+              Optionally provide a reason for pausing predictions. This will be visible to users.
+            </p>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text)', fontSize: '14px' }}>
+                Pause Reason (Optional)
+              </label>
+              <textarea
+                value={tempPauseReason}
+                onChange={e => setTempPauseReason(e.target.value)}
+                placeholder="Enter reason for pausing predictions..."
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '12px',
+                  backgroundColor: 'var(--input-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  color: 'var(--text)',
+                  fontSize: '14px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={cancelPauseReason}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: 'var(--input-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPauseReason}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: 'var(--accent-blue)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Pause Predictions
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

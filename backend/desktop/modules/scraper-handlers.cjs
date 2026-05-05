@@ -103,13 +103,28 @@ const registerScraperHandlers = () => {
   });
 
   // ── Live Score Scraper ────────────────────────────────────────────────────
-  ipcMain.handle("scraper:run", async (_event, sport, matchId, teamA, teamB, scraperOrder) => {
+  ipcMain.handle("scraper:run", async (_event, sport, matchId, teamA, teamB, scraperOrder, matchUrl) => {
     console.log(`[Scraper] Running ${sport} scraper for ${teamA} vs ${teamB}`);
 
-    const scriptPath = getBackendPath("scraper", "live_score_scraper.py");
-    const args = [scriptPath, sport, matchId, teamA, teamB];
-    if (scraperOrder) args.push(scraperOrder);
-
+    // Use new modular scraper CLI
+    const scriptPath = getBackendPath("scraper", "cli.py");
+    const args = [scriptPath, sport];
+    
+    // Add team names if provided
+    if (teamA) args.push(teamA);
+    if (teamB) args.push(teamB);
+    
+    // Add match URL if provided (for direct scraping)
+    if (matchUrl) {
+      args.push("--match-url", matchUrl);
+    }
+    
+    // Add scraper sources priority
+    if (scraperOrder) {
+      args.push("--sources", scraperOrder);
+    }
+    
+    console.log(`[Scraper] Args:`, args);
     const result = await runPython(args);
 
     if (result.error) {

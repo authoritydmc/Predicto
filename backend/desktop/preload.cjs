@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   getScheduleCsv: () => ipcRenderer.invoke("csv:get-schedule"),
   showDebug: () => ipcRenderer.invoke("debug:show"),
   setFirebaseMode: (mode) => ipcRenderer.invoke("firebase:set-mode", mode),
-  runScraper: (sport, matchId, teamA, teamB, scraperOrder) => ipcRenderer.invoke("scraper:run", sport, matchId, teamA, teamB, scraperOrder),
+  runScraper: (sport, matchId, teamA, teamB, scraperOrder, matchUrl) => ipcRenderer.invoke("scraper:run", sport, matchId, teamA, teamB, scraperOrder, matchUrl),
   triggerSchedulerTask: (taskId) => ipcRenderer.invoke("scheduler:trigger-task", taskId),
   toggleSchedulerTask: (taskId) => ipcRenderer.invoke("scheduler:toggle-task", taskId),
   updateSchedulerTask: (taskId, config) => ipcRenderer.invoke("scheduler:update-task", taskId, config),
