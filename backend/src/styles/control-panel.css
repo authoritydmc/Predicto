@@ -612,6 +612,37 @@ input[type=range]::-webkit-slider-thumb {
   display: block;
 }
 
+/* ─── Action Feedback Animations ──────────────────────────────────────────────── */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.action-feedback {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.action-feedback.hiding {
+  animation: slideOutRight 0.3s ease-out;
+}
+
 /* ─── Responsive Improvements ─────────────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .cp-shell {

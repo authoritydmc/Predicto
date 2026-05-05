@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Toggle } from '../ui/Toggle';
 import { SetupGuideViewer } from '../components/Notifications/SetupGuideViewer';
 import { 
   db, isFirebaseConfigured, onValue, query, ref, schemaRef, update, set,
@@ -16,7 +15,7 @@ import {
 } from '../firebase/db';
 import { getAudienceUrl } from '../utils/shared';
 import { getTeamLogoUrl } from '../utils/teamLogos';
-import initLogger from '../utils/logger';
+import initLogger, { logAction, logFirebaseCall, logError } from '../utils/logger';
 import { CricketMatchDetails } from '../components/sports/CricketMatchDetails';
 import { FootballMatchDetails } from '../components/sports/FootballMatchDetails';
 import { CricketLiveScore } from '../components/sports/CricketLiveScore';
@@ -439,6 +438,96 @@ const ControlPanel: React.FC = () => {
   const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [userSearchError, setUserSearchError] = useState('');
   const [showUserManagement, setShowUserManagement] = useState(false);
+
+  // ── Action Feedback State
+  const [actionFeedback, setActionFeedback] = useState<{
+    type: 'success' | 'error' | 'warning' | 'info' | null;
+    message: string;
+    details?: string;
+    timestamp?: number;
+  }>({ type: null, message: '' });
+  const [showActionLog, setShowActionLog] = useState(false);
+  const [actionHistory, setActionHistory] = useState<{
+    action: string;
+    timestamp: number;
+    success: boolean;
+    details?: string;
+    firebaseCalls?: string[];
+  }[]>([]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Action Feedback & Logging Helpers
+  // ─────────────────────────────────────────────────────────────────────────────
+  const showFeedback = useCallback((type: 'success' | 'error' | 'warning' | 'info', message: string, details?: string) => {
+    setActionFeedback({ type, message, details, timestamp: Date.now() });
+    
+    // Auto-hide success messages after 5 seconds
+    if (type === 'success') {
+      setTimeout(() => {
+        setActionFeedback(prev => prev.type === 'success' ? { type: null, message: '' } : prev);
+      }, 5000);
+    }
+    
+    // Log the action
+    logAction(`[ControlPanel] ${type.toUpperCase()}: ${message}`, { details });
+  }, []);
+
+  const logActionWithFirebase = useCallback((actionName: string, firebaseCalls: string[], success: boolean, details?: string) => {
+    const logEntry = {
+      action: actionName,
+      timestamp: Date.now(),
+      success,
+      details,
+      firebaseCalls
+    };
+    
+    setActionHistory(prev => [logEntry, ...prev.slice(0, 99)]); // Keep last 100 actions
+    
+    // Log each Firebase call
+    firebaseCalls.forEach(call => {
+      logFirebaseCall(`[ControlPanel] ${actionName} - ${call}`);
+    });
+    
+    // Log overall action
+    logAction(`[ControlPanel] ${actionName}`, { success, details, firebaseCallCount: firebaseCalls.length });
+  }, []);
+
+  const executeWithLogging = useCallback(async (
+    actionName: string,
+    firebaseOperations: Promise<any>[],
+    operation: () => Promise<any>,
+    successMessage: string,
+    errorMessage: string
+  ): Promise<any> => {
+    const startTime = Date.now();
+    const firebaseCallNames: string[] = [];
+    
+    try {
+      showFeedback('info', `Starting ${actionName}...`, 'Executing operation...');
+      
+      // Track Firebase operations
+      firebaseOperations.forEach((op: any, index: number) => {
+        firebaseCallNames.push(`Firebase Operation ${index + 1}`);
+      });
+      
+      const result = await operation();
+      const duration = Date.now() - startTime;
+      
+      showFeedback('success', successMessage, `Completed in ${duration}ms`);
+      logActionWithFirebase(actionName, firebaseCallNames, true, `Duration: ${duration}ms`);
+      
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorDetails = error instanceof Error ? error.message : 'Unknown error';
+      
+      showFeedback('error', errorMessage, errorDetails);
+      logActionWithFirebase(actionName, firebaseCallNames, false, `Error: ${errorDetails}, Duration: ${duration}ms`);
+      logError(`[ControlPanel] ${actionName} failed:`, error);
+      
+      return null;
+    }
+  }, [showFeedback, logActionWithFirebase]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Init
@@ -1226,13 +1315,13 @@ const ControlPanel: React.FC = () => {
     if (!file) return;
     
     if (!tournamentId) {
-      alert('Please select a tournament first before uploading a schedule');
+      showFeedback('error', 'Please select a tournament first before uploading a schedule', 'Tournament selection is required');
       e.target.value = '';
       return;
     }
     
     if (!fSport) {
-      alert('Please select a sport first before uploading a schedule');
+      showFeedback('error', 'Please select a sport first before uploading a schedule', 'Sport selection is required');
       e.target.value = '';
       return;
     }
@@ -1240,54 +1329,60 @@ const ControlPanel: React.FC = () => {
     setCsvFile(file);
     setUploadingSchedule(true);
     
-    try {
-      const text = await file.text();
-      console.log('CSV Content:', text.substring(0, 500));
-      
-      const parsedSchedule = parseCSV(text);
-      console.log('Parsed Schedule:', parsedSchedule);
-      
-      if (parsedSchedule.length === 0) {
-        alert('No matches found in CSV file. Please check the format.\n\nExpected CSV format:\nteamA,teamB,date,venue,matchTitle\nCSK,MI,2024-03-15,Mumbai,CSK vs MI');
-        return;
-      }
-      
-      // Validate and transform schedule
-      const transformedSchedule = parsedSchedule.map((match: any) => {
-        // Handle different CSV formats
-        const teamA = match.teama || match.team_a || match['home team'] || match['Home Team'];
-        const teamB = match.teamb || match.team_b || match['away team'] || match['Away Team'];
-        const date = match.date || match['Date'];
-        const venue = match.venue || match['Venue'] || match['Start Time'] || '';
-        const matchTitle = match.matchtitle || match.match_title || match['room name'] || match['Room Name'] || `${teamA} vs ${teamB}`;
+    const firebaseOperations = [
+      saveTournamentSchedule(fSport, tournamentId, [])
+    ];
+    
+    return await executeWithLogging(
+      'Upload CSV Schedule',
+      firebaseOperations,
+      async () => {
+        const text = await file.text();
+        console.log('CSV Content:', text.substring(0, 500));
         
-        return {
-          matchId: generateMatchId(teamA, teamB, date ? new Date(date) : undefined),
-          teamA,
-          teamB,
-          date,
-          venue,
-          matchTitle,
-          status: 'scheduled'
-        };
-      });
-      
-      console.log('Transformed Schedule:', transformedSchedule);
-      
-      setSchedule(transformedSchedule);
-      setEditingSchedule(transformedSchedule);
-      
-      // Auto-save to Firebase
-      await saveTournamentSchedule(fSport, tournamentId, transformedSchedule);
-      
-      alert(`Successfully parsed and saved ${transformedSchedule.length} matches from CSV`);
-    } catch (err) {
-      console.error('CSV Upload Error:', err);
-      alert('Error parsing CSV file: ' + (err as Error).message);
-    } finally {
+        const parsedSchedule = parseCSV(text);
+        console.log('Parsed Schedule:', parsedSchedule);
+        
+        if (parsedSchedule.length === 0) {
+          throw new Error('No matches found in CSV file. Please check the format.\n\nExpected CSV format:\nteamA,teamB,date,venue,matchTitle\nCSK,MI,2024-03-15,Mumbai,CSK vs MI');
+        }
+        
+        // Validate and transform schedule
+        const transformedSchedule = parsedSchedule.map((match: any) => {
+          // Handle different CSV formats
+          const teamA = match.teama || match.team_a || match['home team'] || match['Home Team'];
+          const teamB = match.teamb || match.team_b || match['away team'] || match['Away Team'];
+          const date = match.date || match['Date'];
+          const venue = match.venue || match['Venue'] || match['Start Time'] || '';
+          const matchTitle = match.matchtitle || match.match_title || match['room name'] || match['Room Name'] || `${teamA} vs ${teamB}`;
+          
+          return {
+            matchId: generateMatchId(teamA, teamB, date ? new Date(date) : undefined),
+            teamA,
+            teamB,
+            date,
+            venue,
+            matchTitle,
+            status: 'scheduled'
+          };
+        });
+        
+        console.log('Transformed Schedule:', transformedSchedule);
+        
+        setSchedule(transformedSchedule);
+        setEditingSchedule(transformedSchedule);
+        
+        // Auto-save to Firebase
+        await saveTournamentSchedule(fSport, tournamentId, transformedSchedule);
+        
+        return { matchesProcessed: transformedSchedule.length };
+      },
+      `Successfully parsed and saved matches from CSV`,
+      'Error parsing CSV file'
+    ).finally(() => {
       setUploadingSchedule(false);
       e.target.value = '';
-    }
+    });
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1298,14 +1393,14 @@ const ControlPanel: React.FC = () => {
     
     // Validate tournament selection
     if (!tournamentId) {
-      alert('Please select a valid tournament first before creating a match');
+      showFeedback('error', 'Please select a valid tournament first before creating a match', 'Tournament selection is required');
       return;
     }
     
     // Validate tournament exists in available tournaments
     const tournamentExists = availableTournaments.some(t => t.tournamentId === tournamentId);
     if (!tournamentExists) {
-      alert('Invalid tournament selected. Please select a valid tournament from the list.');
+      showFeedback('error', 'Invalid tournament selected. Please select a valid tournament from the list.', 'Tournament validation failed');
       return;
     }
     
@@ -1313,58 +1408,70 @@ const ControlPanel: React.FC = () => {
     const mId = mCode;
     const tId = tournamentId;
     
-    try {
-      // 1. Set match discovery
-      await setMatchDiscovery(mCode, fSport, tournamentId, mCode);
-      
-      // 2. Save match meta
-      if (isFirebaseConfigured && db) {
-        const metaUpdate: any = {
-          matchTitle: fMatchTitle,
-          teamA: fTeamA,
-          teamB: fTeamB,
-          allowReprediction: fAllowReprediction,
-          automationPaused: fAutomationPaused,
-          status: fMatchStatus,
-          predictionsEnabled: fPredictionsEnabled,
-          predictionsPaused: fPredictionsPaused,
-          pauseReason: fPauseReason,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
+    const firebaseOperations = [
+      setMatchDiscovery(mCode, fSport, tournamentId, mCode),
+      update(matchMetaRef(fSport, tournamentId, mCode), {})
+    ];
+    
+    return await executeWithLogging(
+      `Create Match: ${fMatchTitle || `${fTeamA} vs ${fTeamB}`}`,
+      firebaseOperations,
+      async () => {
+        // 1. Set match discovery
+        await setMatchDiscovery(mCode, fSport, tournamentId, mCode);
         
-        // Only set batting-related fields when match is live (not scheduled)
-        if (fMatchStatus === 'live') {
-          metaUpdate.battingTeam = fBattingTeam;
-          metaUpdate.innings = fInnings;
-          metaUpdate.disableScoreA = fBattingTeam === 'teamB';
-          metaUpdate.disableScoreB = fBattingTeam === 'teamA';
-          metaUpdate.secondInnings = fInnings === '2';
-          // Remove autoMarked fields when status is manually set to live
-          metaUpdate.autoMarked = false;
-          metaUpdate.autoMarkReason = null;
-          metaUpdate.endedAt = null;
+        // 2. Save match meta
+        if (isFirebaseConfigured && db) {
+          const metaUpdate: any = {
+            matchTitle: fMatchTitle,
+            teamA: fTeamA,
+            teamB: fTeamB,
+            allowReprediction: fAllowReprediction,
+            automationPaused: fAutomationPaused,
+            status: fMatchStatus,
+            predictionsEnabled: fPredictionsEnabled,
+            predictionsPaused: fPredictionsPaused,
+            pauseReason: fPauseReason,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          
+          // Only set batting-related fields when match is live (not scheduled)
+          if (fMatchStatus === 'live') {
+            metaUpdate.battingTeam = fBattingTeam;
+            metaUpdate.innings = fInnings;
+            metaUpdate.disableScoreA = fBattingTeam === 'teamB';
+            metaUpdate.disableScoreB = fBattingTeam === 'teamA';
+            metaUpdate.secondInnings = fInnings === '2';
+            // Remove autoMarked fields when status is manually set to live
+            metaUpdate.autoMarked = false;
+            metaUpdate.autoMarkReason = null;
+            metaUpdate.endedAt = null;
+          }
+          
+          await update(matchMetaRef(fSport, tournamentId, mCode), metaUpdate);
         }
         
-        await update(matchMetaRef(fSport, tournamentId, mCode), metaUpdate);
-      }
-      
-      // 3. Update local settings
-      // @ts-ignore
-      const nextS = await window.overlayDesktop.updateSettings({ 
-        sport: fSport, 
-        tournamentId: tId,
-        matchId: mId,
-        opacity 
-      });
-      setSettings(nextS);
-      setMatchId(mId);
-      
-      subscribeToMeta(fSport, tId, mId);
-      // @ts-ignore
-      await window.overlayDesktop.reloadOverlay();
-      alert(`Match [${fMatchTitle || `${fTeamA} vs ${fTeamB}`}] created with code: ${mId}`);
-    } catch (err) { console.error(err); }
+        // 3. Update local settings
+        // @ts-ignore
+        const nextS = await window.overlayDesktop.updateSettings({ 
+          sport: fSport, 
+          tournamentId: tId,
+          matchId: mId,
+          opacity 
+        });
+        setSettings(nextS);
+        setMatchId(mId);
+        
+        subscribeToMeta(fSport, tId, mId);
+        // @ts-ignore
+        await window.overlayDesktop.reloadOverlay();
+        
+        return { matchId: mId, matchTitle: fMatchTitle || `${fTeamA} vs ${fTeamB}` };
+      },
+      `Match [${fMatchTitle || `${fTeamA} vs ${fTeamB}`}] created with code: ${mId}`,
+      'Failed to create match'
+    );
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1372,103 +1479,111 @@ const ControlPanel: React.FC = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   const handleUpdateLiveScore = async () => {
     if (!isFirebaseConfigured || !db || !matchId || !tournamentId) {
-      alert('Please select a match first');
+      showFeedback('error', 'Please select a match first', 'Match selection required');
       return;
     }
 
-    try {
-      const scoreData: any = {
-        matchStatus: scoreMatchStatus,
-        source: scoreSource,
-        lastUpdated: Date.now()
-      };
+    const firebaseOperations = [
+      set(matchLiveScoreRef(fSport, tournamentId, matchId), {}),
+      update(matchMetaRef(fSport, tournamentId, matchId), {})
+    ];
 
-      if (fSport === 'cricket') {
-        scoreData.teamA = {
-          runs: parseInt(scoreTeamARuns) || 0,
-          wickets: parseInt(scoreTeamAWickets) || 0,
-          overs: parseFloat(scoreTeamAOvers) || 0,
-          battingTeam: true
+    return await executeWithLogging(
+      'Update Live Score',
+      firebaseOperations,
+      async () => {
+        const scoreData: any = {
+          matchStatus: scoreMatchStatus,
+          source: scoreSource,
+          lastUpdated: Date.now()
         };
-        scoreData.teamB = {
-          runs: parseInt(scoreTeamBRuns) || 0,
-          wickets: parseInt(scoreTeamBWickets) || 0,
-          overs: parseFloat(scoreTeamBOvers) || 0,
-          battingTeam: false
-        };
-        scoreData.currentInnings = fInnings === '2' ? 2 : 1;
-        
-        // Set secondInningsStart if transitioning to 2nd innings
-        if (fInnings === '2' && (!liveScore || liveScore.currentInnings !== 2)) {
-          scoreData.secondInningsStart = Date.now();
-        }
-        
-        // Calculate battingFirst
-        let battingFirst: string | null = null;
-        if (fInnings === '2' && meta.innings !== '2') {
-          // When moving to 2nd innings, the team that was batting first is now known
-          // It's the opposite of the current batting team
-          battingFirst = fBattingTeam === 'teamA' ? 'teamB' : 'teamA';
-        } else if (fInnings === '1' && !meta.battingFirst) {
-          // In 1st innings, the current batting team is batting first
-          battingFirst = fBattingTeam;
-        } else {
-          // Use existing value from meta
-          battingFirst = meta.battingFirst || null;
-        }
-        
-        // Store batting information in live score as well
-        scoreData.currentInnings = Number(fInnings);
-        scoreData.battingTeam = fBattingTeam;
-        if (battingFirst) {
-          scoreData.battingFirst = battingFirst;
-        }
-        
-        // Update match meta with batting team info and toss information
-        const metaUpdate: any = {
-          disableScoreA: fBattingTeam === 'teamB',
-          disableScoreB: fBattingTeam === 'teamA',
-          innings: fInnings,
-          battingTeam: fBattingTeam,
-          secondInnings: fInnings === '2'
-        };
-        
-        // Store battingFirst explicitly
-        if (battingFirst) {
-          metaUpdate.battingFirst = battingFirst;
-        }
-        
-        // Add toss information if provided
-        if (fTossWinner) {
-          metaUpdate.tossWinner = fTossWinner;
-        }
-        if (fTossDecision) {
-          metaUpdate.tossDecision = fTossDecision;
-        }
-        
-        // Remove autoMarked fields when updating live score (match is active)
-        metaUpdate.autoMarked = false;
-        metaUpdate.autoMarkReason = null;
-        metaUpdate.endedAt = null;
-        
-        await update(matchMetaRef(fSport, tournamentId, matchId), metaUpdate);
-      } else if (fSport === 'football') {
-        scoreData.teamA = {
-          goals: parseInt(scoreTeamARuns) || 0,
-          battingTeam: false
-        };
-        scoreData.teamB = {
-          goals: parseInt(scoreTeamBRuns) || 0,
-          battingTeam: true
-        };
-      }
 
-      await set(matchLiveScoreRef(fSport, tournamentId, matchId), scoreData);
-      alert('Live score updated successfully');
-    } catch (err) {
-      console.error(err);
-      alert('Error updating live score');
-    }
+        if (fSport === 'cricket') {
+          scoreData.teamA = {
+            runs: parseInt(scoreTeamARuns) || 0,
+            wickets: parseInt(scoreTeamAWickets) || 0,
+            overs: parseFloat(scoreTeamAOvers) || 0,
+            battingTeam: true
+          };
+          scoreData.teamB = {
+            runs: parseInt(scoreTeamBRuns) || 0,
+            wickets: parseInt(scoreTeamBWickets) || 0,
+            overs: parseFloat(scoreTeamBOvers) || 0,
+            battingTeam: false
+          };
+          scoreData.currentInnings = fInnings === '2' ? 2 : 1;
+          
+          // Set secondInningsStart if transitioning to 2nd innings
+          if (fInnings === '2' && (!liveScore || liveScore.currentInnings !== 2)) {
+            scoreData.secondInningsStart = Date.now();
+          }
+          
+          // Calculate battingFirst
+          let battingFirst: string | null = null;
+          if (fInnings === '2' && meta.innings !== '2') {
+            // When moving to 2nd innings, the team that was batting first is now known
+            // It's the opposite of the current batting team
+            battingFirst = fBattingTeam === 'teamA' ? 'teamB' : 'teamA';
+          } else if (fInnings === '1' && !meta.battingFirst) {
+            // In 1st innings, the current batting team is batting first
+            battingFirst = fBattingTeam;
+          } else {
+            // Use existing value from meta
+            battingFirst = meta.battingFirst || null;
+          }
+          
+          // Store batting information in live score as well
+          scoreData.currentInnings = Number(fInnings);
+          scoreData.battingTeam = fBattingTeam;
+          if (battingFirst) {
+            scoreData.battingFirst = battingFirst;
+          }
+          
+          // Update match meta with batting team info and toss information
+          const metaUpdate: any = {
+            disableScoreA: fBattingTeam === 'teamB',
+            disableScoreB: fBattingTeam === 'teamA',
+            innings: fInnings,
+            battingTeam: fBattingTeam,
+            secondInnings: fInnings === '2'
+          };
+          
+          // Store battingFirst explicitly
+          if (battingFirst) {
+            metaUpdate.battingFirst = battingFirst;
+          }
+          
+          // Add toss information if provided
+          if (fTossWinner) {
+            metaUpdate.tossWinner = fTossWinner;
+          }
+          if (fTossDecision) {
+            metaUpdate.tossDecision = fTossDecision;
+          }
+          
+          // Remove autoMarked fields when updating live score (match is active)
+          metaUpdate.autoMarked = false;
+          metaUpdate.autoMarkReason = null;
+          metaUpdate.endedAt = null;
+          
+          await update(matchMetaRef(fSport, tournamentId, matchId), metaUpdate);
+        } else if (fSport === 'football') {
+          scoreData.teamA = {
+            goals: parseInt(scoreTeamARuns) || 0,
+            battingTeam: false
+          };
+          scoreData.teamB = {
+            goals: parseInt(scoreTeamBRuns) || 0,
+            battingTeam: true
+          };
+        }
+
+        await set(matchLiveScoreRef(fSport, tournamentId, matchId), scoreData);
+        return { success: true, scoreData };
+      },
+      'Live score updated successfully',
+      'Error updating live score'
+    );
   };
 
   const handleRunScraper = async () => {
@@ -2131,6 +2246,129 @@ const ControlPanel: React.FC = () => {
     <div className="cp-shell">
       <div className="ambient ambient-left"></div>
       <div className="ambient ambient-right"></div>
+      
+      {/* ── Action Feedback Component ── */}
+      {actionFeedback.type && (
+        <div 
+          className={`action-feedback ${actionFeedback.type}`}
+          style={{
+            position: 'fixed',
+            top: 20,
+            right: 20,
+            zIndex: 9999,
+            padding: '12px 16px',
+            borderRadius: '8px',
+            background: actionFeedback.type === 'success' ? 'var(--system-green)' : 
+                        actionFeedback.type === 'error' ? 'var(--system-red)' : 
+                        actionFeedback.type === 'warning' ? '#ff9f0a' : 
+                        'var(--system-blue)',
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: '600',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            maxWidth: '300px',
+            animation: 'slideInRight 0.3s ease-out'
+          }}
+        >
+          <div style={{ fontWeight: '700', marginBottom: '4px' }}>
+            {actionFeedback.type === 'success' ? '✓ Success' : 
+             actionFeedback.type === 'error' ? '✗ Error' : 
+             actionFeedback.type === 'warning' ? '⚠ Warning' : 
+             'ℹ Info'}
+          </div>
+          <div>{actionFeedback.message}</div>
+          {actionFeedback.details && (
+            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '4px' }}>
+              {actionFeedback.details}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* ── Action Log Toggle (for debugging) ── */}
+      <div 
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          zIndex: 9998
+        }}
+      >
+        <button
+          onClick={() => setShowActionLog(!showActionLog)}
+          style={{
+            padding: '8px 12px',
+            borderRadius: '6px',
+            background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            color: 'white',
+            fontSize: '12px',
+            cursor: 'pointer',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          {showActionLog ? 'Hide' : 'Show'} Action Log ({actionHistory.length})
+        </button>
+      </div>
+      
+      {/* ── Action Log Panel ── */}
+      {showActionLog && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 80,
+            right: 20,
+            width: '400px',
+            height: '300px',
+            background: 'rgba(5, 7, 10, 0.95)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '8px',
+            zIndex: 9997,
+            padding: '16px',
+            overflow: 'auto',
+            backdropFilter: 'blur(20px)'
+          }}
+        >
+          <div style={{ fontWeight: '700', marginBottom: '12px', color: 'white' }}>
+            Action History (Last 100)
+          </div>
+          {actionHistory.length === 0 ? (
+            <div style={{ color: 'var(--muted)', fontSize: '12px' }}>No actions logged yet</div>
+          ) : (
+            actionHistory.map((entry, index) => (
+              <div 
+                key={index} 
+                style={{
+                  marginBottom: '8px',
+                  padding: '8px',
+                  background: entry.success ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)',
+                  border: `1px solid ${entry.success ? 'rgba(52, 199, 89, 0.3)' : 'rgba(255, 59, 48, 0.3)'}`,
+                  borderRadius: '4px',
+                  fontSize: '11px'
+                }}
+              >
+                <div style={{ 
+                  fontWeight: '600', 
+                  color: entry.success ? 'var(--system-green)' : 'var(--system-red)',
+                  marginBottom: '2px'
+                }}>
+                  {entry.success ? '✓' : '✗'} {entry.action}
+                </div>
+                <div style={{ color: 'var(--muted)', fontSize: '10px' }}>
+                  {new Date(entry.timestamp).toLocaleTimeString()}
+                  {entry.details && ` • ${entry.details}`}
+                </div>
+                {entry.firebaseCalls && entry.firebaseCalls.length > 0 && (
+                  <div style={{ color: 'var(--system-blue)', fontSize: '10px', marginTop: '2px' }}>
+                    Firebase calls: {entry.firebaseCalls.length}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      
       {/* ── Header ── */}
       <header className="cp-header">
         <div className="cp-header-main">
@@ -2231,6 +2469,17 @@ const ControlPanel: React.FC = () => {
             </span>
           </div>
           <div className="cp-glass-card" style={{ display: collapsedSections.tournament ? 'none' : 'block' }}>
+            <div style={{ 
+              padding: '12px 16px', 
+              background: 'rgba(99, 102, 241, 0.1)', 
+              borderRadius: '8px', 
+              border: '1px solid rgba(99, 102, 241, 0.2)', 
+              marginBottom: '16px',
+              fontSize: '12px',
+              color: 'var(--muted)'
+            }}>
+              <strong>🏆 What this section does:</strong> Create tournaments, upload match schedules via CSV, and manage tournament status. Changes here update the tournament database and affect all associated matches.
+            </div>
             {/* Sport Selection */}
             <div className="cp-form-row">
               <label>Sport Type *</label>
@@ -2489,6 +2738,17 @@ const ControlPanel: React.FC = () => {
             </span>
           </div>
           <div className="cp-glass-card" style={{ display: collapsedSections.match ? 'none' : 'block' }}>
+            <div style={{ 
+              padding: '12px 16px', 
+              background: 'rgba(52, 199, 89, 0.1)', 
+              borderRadius: '8px', 
+              border: '1px solid rgba(52, 199, 89, 0.2)', 
+              marginBottom: '16px',
+              fontSize: '12px',
+              color: 'var(--muted)'
+            }}>
+              <strong>⚽ What this section does:</strong> Create individual matches, set match details, configure prediction settings, and manage live scores. Updates here affect the current match only.
+            </div>
             {/* Tournament Selection Warning */}
             {!tournamentId && (
               <div style={{ padding: '16px', background: 'rgba(255, 159, 10, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 159, 10, 0.3)', marginBottom: '16px' }}>

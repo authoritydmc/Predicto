@@ -75,4 +75,17 @@ const initLogger = (windowName: string) => {
    };
 };
 
+// Enhanced logging functions for action tracking
+export const logAction = (message: string, data?: any) => {
+   console.log('[ACTION]', message, data ? JSON.stringify(data) : '');
+};
+
+export const logFirebaseCall = (message: string) => {
+   console.log('[FIREBASE]', message);
+};
+
+export const logError = (message: string, error?: any) => {
+   console.error('[ERROR]', message, error);
+};
+
 export default initLogger;
