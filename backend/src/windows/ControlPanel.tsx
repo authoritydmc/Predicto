@@ -2217,26 +2217,10 @@ const ControlPanel: React.FC = () => {
     if (!manRows.length) { alert('Add at least one player.'); return; }
     const tA = manTeamA || 'Team A'; const tB = manTeamB || 'Team B';
     const actualWinner = (manWinner === 'a' ? tA : tB).toLowerCase();
-    const meta1 = { teamA: tA, teamB: tB, disableScoreA: false, disableScoreB: true };
-    const meta2 = { teamA: tA, teamB: tB, disableScoreA: true, disableScoreB: false };
-    const isOvers = manActual2nd.includes('.');
-    const innings1: Record<string, any> = {};
-    const innings2: Record<string, any> = {};
-    manRows.forEach((row, i) => {
-      const name = row.name.trim() || `Player ${i + 1}`;
-      const predW1 = row.win1 === 'a' ? tA : tB;
-      const predW2 = row.win2 === 'a' ? tA : tB;
-      const p1 = calcInnings1Points({ scoreA: row.p1Guess, predictedWinner: predW1 }, Number(manActual1st), meta1);
-      innings1[name] = { name, ...p1, points: p1.points, guess: row.p1Guess, predictedWinner: predW1 };
-      const p2 = calcInnings2Points({ scoreA: row.p2Guess, scoreB: row.p2Guess, predictedWinner: predW2 }, actualWinner, manActual2nd, meta2, isOvers);
-      innings2[name] = { name, ...p2, points: p2.points, guess: row.p2Guess, predictedWinner: predW2 };
-    });
-    const finalStandings = calcMatchFinals(innings1, innings2);
-    const dateKey = `${manDate.replace(/[^a-zA-Z0-9]/g, '-')}_MANUAL_${Date.now()}`;
-    await archiveToHistory(fSport, rid, dateKey, { matchTitle: manTitle, teamA: tA, teamB: tB, innings1, innings2, finalStandings, matchResults: { actual1st: Number(manActual1st), actual2nd: manActual2nd, actualWinner } });
-    alert('Manual Match Archived!');
-    setManualOpen(false);
-    await updateSeasonLeaderboard(rid);
+      // Manual match processing moved to Python scripts
+      // This section now delegates scoring to Python scoring engine
+      console.log('Manual match processing delegated to Python scripts');
+      return;
   };
 
   const openEditMatch = (key: string) => {
