@@ -99,11 +99,12 @@ class EnhancedAutomationSystem:
                 result = self.orchestrator.get_job_history(task_id, limit)
             
             if result:
+                import time as _time
                 # Send response back via WebSocket
                 response = {
                     'type': f'{message_type}_response',
                     'data': result,
-                    'timestamp': int(time.time() * 1000)
+                    'timestamp': int(_time.time() * 1000)
                 }
                 # Using broadcast for response for now, or could add send_to_client
                 self.logger.broadcast('enhanced_automation', json.dumps(response))
