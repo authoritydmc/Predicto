@@ -306,7 +306,7 @@ const ControlPanel: React.FC = () => {
   const [scoreTeamBWickets, setScoreTeamBWickets] = useState('');
   const [scoreTeamBOvers, setScoreTeamBOvers] = useState('');
   const [scoreMatchStatus, setScoreMatchStatus] = useState<'live' | 'completed' | 'scheduled'>('live');
-  const [scoreSource, setScoreSource] = useState<'manual' | 'scraper' | 'api' | 'prediction'>('manual');
+  const [scoreSource, setScoreSource] = useState<'manual' | 'scraper'>('manual');
   const [scraperRunning, setScraperRunning] = useState(false);
   const [scraperStatus, setScraperStatus] = useState('');
   const [scraperOrder, setScraperOrder] = useState('cricbuzz,google,cricapi');

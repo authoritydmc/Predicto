@@ -177,6 +177,11 @@ class CricbuzzScraper(BaseCricketScraper):
             match_cards = match_links
             debug(f"[Cricbuzz] Found {len(match_links)} match links")
         
+        if not match_cards:
+            warn(f"[Cricbuzz] No match cards or links found on live scores page. Site layout might have changed.")
+            # Log some of the page content for debugging
+            debug(f"[Cricbuzz] Page snippet: {str(soup)[:500]}...")
+        
         # Search for matching teams
         for card in match_cards:
             team_names = self._extract_teams_from_card(card)

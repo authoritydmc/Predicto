@@ -22,11 +22,12 @@ VERBOSE = True
 
 
 def logger(msg: str, level: str = "INFO"):
-    """Print log message with timestamp"""
+    """Print log message with timestamp to stderr"""
     if VERBOSE or level in ["ERROR", "WARN"]:
         timestamp = datetime.now().strftime("%H:%M:%S")
-        output = sys.stderr if level == "ERROR" else sys.stdout
-        print(f"[{timestamp}] [{level}] {msg}", file=output)
+        # Always use stderr for logs to keep stdout clean for JSON data
+        print(f"[{timestamp}] [{level}] {msg}", file=sys.stderr)
+        sys.stderr.flush()
 
 
 def debug(msg: str):
@@ -137,7 +138,8 @@ class BaseScraper(ABC):
         except Exception as e:
             self.error(f"Unexpected error fetching page: {e}")
             import traceback
-            self.debug(traceback.format_exc())
+            # Always print traceback to stderr for unexpected errors
+            print(traceback.format_exc(), file=sys.stderr)
             return None
     
     def fetch_json(self, url: str, headers: Optional[Dict] = None) -> Optional[Dict]:

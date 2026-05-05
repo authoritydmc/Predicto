@@ -16,7 +16,6 @@ interface CricketPredictionProps {
   predictionsPaused: boolean;
   pauseReason: string;
   disableReason: string;
-  targetScore: number | null;
   allowReprediction: boolean;
   hasPredicted: boolean;
   previousPrediction: any;
@@ -133,34 +132,10 @@ export default function CricketPrediction({
       winnerTeam: winnerTeam === 'teamA' ? teamA : teamB,
       runs
     };
-    console.log('[CricketPrediction] Submitting prediction data:', data);
     onSubmit(e, data);
   };
 
-  console.log('[CricketPrediction] Render state:', {
-    isMatchCompleted,
-    predictionsEnabled,
-    predictionsPaused,
-    matchStatus,
-    battingFirst,
-    currentInnings,
-    targetScore
-  });
   
-  // Debug live prediction panel conditions
-  const livePredictionConditions = {
-    notCompleted: !isMatchCompleted,
-    enabled: predictionsEnabled,
-    notPaused: !predictionsPaused,
-    isLive: matchStatus === 'live',
-    hasBattingFirst: !!battingFirst,
-    isFirstInnings: currentInnings === 1
-  };
-  console.log('[CricketPrediction] Live prediction conditions:', livePredictionConditions);
-  console.log('[CricketPrediction] Should show live panel:', 
-    Object.values(livePredictionConditions).every(Boolean)
-  );
-
   const handleSecondInningsPrediction = (e: FormEvent) => {
     e.preventDefault();
     console.log('[CricketPrediction] handleSecondInningsPrediction called', { 

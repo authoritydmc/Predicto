@@ -6,6 +6,7 @@ Tries scrapers in order until one succeeds.
 """
 
 import json
+import time
 from typing import Optional, List, Dict, Any
 from .factory import ScraperFactory
 from .base import logger, info, warn, error, debug
@@ -98,10 +99,11 @@ class ScraperManager:
                 scraper = ScraperFactory.create(sport, source, api_key=api_key)
                 
                 if not scraper:
-                    warn(f"[ScraperManager] Failed to create {source} scraper")
+                    warn(f"[ScraperManager] Failed to create {source} scraper instance")
                     continue
                 
                 # Get score
+                info(f"[ScraperManager] [{source}] Starting fetch...")
                 result = scraper.get_score(
                     team_a=team_a,
                     team_b=team_b,
@@ -112,18 +114,20 @@ class ScraperManager:
                     # Add metadata
                     result['_source'] = source
                     result['_sport'] = sport
-                    info(f"[ScraperManager] [SUCCESS] Score from {source}")
+                    result['_timestamp'] = int(time.time() * 1000)
+                    info(f"[ScraperManager] [SUCCESS] Score obtained from {source}")
                     return result
                 else:
-                    warn(f"[ScraperManager] {source} returned no data")
+                    warn(f"[ScraperManager] [{source}] Returned no data (match might not be live or teams didn't match)")
                 
             except Exception as e:
-                error(f"[ScraperManager] Error with {source}: {e}")
+                error(f"[ScraperManager] CRITICAL ERROR with {source}: {str(e)}")
                 import traceback
-                debug(traceback.format_exc())
+                # Log traceback to stderr as well for better debugging
+                print(traceback.format_exc(), file=sys.stderr)
                 continue
         
-        error(f"[ScraperManager] All scrapers failed for {sport}")
+        error(f"[ScraperManager] All {len(available_order)} scrapers failed for {sport}")
         return None
     
     def get_cricket_score(self, team_a: str, team_b: str, 
