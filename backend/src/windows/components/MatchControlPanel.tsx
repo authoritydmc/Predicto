@@ -900,7 +900,11 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
               <input
                 type="checkbox"
                 checked={props.fPredictionsPaused}
-                onChange={(e) => props.onTogglePause(e.target.checked)}
+                onChange={(e) => {
+                  console.log('[MatchControlPanel] Pause checkbox clicked:', e.target.checked);
+                  console.log('[MatchControlPanel] Current fPredictionsPaused:', props.fPredictionsPaused);
+                  props.onTogglePause(e.target.checked);
+                }}
                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
             </label>
@@ -913,20 +917,39 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
                 <input
                   type="text"
                   value={props.fPauseReason}
-                  onChange={(e) => props.onUpdatePauseReason(e.target.value)}
-                  placeholder="e.g., Match delayed due to rain"
+                  readOnly
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255,159,10,0.3)',
-                    background: 'rgba(255,159,10,0.05)',
-                    color: '#fff',
-                    fontSize: '13px',
+                    padding: '8px',
+                    backgroundColor: 'var(--input-bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                    color: 'var(--muted)',
+                    fontSize: '11px'
                   }}
                 />
               </div>
             )}
+            
+            {/* Debug Test Button */}
+            <button
+              onClick={() => {
+                console.log('[MatchControlPanel] Test dialog button clicked');
+                props.onTogglePause(true);
+              }}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#ff0000',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                marginTop: '8px'
+              }}
+            >
+              Test Dialog
+            </button>
             
             <label style={{
               display: 'flex',

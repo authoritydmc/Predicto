@@ -34,6 +34,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
   const [loading, setLoading] = useState(false);
 
   console.log('[PredictionPanel] Component mounted with props:', { sport, id, matchId, clientId });
+  console.log('[PredictionPanel] Initial state:', { matchStatus, predictionsEnabled, predictionsPaused, isMatchCompleted });
 
   // Load match meta to get team names and batting info
   useEffect(() => {

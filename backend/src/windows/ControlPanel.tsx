@@ -503,12 +503,16 @@ const ControlPanel: React.FC = () => {
 
   // ── Handle Pause with Optional Reason Dialog
   const handlePausePredictionsWithReason = async (pause: boolean) => {
+    console.log('[ControlPanel] handlePausePredictionsWithReason called:', { pause, fPredictionsPaused, showPauseReasonDialog });
     if (pause && !fPredictionsPaused) {
       // Only show dialog when pausing (not unpausing)
+      console.log('[ControlPanel] Showing pause dialog...');
       setTempPauseReason(fPauseReason || '');
       setShowPauseReasonDialog(true);
+      console.log('[ControlPanel] Dialog state after setting:', showPauseReasonDialog);
     } else {
       // Unpausing - just update directly
+      console.log('[ControlPanel] Unpausing predictions...');
       await handleTogglePausePredictions(false);
     }
   };
@@ -4434,15 +4438,15 @@ const ControlPanel: React.FC = () => {
       {showPauseReasonDialog && (
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'rgba(0, 0, 0, 0.95)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000
+          zIndex: 99999,
+          padding: '20px'
         }}>
           <div style={{
             backgroundColor: 'var(--panel-bg)',
