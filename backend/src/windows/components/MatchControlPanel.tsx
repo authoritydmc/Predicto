@@ -931,33 +931,6 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
               </div>
             )}
             
-            {showPauseReasonDialog && (
-              <div style={{
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                backgroundColor: 'rgba(0, 0, 0, 0.95)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 99999
-              }}>
-                <div style={{
-                  backgroundColor: 'var(--panel-bg)',
-                  padding: '24px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border)',
-                  minWidth: '400px',
-                  maxWidth: '500px',
-                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
-                  maxHeight: '80vh',
-                  overflowY: 'auto'
-                }}>
-                  {/* Pause Reason Dialog content */}
-                </div>
-              </div>
-            )}
             
             <label style={{
               display: 'flex',
