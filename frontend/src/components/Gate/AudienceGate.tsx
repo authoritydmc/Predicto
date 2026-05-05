@@ -91,7 +91,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
               const metaRef = ref(rtdb, `${dbRoot}/tournaments/${match.sport}/${match.tournamentId}/matches/${match.matchId}/meta`);
               const metaSnap = await get(metaRef);
               const meta = metaSnap.val();
-              if (meta && (meta.status === 'live' || meta.status === 'active')) {
+              if (meta && (meta.status === 'live' || meta.status === 'active' || meta.status === 'scheduled')) {
                 return { ...match, meta };
               }
               return null;
@@ -304,16 +304,29 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
                       </div>
                       <div className="gate-vs-center">
                         <span className="gate-vs-text">VS</span>
-                        {(match.meta.venue || match.meta.startTime) && (
-                          <div className="gate-match-meta">
-                            {match.meta.startTime && (
-                              <span className="gate-match-time">{match.meta.startTime}</span>
+                        <div className="gate-match-meta">
+                          <div className="gate-match-status">
+                            {match.meta.status === 'scheduled' && (
+                              <span className="gate-status-badge gate-status-scheduled">📅 Scheduled</span>
                             )}
-                            {match.meta.venue && (
-                              <span className="gate-match-venue">{match.meta.venue}</span>
+                            {match.meta.status === 'active' && (
+                              <span className="gate-status-badge gate-status-active">⚡ Active</span>
+                            )}
+                            {match.meta.status === 'live' && (
+                              <span className="gate-status-badge gate-status-live">🔴 Live</span>
                             )}
                           </div>
-                        )}
+                          {(match.meta.venue || match.meta.startTime) && (
+                            <div className="gate-match-details">
+                              {match.meta.startTime && (
+                                <span className="gate-match-time">{match.meta.startTime}</span>
+                              )}
+                              {match.meta.venue && (
+                                <span className="gate-match-venue">{match.meta.venue}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <span className="gate-code-text">{match.matchCode}</span>
                       </div>
                       <div className="gate-team-compact">

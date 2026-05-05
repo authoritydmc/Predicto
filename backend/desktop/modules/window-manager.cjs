@@ -80,13 +80,26 @@ const createWindowManager = (config, deps) => {
     broadcastState();
   };
 
+  // ── Update Window Titles ────────────────────────────────────────────────────
+  const updateWindowTitles = (matchInfo) => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.setTitle(`Overlay - ${matchInfo}`);
+    }
+    if (tickerWindow && !tickerWindow.isDestroyed()) {
+      tickerWindow.setTitle(`Ticker - ${matchInfo}`);
+    }
+    if (reactionWindow && !reactionWindow.isDestroyed()) {
+      reactionWindow.setTitle(`Reaction - ${matchInfo}`);
+    }
+  };
+
   // ── Window Creation ─────────────────────────────────────────────────────────
   const ensureOverlayWindow = () => {
     if (overlayWindow && !overlayWindow.isDestroyed()) return overlayWindow;
     const currentMode = global.APP_MODE || settings.firebaseMode || config.APP_MODE;
     overlayWindow = new BrowserWindow({
       ...settings.bounds, show: false, frame: false, transparent: true, hasShadow: false,
-      title: " ", darkTheme: true, roundedCorners: false, autoHideMenuBar: true,
+      title: "Overlay", darkTheme: true, roundedCorners: false, autoHideMenuBar: true,
       resizable: true, movable: true, fullscreenable: false, skipTaskbar: false,
       backgroundColor: "#00000000", webPreferences: commonWebPrefs
     });
@@ -252,6 +265,8 @@ const createWindowManager = (config, deps) => {
     // Window state
     applyOverlayFlags,
     broadcastState,
+    // Window titles
+    updateWindowTitles,
     // Shortcuts
     registerShortcuts,
     unregisterShortcuts,

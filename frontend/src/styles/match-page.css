@@ -21,6 +21,10 @@
   padding: 12px;
   border-radius: 12px;
   overflow: hidden;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
 }
 
 .match-shell-header .audience-header-left,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { update, matchMetaRef } from '../../firebase/db';
 
 interface MatchControlPanelProps {
   // Match Info
@@ -968,7 +969,20 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
                 <button
                   key={status.value}
                   type="button"
-                  onClick={() => props.setFMatchStatus(status.value)}
+                  onClick={async () => {
+                    console.log('[MatchControlPanel] Status change requested:', status.value);
+                    props.setFMatchStatus(status.value);
+                    // Update Firebase immediately
+                    try {
+                      // Use imported functions directly
+                      await update(matchMetaRef(props.fSport, props.tournamentId, props.matchId), { 
+                        status: status.value 
+                      });
+                      console.log('[MatchControlPanel] Status updated in Firebase:', status.value);
+                    } catch (error) {
+                      console.error('[MatchControlPanel] Error updating status in Firebase:', error);
+                    }
+                  }}
                   style={{
                     flex: 1,
                     padding: '12px',

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { applyPenalty } from '../../firebase/services';
 import { CRICKET_PENALTIES } from '../../constants/penalties';
+import EarlyPredictionForm from './EarlyPredictionForm';
 
 interface CricketPredictionProps {
   teamA: string;
@@ -108,18 +109,23 @@ export default function CricketPrediction({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    console.log('[CricketPrediction] handleSubmit called', { winnerTeam, runs, runsError });
     
     if (!winnerTeam) {
+      console.log('[CricketPrediction] No winner selected');
       alert('Please select a winner.');
       return;
     }
     
     if (!runs.trim()) {
+      console.log('[CricketPrediction] No runs entered');
       alert('Please enter predicted runs.');
       return;
     }
-
+    
     if (runsError) {
+      console.log('[CricketPrediction] Runs validation error:', runsError);
+      alert('Invalid runs format. Please enter valid runs.');
       return;
     }
     
@@ -127,6 +133,7 @@ export default function CricketPrediction({
       winnerTeam: winnerTeam === 'teamA' ? teamA : teamB,
       runs
     };
+    console.log('[CricketPrediction] Submitting prediction data:', data);
     onSubmit(e, data);
   };
 
@@ -142,19 +149,28 @@ export default function CricketPrediction({
 
   const handleSecondInningsPrediction = (e: FormEvent) => {
     e.preventDefault();
+    console.log('[CricketPrediction] handleSecondInningsPrediction called', { 
+      secondInningsWinnerTeam, 
+      secondInningsRunsOrOvers, 
+      secondInningsValueError 
+    });
     
     // Validation
     if (!secondInningsWinnerTeam) {
+      console.log('[CricketPrediction] No winner selected for 2nd innings');
       alert('Please select who you think will win.');
       return;
     }
     
     if (!secondInningsRunsOrOvers.trim()) {
-      alert('Please enter the prediction value (runs or overs).');
+      console.log('[CricketPrediction] No prediction value entered for 2nd innings');
+      alert('Please enter prediction value (runs or overs).');
       return;
     }
-
+    
     if (secondInningsValueError) {
+      console.log('[CricketPrediction] 2nd innings validation error:', secondInningsValueError);
+      alert('Invalid prediction format. Please enter valid runs or overs');
       return;
     }
     
@@ -162,6 +178,7 @@ export default function CricketPrediction({
       winnerTeam: secondInningsWinnerTeam === 'teamA' ? teamA : teamB,
       runsOrOvers: secondInningsRunsOrOvers
     };
+    console.log('[CricketPrediction] Submitting 2nd innings prediction data:', data);
     onSubmit(e, data);
   };
 
@@ -183,6 +200,40 @@ export default function CricketPrediction({
         </div>
       )}
 
+      {/* No Prediction Yet Message when Paused/Disabled */}
+      {!isMatchCompleted && !previousPrediction && (!predictionsEnabled || predictionsPaused) && (
+        <div style={{
+          padding: '16px',
+          background: 'rgba(142, 142, 147, 0.05)',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          border: '1px dashed rgba(142, 142, 147, 0.4)',
+          textAlign: 'center'
+        }}>
+          <p style={{ margin: 0, fontSize: '14px', color: 'var(--muted)', fontWeight: 500 }}>
+            📭 You have not submitted a prediction yet.
+          </p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+            Predictions will open again soon.
+          </p>
+        </div>
+      )}
+
+      {/* Scheduled Match - Early Prediction with Both Scenarios */}
+      {!isMatchCompleted && predictionsEnabled && !predictionsPaused && matchStatus === 'scheduled' && (
+        <EarlyPredictionForm
+          teamA={teamA}
+          teamB={teamB}
+          name={name}
+          onNameChange={onNameChange}
+          onSubmit={onSubmit}
+          loading={loading}
+          hasPredicted={hasPredicted}
+          allowReprediction={allowReprediction}
+          previousPrediction={previousPrediction}
+        />
+      )}
+
       {/* Predictions Disabled Message */}
       {!isMatchCompleted && !predictionsEnabled && (
         <div style={{
@@ -196,6 +247,32 @@ export default function CricketPrediction({
           <p style={{ margin: 0, fontSize: '14px', color: '#8e8e93', fontWeight: 600 }}>
             🔒 Predictions are disabled for this match.
           </p>
+          {disableReason && (
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+              {disableReason}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Predictions Paused Message */}
+      {!isMatchCompleted && predictionsEnabled && predictionsPaused && (
+        <div style={{
+          padding: '16px',
+          background: 'rgba(255, 159, 10, 0.1)',
+          borderRadius: '8px',
+          marginBottom: '16px',
+          border: '1px solid rgba(255, 159, 10, 0.3)',
+          textAlign: 'center'
+        }}>
+          <p style={{ margin: 0, fontSize: '14px', color: '#ff9f0a', fontWeight: 600 }}>
+            ⏸️ Predictions are temporarily paused.
+          </p>
+          {pauseReason && (
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+              {pauseReason}
+            </p>
+          )}
           {disableReason && (
             <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
               {disableReason}
@@ -281,107 +358,14 @@ export default function CricketPrediction({
               {pauseReason}
             </p>
           )}
-        </div>
-      )}
-
-      {/* No Prediction Yet Message when Paused/Disabled */}
-      {!isMatchCompleted && !previousPrediction && (!predictionsEnabled || predictionsPaused) && (
-        <div style={{
-          padding: '16px',
-          background: 'rgba(142, 142, 147, 0.05)',
-          borderRadius: '8px',
-          marginBottom: '16px',
-          border: '1px dashed rgba(142, 142, 147, 0.4)',
-          textAlign: 'center'
-        }}>
-          <p style={{ margin: 0, fontSize: '14px', color: 'var(--muted)', fontWeight: 500 }}>
-            📭 You have not submitted a prediction yet.
-          </p>
-          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-            Predictions will open again soon.
-          </p>
-        </div>
-      )}
-
-      {/* Scheduled Match */}
-      {!isMatchCompleted && predictionsEnabled && !predictionsPaused && matchStatus === 'scheduled' && (
-        <div className="cricket-prediction-form">
-          <div style={{
-            padding: '16px',
-            background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.05) 100%)',
-            borderRadius: '12px',
-            marginBottom: '20px',
-            border: '1px solid rgba(52, 199, 89, 0.3)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '20px' }}>🏏</span>
-              <p style={{ margin: 0, fontSize: '14px', color: '#34c759', fontWeight: 700 }}>
-                Early First Innings Prediction
-              </p>
-            </div>
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
-              Predict the winner and runs for the first innings
+          {disableReason && (
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
+              {disableReason}
             </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="stack-form">
-            <label>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>👤</span>
-                Your name
-              </span>
-              <input
-                value={name}
-                onChange={e => onNameChange(e.target.value)}
-                maxLength={30}
-                required
-                placeholder="Display name..."
-                readOnly
-                className="readonly-input"
-              />
-            </label>
-
-            <label>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>🏆</span>
-                Predicted winner
-              </span>
-              <select value={winnerTeam} onChange={e => setWinnerTeam(e.target.value)} required>
-                <option value="">Choose winner...</option>
-                <option value="teamA">{teamA}</option>
-                <option value="teamB">{teamB}</option>
-              </select>
-            </label>
-
-            <label>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>📊</span>
-                Predicted runs
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={runs}
-                onChange={e => setRuns(sanitizeRunsInput(e.target.value))}
-                placeholder="e.g. 185"
-                aria-invalid={!!runsError}
-                aria-describedby="scheduled-runs-hint"
-                required
-              />
-              <span id="scheduled-runs-hint" className={`field-hint ${runsError ? 'field-error' : ''}`}>
-                {runsError || 'Runs only. Example: 185'}
-              </span>
-            </label>
-
-            <button type="submit" className="primary-btn" disabled={loading || !!runsError || (hasPredicted && !allowReprediction)} style={{ marginTop: '8px' }}>
-              {hasPredicted && !allowReprediction ? '🔒 Already Predicted' : loading ? 'Submitting...' : '🚀 Send Prediction'}
-            </button>
-          </form>
+          )}
         </div>
       )}
 
-      {/* Live Match - First Innings */}
       {!isMatchCompleted && predictionsEnabled && !predictionsPaused && matchStatus === 'live' && battingFirst && currentInnings === 1 && (
         <div className="cricket-prediction-form">
           <div style={{

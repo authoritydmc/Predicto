@@ -20,7 +20,17 @@ import { CricketMatchDetails } from '../components/sports/CricketMatchDetails';
 import { FootballMatchDetails } from '../components/sports/FootballMatchDetails';
 import { CricketLiveScore } from '../components/sports/CricketLiveScore';
 import { FootballLiveScore } from '../components/sports/FootballLiveScore';
-import { MatchControlPanel } from './components/MatchControlPanel';
+import {
+  MatchControlPanel,
+  CollapsibleSection,
+  ActionFeedback,
+  ActionLog,
+  WindowManagement,
+  MatchResolution,
+  WinProbability,
+  AutomationScheduler,
+  UserManagement,
+} from './components';
 
 // ── LocalStorage Helpers ────────────────────────────────────────────────────────
 const STORAGE_KEY = 'controlpanel_ui_state';
@@ -266,7 +276,7 @@ const ControlPanel: React.FC = () => {
   const [fInnings, setFInnings] = useState<'1' | '2'>('1');
   const [fAllowReprediction, setFAllowReprediction] = useState(false);
   const [fAutomationPaused, setFAutomationPaused] = useState(false);
-  const [fMatchStatus, setFMatchStatus] = useState<'live' | 'done' | 'scheduled'>('live');
+  const [fMatchStatus, setFMatchStatus] = useState<'live' | 'done' | 'scheduled'>('scheduled');
   const [fPredictionsEnabled, setFPredictionsEnabled] = useState(true);
   const [fPredictionsPaused, setFPredictionsPaused] = useState(false);
   const [fPauseReason, setFPauseReason] = useState('');
@@ -322,6 +332,25 @@ const ControlPanel: React.FC = () => {
   // ── Opacity
   const [opacity, setOpacity] = useState(1);
   const [reactionOpacity, setReactionOpacity] = useState(1);
+
+  // ── Sticky Panel State
+  const [panelState, setPanelState] = useState<'visible' | 'minimized' | 'hidden'>('visible');
+
+  // ── Panel Toggle Functions
+  const togglePanelState = () => {
+    setPanelState(prev => {
+      if (prev === 'visible') return 'minimized';
+      if (prev === 'minimized') return 'hidden';
+      return 'visible';
+    });
+  };
+
+  const getPanelClassName = () => {
+    const baseClass = 'cp-shell';
+    if (panelState === 'minimized') return `${baseClass} minimized`;
+    if (panelState === 'hidden') return `${baseClass} hidden`;
+    return baseClass;
+  };
 
   // ── Dashboard State
   const [resultsOpen, setResultsOpen] = useState(false);
@@ -1011,7 +1040,7 @@ const ControlPanel: React.FC = () => {
           setFTossWinner(merged.tossWinner || null);
           setFTossDecision(merged.tossDecision || null);
           // Load match status
-          setFMatchStatus(merged.status || 'live');
+          setFMatchStatus(merged.status || 'scheduled');
           // Load prediction control settings
           setFPredictionsEnabled(merged.predictionsEnabled !== undefined ? merged.predictionsEnabled : true);
           setFPredictionsPaused(merged.predictionsPaused || false);
@@ -1509,8 +1538,8 @@ const ControlPanel: React.FC = () => {
             teamB: fTeamB,
             allowReprediction: fAllowReprediction,
             automationPaused: fAutomationPaused,
-            // In scheduler mode, create matches as 'scheduled' by default
-            status: schedulerRunning ? 'scheduled' : fMatchStatus,
+            // Always create new matches as 'scheduled' by default
+            status: 'scheduled',
             predictionsEnabled: fPredictionsEnabled,
             predictionsPaused: fPredictionsPaused,
             pauseReason: fPauseReason,
@@ -2265,8 +2294,8 @@ const ControlPanel: React.FC = () => {
     console.log('Innings processing delegated to Python scripts');
     return;
     const oldKey = editKey;
-    const newKey = `${editMatchDate}_${oldKey.split('_')[1] || Date.now()}`;
-    if (oldKey !== newKey) { 
+    const newKey = `${editMatchDate}_${oldKey ? oldKey.split('_')[1] : Date.now()}`;
+    if (oldKey && oldKey !== newKey) { 
       await archiveToHistory(fSport, rid, newKey, snap); 
       await clearRoomNode(fSport, rid, `history/${oldKey}`); 
     }
@@ -2327,131 +2356,29 @@ const ControlPanel: React.FC = () => {
   const joinHidden = Boolean(meta.hideJoin);
 
   return (
-    <div className="cp-shell">
+    <div className={getPanelClassName()}>
       <div className="ambient ambient-left"></div>
       <div className="ambient ambient-right"></div>
       
-      {/* ── Action Feedback Component ── */}
-      {actionFeedback.type && (
-        <div 
-          className={`action-feedback ${actionFeedback.type}`}
-          style={{
-            position: 'fixed',
-            top: 20,
-            right: 20,
-            zIndex: 9999,
-            padding: '12px 16px',
-            borderRadius: '8px',
-            background: actionFeedback.type === 'success' ? 'var(--system-green)' : 
-                        actionFeedback.type === 'error' ? 'var(--system-red)' : 
-                        actionFeedback.type === 'warning' ? '#ff9f0a' : 
-                        'var(--system-blue)',
-            color: 'white',
-            fontSize: '14px',
-            fontWeight: '600',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            maxWidth: '300px',
-            animation: 'slideInRight 0.3s ease-out'
-          }}
-        >
-          <div style={{ fontWeight: '700', marginBottom: '4px' }}>
-            {actionFeedback.type === 'success' ? '✓ Success' : 
-             actionFeedback.type === 'error' ? '✗ Error' : 
-             actionFeedback.type === 'warning' ? '⚠ Warning' : 
-             'ℹ Info'}
-          </div>
-          <div>{actionFeedback.message}</div>
-          {actionFeedback.details && (
-            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '4px' }}>
-              {actionFeedback.details}
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* ── Action Log Toggle (for debugging) ── */}
-      <div 
-        style={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          zIndex: 9998
-        }}
-      >
-        <button
-          onClick={() => setShowActionLog(!showActionLog)}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '6px',
-            background: 'rgba(255,255,255,0.1)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            color: 'white',
-            fontSize: '12px',
-            cursor: 'pointer',
-            backdropFilter: 'blur(10px)'
-          }}
-        >
-          {showActionLog ? 'Hide' : 'Show'} Action Log ({actionHistory.length})
-        </button>
+      {/* ── Panel Toggle Handle ── */}
+      <div className="cp-toggle-handle" onClick={togglePanelState}>
+        {panelState === 'visible' ? '◀' : panelState === 'minimized' ? '▶' : '◀'}
       </div>
       
-      {/* ── Action Log Panel ── */}
-      {showActionLog && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 80,
-            right: 20,
-            width: '400px',
-            height: '300px',
-            background: 'rgba(5, 7, 10, 0.95)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: '8px',
-            zIndex: 9997,
-            padding: '16px',
-            overflow: 'auto',
-            backdropFilter: 'blur(20px)'
-          }}
-        >
-          <div style={{ fontWeight: '700', marginBottom: '12px', color: 'white' }}>
-            Action History (Last 100)
-          </div>
-          {actionHistory.length === 0 ? (
-            <div style={{ color: 'var(--muted)', fontSize: '12px' }}>No actions logged yet</div>
-          ) : (
-            actionHistory.map((entry, index) => (
-              <div 
-                key={index} 
-                style={{
-                  marginBottom: '8px',
-                  padding: '8px',
-                  background: entry.success ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)',
-                  border: `1px solid ${entry.success ? 'rgba(52, 199, 89, 0.3)' : 'rgba(255, 59, 48, 0.3)'}`,
-                  borderRadius: '4px',
-                  fontSize: '11px'
-                }}
-              >
-                <div style={{ 
-                  fontWeight: '600', 
-                  color: entry.success ? 'var(--system-green)' : 'var(--system-red)',
-                  marginBottom: '2px'
-                }}>
-                  {entry.success ? '✓' : '✗'} {entry.action}
-                </div>
-                <div style={{ color: 'var(--muted)', fontSize: '10px' }}>
-                  {new Date(entry.timestamp).toLocaleTimeString()}
-                  {entry.details && ` • ${entry.details}`}
-                </div>
-                {entry.firebaseCalls && entry.firebaseCalls.length > 0 && (
-                  <div style={{ color: 'var(--system-blue)', fontSize: '10px', marginTop: '2px' }}>
-                    Firebase calls: {entry.firebaseCalls.length}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      {/* ── Action Feedback Component ── */}
+      <ActionFeedback
+        type={actionFeedback.type}
+        message={actionFeedback.message}
+        details={actionFeedback.details}
+        onClose={() => setActionFeedback({ type: null, message: '' })}
+      />
+
+      {/* ── Action Log Component ── */}
+      <ActionLog
+        isOpen={showActionLog}
+        onToggle={() => setShowActionLog(!showActionLog)}
+        entries={actionHistory}
+      />
       
       {/* ── Header ── */}
       <header className="cp-header">
@@ -3189,186 +3116,68 @@ const ControlPanel: React.FC = () => {
         </section>
 
         {/* ── Window Management ── */}
-        <section className="cp-panel-group">
-          <div 
-            className="cp-group-header" 
-            onClick={() => toggleSection('windowEngine')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>Window Management</h2>
-            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
-              {collapsedSections.windowEngine ? '▶' : '▼'}
-            </span>
-          </div>
-          <div className="cp-glass-card" style={{ display: collapsedSections.windowEngine ? 'none' : 'block' }}>
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Overlay Window</span>
-                <Toggle checked={windowVisibility.overlayVisible} onChange={(v) => handleWindowVisibilityChange('overlayVisible', v)} />
-              </label>
-            </div>
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Ticker Window</span>
-                <Toggle checked={windowVisibility.tickerVisible} onChange={(v) => handleWindowVisibilityChange('tickerVisible', v)} />
-              </label>
-            </div>
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Reaction Window</span>
-                <Toggle checked={windowVisibility.reactionVisible} onChange={(v) => handleWindowVisibilityChange('reactionVisible', v)} />
-              </label>
-            </div>
-            <p className="cp-panel-note">Toggle overlay windows on/off. Only one instance of each window type is allowed.</p>
-          </div>
-        </section>
+        <CollapsibleSection
+          title="Window Management"
+          isCollapsed={collapsedSections.windowEngine}
+          onToggle={() => toggleSection('windowEngine')}
+        >
+          <WindowManagement
+            windowVisibility={windowVisibility}
+            onVisibilityChange={handleWindowVisibilityChange}
+          />
+        </CollapsibleSection>
 
         {/* ── Match Resolution ── */}
-        <section className="cp-panel-group">
-          <div 
-            className="cp-group-header" 
-            onClick={() => toggleSection('resolution')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>Match Resolution</h2>
-            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
-              {collapsedSections.resolution ? '▶' : '▼'}
-            </span>
-          </div>
-          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.resolution ? 'none' : 'block' }}>
-            {!is2nd ? (
-              <div className="cp-form-row">
-                <label>Actual 1st Innings Score</label>
-                <input type="number" id="actualScore" value={fActualScore} onChange={e => setFActualScore(e.target.value)} placeholder="e.g. 158" min="1" max="999" />
-              </div>
-            ) : (
-              <>
-                <div className="cp-form-row">
-                  <label>Did {chasingTeam} win?</label>
-                  <div className="cp-radio-group">
-                    <div className="cp-radio-option">
-                      <input type="radio" id="chaserYes" name="chaserWon" value="yes" checked={fChaserWon === 'yes'} onChange={() => setFChaserWon('yes')} />
-                      <label className="cp-radio-label" htmlFor="chaserYes">Yes</label>
-                    </div>
-                    <div className="cp-radio-option">
-                      <input type="radio" id="chaserNo" name="chaserWon" value="no" checked={fChaserWon === 'no'} onChange={() => setFChaserWon('no')} />
-                      <label className="cp-radio-label" htmlFor="chaserNo">No</label>
-                    </div>
-                  </div>
-                </div>
-                <div className="cp-form-row">
-                  <label>{fChaserWon === 'yes' ? 'Actual Overs (e.g. 15.2)' : 'Actual Chasing Score'}</label>
-                  <input type="number" id="actualResult" value={fActualResult} onChange={e => setFActualResult(e.target.value)} placeholder={fChaserWon === 'yes' ? 'e.g. 15.2' : 'e.g. 145'} step="any" min="0" />
-                </div>
-              </>
-            )}
-            <div className="cp-input-action-group">
-              <button id="calculatePoints" className="cp-primary-btn" onClick={resolveMatch}>
-                {is2nd ? 'Resolve 2nd Innings' : 'Resolve 1st Innings'}
-              </button>
-              <button id="viewFinalStandings" className="cp-action-btn" onClick={viewFinalStandings}>View Final Game Standings</button>
-            </div>
-            <div className="cp-form-row" style={{ marginTop: '8px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={forceReprocess} 
-                  onChange={(e) => setForceReprocess(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '13px', color: '#999' }}>Force reprocess (skip reconciled check)</span>
-              </label>
-            </div>
-            {resolutionMessage && (
-              <div 
-                className="cp-panel-note" 
-                style={{ 
-                  marginTop: '12px',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  background: resolutionStatus === 'success' ? 'rgba(52, 199, 89, 0.1)' : 
-                             resolutionStatus === 'error' ? 'rgba(255, 59, 48, 0.1)' : 
-                             'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${resolutionStatus === 'success' ? 'rgba(52, 199, 89, 0.3)' : 
-                                    resolutionStatus === 'error' ? 'rgba(255, 59, 48, 0.3)' : 
-                                    'rgba(255, 255, 255, 0.1)'}`,
-                  color: resolutionStatus === 'success' ? '#34c759' : 
-                         resolutionStatus === 'error' ? '#ff3b30' : 
-                         'var(--text-primary)'
-                }}
-              >
-                {resolutionStatus === 'running' && '⏳ '}
-                {resolutionStatus === 'success' && '✅ '}
-                {resolutionStatus === 'error' && '❌ '}
-                {resolutionMessage}
-              </div>
-            )}
-            <p className="cp-panel-note">Resolve the current innings to archive points and prepare for the final report. Python processing handles scoring and leaderboard updates automatically.</p>
-          </div>
-        </section>
+        <CollapsibleSection
+          title="Match Resolution"
+          isCollapsed={collapsedSections.resolution}
+          onToggle={() => toggleSection('resolution')}
+        >
+          <MatchResolution
+            is2nd={is2nd}
+            fActualScore={fActualScore}
+            setFActualScore={setFActualScore}
+            fActualResult={fActualResult}
+            setFActualResult={setFActualResult}
+            fChaserWon={fChaserWon}
+            setFChaserWon={setFChaserWon}
+            forceReprocess={forceReprocess}
+            setForceReprocess={setForceReprocess}
+            resolutionStatus={resolutionStatus}
+            resolutionMessage={resolutionMessage}
+            onResolve={resolveMatch}
+            onViewStandings={viewFinalStandings}
+            chasingTeam={chasingTeam}
+          />
+        </CollapsibleSection>
 
         {/* ── Live Win Probability ── */}
-        <section className="cp-panel-group">
-          <div 
-            className="cp-group-header" 
-            onClick={() => toggleSection('winProb')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>Live Win Probability (Google)</h2>
-            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
-              {collapsedSections.winProb ? '▶' : '▼'}
-            </span>
-          </div>
-          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.winProb ? 'none' : 'block' }}>
-            <div className="cp-form-row">
-              <label>Google Match URL</label>
-              <div className="cp-input-action-group">
-                <input id="googleMatchUrl" type="text" value={googleUrl} onChange={e => setGoogleUrl(e.target.value)} onBlur={handleGoogleUrlSave} placeholder="Paste Google URL here..." />
-                <button id="fetchNowBtn" className="cp-action-btn" type="button" onClick={performWinProbFetch}>Fetch Now</button>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                <span id="fetchStatus" className="cp-panel-note" style={{ marginTop: 0 }}>{fetchStatus}</span>
-                <button className="cp-glass-btn cp-small" title="View screenshot of what the scraper sees" style={{ padding: '4px 8px', fontSize: 10 }}
-                  // @ts-ignore
-                  onClick={() => window.overlayDesktop.viewScraperDebug()}>View Debug</button>
-                <button className="cp-action-btn cp-small" title="Solve Google CAPTCHA" style={{ padding: '4px 8px', fontSize: 10 }}
-                  onClick={() => {
-                    if (!googleUrl.trim()) { alert('Please paste the Google Match URL first.'); return; }
-                    // @ts-ignore
-                    window.overlayDesktop.openScraperSolver(googleUrl);
-                  }}>Solve CAPTCHA</button>
-              </div>
-            </div>
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Auto-Fetch (30s)</span>
-                <Toggle checked={autoFetch} onChange={setAutoFetch} />
-              </label>
-            </div>
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Show on Overlay</span>
-                <Toggle checked={showWinProb} onChange={handleShowWinProbToggle} />
-              </label>
-            </div>
-            <div className="cp-divider" />
-            <p className="cp-panel-note">Slider updates automatically if Auto-Fetch is on. You can also fetch manually.</p>
-          </div>
-        </section>
+        <CollapsibleSection
+          title="Live Win Probability (Google)"
+          isCollapsed={collapsedSections.winProb}
+          onToggle={() => toggleSection('winProb')}
+        >
+          <WinProbability
+            googleUrl={googleUrl}
+            setGoogleUrl={setGoogleUrl}
+            autoFetch={autoFetch}
+            setAutoFetch={setAutoFetch}
+            showWinProb={showWinProb}
+            setShowWinProb={setShowWinProb}
+            fetchStatus={fetchStatus}
+            onFetch={performWinProbFetch}
+            onSaveUrl={handleGoogleUrlSave}
+          />
+        </CollapsibleSection>
 
         {/* ── Automation Scheduler ── */}
-        <section className="cp-panel-group">
-          <div 
-            className="cp-group-header" 
-            onClick={() => toggleSection('scheduler')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>Enhanced Automation</h2>
-            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
-              {collapsedSections.scheduler ? '▶' : '▼'}
-            </span>
-          </div>
-          <div className="cp-glass-card" style={{ display: collapsedSections.scheduler ? 'none' : 'block' }}>
+        <CollapsibleSection
+          title="Enhanced Automation"
+          isCollapsed={collapsedSections.scheduler}
+          onToggle={() => toggleSection('scheduler')}
+          badge={schedulerRunning ? '● Running' : undefined}
+        >
+          <div className="cp-glass-card">
             {/* Enhanced Automation Status */}
             <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3581,7 +3390,7 @@ const ControlPanel: React.FC = () => {
               </button>
             </div>
           </div>
-        </section>
+        </CollapsibleSection>
 
         {/* ── Discord Notifications ── */}
         <section className="cp-panel-group">
@@ -4071,18 +3880,12 @@ const ControlPanel: React.FC = () => {
         </section>
 
         {/* ── User Management ── */}
-        <section className="cp-panel-group">
-          <div 
-            className="cp-group-header" 
-            onClick={() => toggleSection('userManagement')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>User Management</h2>
-            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
-              {collapsedSections.userManagement ? '▶' : '▼'}
-            </span>
-          </div>
-          <div className="cp-glass-card" style={{ display: collapsedSections.userManagement ? 'none' : 'block' }}>
+        <CollapsibleSection
+          title="User Management"
+          isCollapsed={collapsedSections.userManagement}
+          onToggle={() => toggleSection('userManagement')}
+        >
+          <div className="cp-glass-card">
             {/* User Search */}
             <div className="cp-section-header">
               <span>Search User</span>
@@ -4221,7 +4024,7 @@ const ControlPanel: React.FC = () => {
               </div>
             )}
           </div>
-        </section>
+        </CollapsibleSection>
 
         {/* ── Window & Engine ── */}
         <section className="cp-panel-group">

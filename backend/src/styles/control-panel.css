@@ -130,6 +130,7 @@ html, body {
 
 body {
   padding: 32px;
+  padding-right: 940px; /* Account for fixed Control Panel on desktop */
 }
 
 .ambient {
@@ -158,9 +159,63 @@ body {
 
 /* ─── Shell ─────────────────────────────────────────────────────────────────── */
 .cp-shell {
+  position: fixed;
+  top: 20px;
+  right: 20px;
   max-width: 900px;
   width: 100%;
-  margin: 0 auto;
+  z-index: 9999;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 18px;
+  border: 1px solid var(--panel-border);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-apple);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.cp-shell.minimized {
+  transform: translateX(calc(100% - 60px));
+}
+
+.cp-shell.hidden {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─── Control Panel Toggle Handle ───────────────────────────────────────────── */
+.cp-toggle-handle {
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 80px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px 0 0 12px;
+  border-right: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 18px;
+  transition: all 0.2s ease;
+  z-index: 10000;
+}
+
+.cp-toggle-handle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.cp-shell.minimized .cp-toggle-handle {
+  left: -40px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
 }
 
 /* ─── Content Grid ─────────────────────────────────────────────────────────────── */
@@ -180,6 +235,41 @@ body {
 @media (min-width: 1280px) {
   .cp-shell {
     max-width: 1200px;
+  }
+}
+
+/* ─── Mobile Responsive for Sticky Control Panel ───────────────────────────────── */
+@media (max-width: 1024px) {
+  body {
+    padding-right: 32px; /* Reset body padding on smaller screens */
+  }
+  
+  .cp-shell {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 100%;
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    z-index: 9999;
+  }
+}
+
+@media (max-width: 768px) {
+  .cp-shell {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 100%;
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 0;
   }
 }
 

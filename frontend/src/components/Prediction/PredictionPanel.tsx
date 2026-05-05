@@ -347,9 +347,15 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           >
             🏆 Tournament Leaderboard
           </button>
-          <span className={`status-pill ${matchStatus === 'live' ? 'status-live' : matchStatus === 'done' || matchStatus === 'completed' ? 'status-done' : 'status-scheduled'}`}>
-            {matchStatus === 'live' ? 'Live' : matchStatus === 'done' || matchStatus === 'completed' ? 'Completed' : 'Scheduled'}
-          </span>
+          {matchStatus === 'scheduled' ? (
+            <button className="scheduled-btn" disabled>
+              📅 Scheduled
+            </button>
+          ) : (
+            <span className={`status-pill ${matchStatus === 'live' ? 'status-live' : matchStatus === 'done' || matchStatus === 'completed' ? 'status-done' : 'status-scheduled'}`}>
+              {matchStatus === 'live' ? 'Live' : matchStatus === 'done' || matchStatus === 'completed' ? 'Completed' : 'Scheduled'}
+            </span>
+          )}
         </div>
       </div>
 

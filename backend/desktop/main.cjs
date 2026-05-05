@@ -34,8 +34,37 @@ if (APP_MODE === 'prod') {
 // ── Initialize Window Manager ────────────────────────────────────────────────
 const windowManager = createWindowManager(config, { broadcastToClients });
 
-// ── Register IPC Handlers ─────────────────────────────────────────────────────
+// ── Register IPC Handlers ─────────────────────────────────────────────
 registerIpcHandlers(config, windowManager, scheduler, { broadcastToClients });
+
+// ── Match Status Listener ─────────────────────────────────────────────
+// Listen for match status changes and update window titles
+let currentMatchInfo = '';
+
+const listenToMatchStatus = () => {
+  console.log('[Main] Setting up match status listener for window titles');
+  
+  // For now, we'll use a simple approach - update titles periodically
+  // In the future, this can be connected to Firebase or WebSocket updates
+  setInterval(() => {
+    const timestamp = new Date().toLocaleTimeString();
+    const status = `Active - ${timestamp}`;
+    if (status !== currentMatchInfo) {
+      currentMatchInfo = status;
+      console.log('[Main] Updating window titles:', status);
+      
+      // Update window titles with match info
+      if (windowManager) {
+        windowManager.updateWindowTitles(status);
+      }
+    }
+  }, 5000); // Update every 5 seconds
+};
+
+// Start listening for match status changes
+listenToMatchStatus();
+
+// ── Register Automation Handlers ─────────────────────────────────────────────
 registerAutomationHandlers(APP_MODE);
 registerNotificationHandlers();
 registerScraperHandlers();
