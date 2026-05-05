@@ -3,23 +3,17 @@
  * Registers all IPC handlers for the Electron main process
  */
 
-const { ipcMain, clipboard, shell, BrowserWindow, app } = require("electron");
-const { spawn } = require("child_process");
+const { ipcMain, clipboard, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
 const registerIpcHandlers = (config, windowManager, scheduler, deps) => {
   const { 
     APP_MODE, 
-    isDev, 
-    VITE_DEV_SERVER_URL, 
     DEFAULT_SETTINGS,
     saveSettingsToFile,
-    getWindowUrl,
-    commonWebPrefs
+    getWindowUrl
   } = config;
-  
-  const { broadcastToClients } = deps;
 
   // ── Settings Handlers ──────────────────────────────────────────────────────
   ipcMain.handle("settings:get", () => windowManager.getSettings());
@@ -35,45 +29,83 @@ const registerIpcHandlers = (config, windowManager, scheduler, deps) => {
     return settings;
   });
 
-  // ── Overlay Window Handlers ──────────────────────────────────────────────────
-  ipcMain.handle("overlay:show", () => {
-    const win = windowManager.ensureOverlayWindow();
+  const currentMode = () => global.APP_MODE || windowManager.getSettings().firebaseMode || APP_MODE;
+
+  const windowActions = {
+    overlay: {
+      ensure: windowManager.ensureOverlayWindow,
+      get: windowManager.getOverlayWindow,
+      visibleKey: "overlayVisible",
+      boundsKey: "bounds",
+      defaultBounds: DEFAULT_SETTINGS.bounds
+    },
+    ticker: {
+      ensure: windowManager.ensureTickerWindow,
+      get: windowManager.getTickerWindow,
+      visibleKey: "tickerVisible",
+      boundsKey: "tickerBounds",
+      defaultBounds: DEFAULT_SETTINGS.tickerBounds
+    },
+    reaction: {
+      ensure: windowManager.ensureReactionWindow,
+      get: windowManager.getReactionWindow,
+      visibleKey: "reactionVisible",
+      boundsKey: "reactionBounds",
+      defaultBounds: DEFAULT_SETTINGS.reactionBounds
+    }
+  };
+
+  const showManagedWindow = (key) => {
+    const config = windowActions[key];
+    const win = config.ensure();
     const settings = windowManager.getSettings();
-    settings.overlayVisible = true; 
+    settings[config.visibleKey] = true;
     saveSettingsToFile(settings); 
     windowManager.applyOverlayFlags(); 
     win.showInactive(); 
     windowManager.broadcastState();
     return settings;
-  });
-  
-  ipcMain.handle("overlay:hide", () => {
-    const overlayWindow = windowManager.getOverlayWindow();
-    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
+  };
+
+  const hideManagedWindow = (key) => {
+    const config = windowActions[key];
+    const win = config.get();
+    if (win && !win.isDestroyed()) win.hide();
     const settings = windowManager.getSettings();
-    settings.overlayVisible = false; 
+    settings[config.visibleKey] = false;
     saveSettingsToFile(settings); 
     windowManager.broadcastState();
     return settings;
-  });
-  
-  ipcMain.handle("overlay:reload", () => {
-    const win = windowManager.ensureOverlayWindow();
+  };
+
+  const reloadManagedWindow = (key) => {
+    const config = windowActions[key];
+    const win = config.ensure();
     const settings = windowManager.getSettings();
-    const currentMode = global.APP_MODE || settings.firebaseMode || APP_MODE;
-    win.loadURL(getWindowUrl("overlay", currentMode, settings));
+    win.loadURL(getWindowUrl(key, currentMode(), settings));
     return settings;
-  });
-  
-  ipcMain.handle("overlay:reset-bounds", () => {
+  };
+
+  const resetManagedWindowBounds = (key) => {
+    const config = windowActions[key];
     const settings = windowManager.getSettings();
-    settings.bounds = { ...DEFAULT_SETTINGS.bounds }; 
+    settings[config.boundsKey] = { ...config.defaultBounds };
     saveSettingsToFile(settings);
-    const win = windowManager.ensureOverlayWindow(); 
-    win.setBounds(settings.bounds); 
+    const win = config.ensure();
+    win.setBounds(settings[config.boundsKey]);
     windowManager.broadcastState();
     return settings;
+  };
+
+  Object.keys(windowActions).forEach((key) => {
+    ipcMain.handle(`${key}:show`, () => showManagedWindow(key));
+    ipcMain.handle(`${key}:hide`, () => hideManagedWindow(key));
+    ipcMain.handle(`${key}:reload`, () => reloadManagedWindow(key));
   });
+
+  ipcMain.handle("overlay:reset-bounds", () => resetManagedWindowBounds("overlay"));
+  ipcMain.handle("ticker:reset-bounds", () => resetManagedWindowBounds("ticker"));
+  ipcMain.handle("reaction:reset-bounds", () => resetManagedWindowBounds("reaction"));
   
   ipcMain.handle("overlay:toggle-click-through", () => {
     const settings = windowManager.getSettings();
@@ -83,86 +115,6 @@ const registerIpcHandlers = (config, windowManager, scheduler, deps) => {
   ipcMain.handle("overlay:open-controls", () => { 
     windowManager.ensureControlWindow(); 
     return true; 
-  });
-
-  // ── Ticker Window Handlers ───────────────────────────────────────────────────
-  ipcMain.handle("ticker:show", () => {
-    const win = windowManager.ensureTickerWindow();
-    const settings = windowManager.getSettings();
-    settings.tickerVisible = true; 
-    saveSettingsToFile(settings); 
-    windowManager.applyOverlayFlags(); 
-    win.showInactive(); 
-    windowManager.broadcastState();
-    return settings;
-  });
-  
-  ipcMain.handle("ticker:hide", () => {
-    const tickerWindow = windowManager.getTickerWindow();
-    if (tickerWindow && !tickerWindow.isDestroyed()) tickerWindow.hide();
-    const settings = windowManager.getSettings();
-    settings.tickerVisible = false; 
-    saveSettingsToFile(settings); 
-    windowManager.broadcastState();
-    return settings;
-  });
-  
-  ipcMain.handle("ticker:reload", () => {
-    const win = windowManager.ensureTickerWindow();
-    const settings = windowManager.getSettings();
-    const currentMode = global.APP_MODE || settings.firebaseMode || APP_MODE;
-    win.loadURL(getWindowUrl("ticker", currentMode, settings));
-    return settings;
-  });
-  
-  ipcMain.handle("ticker:reset-bounds", () => {
-    const settings = windowManager.getSettings();
-    settings.tickerBounds = { ...DEFAULT_SETTINGS.tickerBounds }; 
-    saveSettingsToFile(settings);
-    const win = windowManager.ensureTickerWindow(); 
-    win.setBounds(settings.tickerBounds); 
-    windowManager.broadcastState();
-    return settings;
-  });
-
-  // ── Reaction Window Handlers ─────────────────────────────────────────────────
-  ipcMain.handle("reaction:show", () => {
-    const win = windowManager.ensureReactionWindow();
-    const settings = windowManager.getSettings();
-    settings.reactionVisible = true; 
-    saveSettingsToFile(settings); 
-    windowManager.applyOverlayFlags(); 
-    win.showInactive(); 
-    windowManager.broadcastState();
-    return settings;
-  });
-  
-  ipcMain.handle("reaction:hide", () => {
-    const reactionWindow = windowManager.getReactionWindow();
-    if (reactionWindow && !reactionWindow.isDestroyed()) reactionWindow.hide();
-    const settings = windowManager.getSettings();
-    settings.reactionVisible = false; 
-    saveSettingsToFile(settings); 
-    windowManager.broadcastState();
-    return settings;
-  });
-  
-  ipcMain.handle("reaction:reload", () => {
-    const win = windowManager.ensureReactionWindow();
-    const settings = windowManager.getSettings();
-    const currentMode = global.APP_MODE || settings.firebaseMode || APP_MODE;
-    win.loadURL(getWindowUrl("reaction", currentMode, settings));
-    return settings;
-  });
-  
-  ipcMain.handle("reaction:reset-bounds", () => {
-    const settings = windowManager.getSettings();
-    settings.reactionBounds = { ...DEFAULT_SETTINGS.reactionBounds }; 
-    saveSettingsToFile(settings);
-    const win = windowManager.ensureReactionWindow(); 
-    win.setBounds(settings.reactionBounds); 
-    windowManager.broadcastState();
-    return settings;
   });
 
   // ── Debug Window Handlers ────────────────────────────────────────────────────

@@ -4,10 +4,9 @@
  */
 
 const { ipcMain, BrowserWindow, shell, app } = require("electron");
-const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-const { getBackendRoot, getPythonEnv, getPythonPath } = require("./python-runtime.cjs");
+const { getBackendPath, runPython } = require("./process-runner.cjs");
 
 const registerScraperHandlers = () => {
   const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -105,47 +104,32 @@ const registerScraperHandlers = () => {
 
   // ── Live Score Scraper ────────────────────────────────────────────────────
   ipcMain.handle("scraper:run", async (_event, sport, matchId, teamA, teamB, scraperOrder) => {
-    return new Promise((resolve) => {
-      console.log(`[Scraper] Running ${sport} scraper for ${teamA} vs ${teamB}`);
-      
-      const pythonPath = getPythonPath();
-      const scriptPath = path.join(__dirname, "../..", "scraper", "live_score_scraper.py");
-      
-      const args = [scriptPath, sport, matchId, teamA, teamB];
-      if (scraperOrder) args.push(scraperOrder);
-      
-      const pythonProcess = spawn(pythonPath, args, {
-        cwd: getBackendRoot(),
-        env: getPythonEnv()
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-      pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
-      
-      pythonProcess.on('close', (code) => {
-        if (code === 0) {
-          try {
-            const result = JSON.parse(stdout);
-            console.log(`[Scraper] Success:`, result);
-            resolve({ success: true, data: result });
-          } catch (e) {
-            console.error(`[Scraper] JSON parse error:`, e);
-            resolve({ success: false, error: 'Failed to parse scraper output', stderr });
-          }
-        } else {
-          console.error(`[Scraper] Process exited with code ${code}:`, stderr);
-          resolve({ success: false, error: `Scraper failed with code ${code}`, stderr });
-        }
-      });
-      
-      pythonProcess.on('error', (error) => {
-        console.error(`[Scraper] Failed to start Python process:`, error);
-        resolve({ success: false, error: 'Failed to start scraper', details: error.message });
-      });
-    });
+    console.log(`[Scraper] Running ${sport} scraper for ${teamA} vs ${teamB}`);
+
+    const scriptPath = getBackendPath("scraper", "live_score_scraper.py");
+    const args = [scriptPath, sport, matchId, teamA, teamB];
+    if (scraperOrder) args.push(scraperOrder);
+
+    const result = await runPython(args);
+
+    if (result.error) {
+      console.error(`[Scraper] Failed to start Python process:`, result.error);
+      return { success: false, error: 'Failed to start scraper', details: result.error.message };
+    }
+
+    if (!result.success) {
+      console.error(`[Scraper] Process exited with code ${result.code}:`, result.stderr);
+      return { success: false, error: `Scraper failed with code ${result.code}`, stderr: result.stderr };
+    }
+
+    try {
+      const data = JSON.parse(result.stdout);
+      console.log(`[Scraper] Success:`, data);
+      return { success: true, data };
+    } catch (error) {
+      console.error(`[Scraper] JSON parse error:`, error);
+      return { success: false, error: 'Failed to parse scraper output', stderr: result.stderr };
+    }
   });
 
   console.log('[IPC] Scraper handlers registered');

@@ -3,11 +3,10 @@
  * Handles all automation-related IPC calls
  */
 
-const { ipcMain, app } = require("electron");
+const { ipcMain } = require("electron");
 const { spawn } = require("child_process");
-const path = require("path");
-const fs = require("fs");
 const { getBackendRoot, getPythonEnv, getPythonPath } = require("./python-runtime.cjs");
+const { getBackendPath, runPython, runPythonJson } = require("./process-runner.cjs");
 
 let enhancedOrchestratorProcess = null;
 
@@ -18,7 +17,7 @@ const startEnhancedOrchestrator = (APP_MODE) => {
   }
   
   const pythonPath = getPythonPath();
-  const scriptPath = path.join(__dirname, "../..", "automation", "orchestrator", "main.py");
+  const scriptPath = getBackendPath("automation", "orchestrator", "main.py");
   
   console.log('[Enhanced Orchestrator] Starting enhanced orchestrator process...');
   
@@ -67,124 +66,50 @@ const registerAutomationHandlers = (APP_MODE) => {
   ipcMain.handle("automation:trigger-task", async (_event, taskId) => {
     console.log(`[Automation] Triggering task: ${taskId}`);
     
-    const pythonPath = getPythonPath();
-    const scriptPath = path.join(__dirname, "../..", "automation", "orchestrator", "main.py");
-    
-    return new Promise((resolve) => {
-      const pythonProcess = spawn(pythonPath, [scriptPath, '--trigger-task', taskId], {
-        cwd: getBackendRoot(),
-        env: getPythonEnv()
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-      pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
-      
-      pythonProcess.on('close', (code) => {
-        if (code === 0) {
-          console.log(`[Automation] Task ${taskId} completed successfully`);
-          resolve({ success: true, taskId, status: 'success' });
-        } else {
-          console.error(`[Automation] Task ${taskId} failed with code ${code}:`, stderr);
-          resolve({ success: false, error: `Task failed with code ${code}`, taskId });
-        }
-      });
-      
-      pythonProcess.on('error', (error) => {
-        console.error(`[Automation] Failed to start task ${taskId}:`, error);
-        resolve({ success: false, error: 'Failed to start task', taskId, details: error.message });
-      });
-    });
+    const scriptPath = getBackendPath("automation", "orchestrator", "main.py");
+    const result = await runPython([scriptPath, '--trigger-task', taskId]);
+
+    if (result.success) {
+      console.log(`[Automation] Task ${taskId} completed successfully`);
+      return { success: true, taskId, status: 'success' };
+    }
+
+    if (result.error) {
+      console.error(`[Automation] Failed to start task ${taskId}:`, result.error);
+      return { success: false, error: 'Failed to start task', taskId, details: result.error.message };
+    }
+
+    console.error(`[Automation] Task ${taskId} failed with code ${result.code}:`, result.stderr);
+    return { success: false, error: `Task failed with code ${result.code}`, taskId, stderr: result.stderr };
   });
 
   ipcMain.handle("automation:update-config", async (_event, component, updates) => {
     console.log(`[Automation] Updating config for ${component}:`, updates);
     
-    const pythonPath = getPythonPath();
-    const scriptPath = path.join(__dirname, "../..", "automation", "orchestrator", "main.py");
-    
-    return new Promise((resolve) => {
-      const pythonProcess = spawn(pythonPath, [
-        scriptPath, '--update-config', component, JSON.stringify(updates)
-      ], {
-        cwd: getBackendRoot(),
-        env: getPythonEnv()
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-      pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
-      
-      pythonProcess.on('close', (code) => {
-        if (code === 0) {
-          try { resolve(JSON.parse(stdout)); } 
-          catch (e) { resolve({ success: false, error: 'Failed to parse result' }); }
-        } else {
-          resolve({ success: false, error: `Config update failed with code ${code}` });
-        }
-      });
+    const scriptPath = getBackendPath("automation", "orchestrator", "main.py");
+    return runPythonJson([scriptPath, '--update-config', component, JSON.stringify(updates)], {
+      parseError: 'Failed to parse result',
+      exitError: 'Config update failed'
     });
   });
 
   ipcMain.handle("automation:test-scraper", async (_event, scraperName, testMatch) => {
     console.log(`[Automation] Testing scraper: ${scraperName}`);
     
-    const pythonPath = getPythonPath();
-    const scriptPath = path.join(__dirname, "../..", "automation", "orchestrator", "main.py");
-    
-    return new Promise((resolve) => {
-      const pythonProcess = spawn(pythonPath, [
-        scriptPath, '--test-scraper', scraperName, JSON.stringify(testMatch)
-      ], {
-        cwd: getBackendRoot(),
-        env: getPythonEnv()
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-      pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
-      
-      pythonProcess.on('close', (code) => {
-        if (code === 0) {
-          try { resolve(JSON.parse(stdout)); } 
-          catch (e) { resolve({ success: false, error: 'Failed to parse result' }); }
-        } else {
-          resolve({ success: false, error: `Scraper test failed with code ${code}` });
-        }
-      });
+    const scriptPath = getBackendPath("automation", "orchestrator", "main.py");
+    return runPythonJson([scriptPath, '--test-scraper', scraperName, JSON.stringify(testMatch)], {
+      parseError: 'Failed to parse result',
+      exitError: 'Scraper test failed'
     });
   });
 
   ipcMain.handle("automation:get-logs", async (_event, component, level, limit) => {
     console.log(`[Automation] Getting logs for ${component}, level: ${level}, limit: ${limit}`);
     
-    const pythonPath = getPythonPath();
-    const scriptPath = path.join(__dirname, "../..", "automation", "orchestrator", "main.py");
-    
-    return new Promise((resolve) => {
-      const pythonProcess = spawn(pythonPath, [
-        scriptPath, '--get-logs', component || 'all', level || 'all', limit || '100'
-      ], {
-        cwd: getBackendRoot(),
-        env: getPythonEnv()
-      });
-      
-      let stdout = '';
-      pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-      pythonProcess.on('close', (code) => {
-        if (code === 0) {
-          try { resolve(JSON.parse(stdout)); } 
-          catch (e) { resolve({ success: false, error: 'Failed to parse logs' }); }
-        } else {
-          resolve({ success: false, error: `Failed to get logs with code ${code}` });
-        }
-      });
+    const scriptPath = getBackendPath("automation", "orchestrator", "main.py");
+    return runPythonJson([scriptPath, '--get-logs', component || 'all', level || 'all', limit || '100'], {
+      parseError: 'Failed to parse logs',
+      exitError: 'Failed to get logs'
     });
   });
 
