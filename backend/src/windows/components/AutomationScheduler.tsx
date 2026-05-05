@@ -17,6 +17,7 @@ interface TaskInfo {
   cron_expression?: string;
   enabled: boolean;
   logging_enabled: boolean;
+  is_adaptive?: boolean;
   last_run?: number;
   next_run?: number;
   error_message?: string;
@@ -98,6 +99,7 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
     cron_expression: '',
     enabled: true,
     logging_enabled: true,
+    is_adaptive: false,
   });
 
   const generateTaskId = (name: string) => {
@@ -256,6 +258,11 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <span style={{ fontWeight: 600, fontSize: '13px' }}>{task.name}</span>
                     <TaskStatusBadge status={task.enabled ? task.status : 'disabled'} />
+                    {task.is_adaptive && (
+                      <span style={{ fontSize: '9px', background: 'rgba(52, 199, 89, 0.1)', color: '#34c759', padding: '1px 4px', borderRadius: '3px', marginLeft: '4px' }}>
+                        Adaptive
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
                     ID: <span style={{ fontFamily: 'monospace' }}>{task.task_id}</span> • Type: {task.type}
@@ -418,6 +425,18 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                   required
                   disabled={!!formData.cron_expression}
                 />
+              </div>
+              <div className="cp-form-row">
+                <label className="cp-toggle-row">
+                  <span>Adaptive Frequency</span>
+                  <Toggle 
+                    checked={formData.is_adaptive || false} 
+                    onChange={v => setFormData({ ...formData, is_adaptive: v })}
+                  />
+                </label>
+                <span style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>
+                  Slows down in middle overs, speeds up in first 5 and last 5.
+                </span>
               </div>
               <div className="cp-form-row">
                 <label className="cp-toggle-row">

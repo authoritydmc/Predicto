@@ -45,6 +45,7 @@ class AutomationTask:
     cron_expression: Optional[str] = None
     enabled: bool = True
     logging_enabled: bool = True
+    is_adaptive: bool = False  # If True, adjusts frequency based on match state
     last_run: Optional[int] = None
     next_run: Optional[int] = None
     error_message: Optional[str] = None
@@ -52,10 +53,13 @@ class AutomationTask:
     metadata: Dict[str, Any] = None
 
     def __post_init__(self):
+        if isinstance(self.status, str):
+            try:
+                self.status = AutomationStatus(self.status)
+            except ValueError:
+                self.status = AutomationStatus.IDLE
         if self.metadata is None:
             self.metadata = {}
-        if isinstance(self.status, str):
-            self.status = AutomationStatus(self.status)
 
 
 class AutomationOrchestrator:
@@ -131,37 +135,46 @@ class AutomationOrchestrator:
         """Initialize automation tasks from Firebase"""
         tasks_data = self.client.get('automation_config/tasks') or {}
         
-        if not tasks_data:
-            self.logger.info('orchestrator', 'No tasks found in Firebase, creating defaults')
-            default_tasks = {
-                'match_creation': {
-                    'task_id': 'match_creation',
-                    'name': 'Match Creation Service',
-                    'type': 'match_creation',
-                    'status': 'idle',
-                    'interval_seconds': 300,
-                    'enabled': True
-                },
-                'live_scraping': {
-                    'task_id': 'live_scraping',
-                    'name': 'Live Score Scraping',
-                    'type': 'scraping',
-                    'status': 'idle',
-                    'interval_seconds': 60,
-                    'enabled': True
-                },
-                'match_reconciliation': {
-                    'task_id': 'match_reconciliation',
-                    'name': 'Match Reconciliation & Leaderboard',
-                    'type': 'reconciliation',
-                    'status': 'idle',
-                    'interval_seconds': 60,
-                    'enabled': True
-                }
+        # Define IPL default tasks
+        ipl_defaults = {
+            'ipl_match_discovery': {
+                'task_id': 'ipl_match_discovery',
+                'name': 'IPL Match Discovery',
+                'type': 'match_creation',
+                'status': 'idle',
+                'cron_expression': '0 10 * * *',
+                'enabled': True
+            },
+            'ipl_live_scraping': {
+                'task_id': 'ipl_live_scraping',
+                'name': 'IPL Live Scraping (Adaptive)',
+                'type': 'scraping',
+                'status': 'idle',
+                'interval_seconds': 60,
+                'enabled': True,
+                'is_adaptive': True
+            },
+            'ipl_reconciliation': {
+                'task_id': 'ipl_reconciliation',
+                'name': 'IPL Daily Reconciliation',
+                'type': 'reconciliation',
+                'status': 'idle',
+                'cron_expression': '0 0 * * *',
+                'enabled': True
             }
-            self.client.set('automation_config/tasks', default_tasks)
-            tasks_data = default_tasks
-
+        }
+        
+        # Check if IPL defaults exist, if not, add them
+        any_added = False
+        for task_id, default_task in ipl_defaults.items():
+            if task_id not in tasks_data:
+                self.logger.info('orchestrator', f'Adding missing default task: {task_id}')
+                tasks_data[task_id] = default_task
+                any_added = True
+        
+        if any_added:
+            self.client.set('automation_config/tasks', tasks_data)
+            
         for task_id, data in tasks_data.items():
             self.tasks[task_id] = AutomationTask(**data)
             # Schedule initial run if not already scheduled
@@ -199,6 +212,10 @@ class AutomationOrchestrator:
         
         # Start cleanup loop
         asyncio.create_task(self._cleanup_loop())
+        
+        # Broadcast initial state
+        self._broadcast_tasks_full()
+        self._broadcast_status()
     
     async def stop(self):
         """Stop the automation orchestrator"""
@@ -237,14 +254,14 @@ class AutomationOrchestrator:
             try:
                 current_time = int(time.time() * 1000)
                 
-                # Check and run due tasks
+                # Process tasks
                 for task_id, task in self.tasks.items():
                     if task.enabled and task.status == AutomationStatus.IDLE and task.next_run and current_time >= task.next_run:
                         # Run in background to not block other tasks
                         asyncio.create_task(self._run_task(task_id))
                 
-                # Update status
-                self._update_overall_status()
+                # Periodically broadcast status
+                self._broadcast_status()
                 
                 # Sleep for short interval without blocking loop
                 await asyncio.sleep(1)
@@ -369,15 +386,41 @@ class AutomationOrchestrator:
             return
         
         processed_count = 0
+        current_time_ms = int(time.time() * 1000)
         
         for i, match in enumerate(active_matches):
             try:
+                # Check adaptive logic if enabled
+                if task.is_adaptive:
+                    score = match.get('liveScore', {})
+                    # Overs are usually string or float like "12.4"
+                    overs_str = score.get('overs', '0.0')
+                    try:
+                        overs = float(overs_str)
+                    except (ValueError, TypeError):
+                        overs = 0.0
+                    
+                    last_update = match.get('lastScoreUpdate', 0)
+                    
+                    # Adaptive Logic:
+                    # - Start (0-5 overs): High frequency (every run)
+                    # - End (15+ overs): High frequency (every run)
+                    # - Middle (5-15 overs): Low frequency (every 5 mins)
+                    is_critical_phase = overs <= 5.0 or overs >= 15.0
+                    is_middle_overs = 5.0 < overs < 15.0
+                    
+                    if is_middle_overs:
+                        # Skip if updated within the last 5 minutes
+                        if current_time_ms - last_update < 300000:
+                            self.logger.debug('orchestrator', f'Skipping adaptive scrape for match {match.get("matchId")} (Overs: {overs})')
+                            continue
+                
                 # Scrape live score
                 score_data = self.scraper_manager.scrape_match_score(match)
                 
                 if score_data:
                     # Update match with live score
-                    self.match_manager.update_match_score(match['id'], score_data)
+                    self.match_manager.update_match_score(match.get('matchId') or match.get('id'), score_data)
                     processed_count += 1
                 
                 # Update progress
@@ -385,7 +428,7 @@ class AutomationOrchestrator:
                 self._broadcast_task_update(task)
                 
             except Exception as e:
-                self.logger.error('orchestrator', f'Failed to scrape match {match["id"]}: {str(e)}')
+                self.logger.error('orchestrator', f'Failed to scrape match {match.get("matchId") or match.get("id")}: {str(e)}')
         
         task.metadata['matches_scraped'] = processed_count
         task.metadata['total_matches'] = total_matches
@@ -495,9 +538,23 @@ class AutomationOrchestrator:
     
     def get_status(self) -> Dict[str, Any]:
         """Get current automation status"""
+        tasks_dict = {}
+        for task_id, task in self.tasks.items():
+            t_dict = asdict(task)
+            if isinstance(t_dict['status'], AutomationStatus):
+                t_dict['status'] = t_dict['status'].value
+            tasks_dict[task_id] = t_dict
+
         return {
             'running': self.running,
-            'tasks': {task_id: asdict(task) for task_id, task in self.tasks.items()},
+            'automation_status': {
+                'orchestrator_running': self.running,
+                'total_tasks': len(self.tasks),
+                'running_tasks': sum(1 for t in self.tasks.values() if t.status == AutomationStatus.RUNNING),
+                'error_tasks': sum(1 for t in self.tasks.values() if t.status == AutomationStatus.ERROR),
+                'last_cleanup': self.last_cleanup_time,
+                'tasks': tasks_dict
+            },
             'config': self.config,
             'component_status': {
                 'match_manager': self.match_manager.get_status(),
@@ -637,3 +694,48 @@ class AutomationOrchestrator:
         self.logger.info('orchestrator', f'Task {"enabled" if task.enabled else "disabled"}: {task.name}', {'task_id': task_id})
         
         return {'success': True, 'task_id': task_id, 'enabled': task.enabled}
+    def _broadcast_task_update(self, task: AutomationTask):
+        """Broadcast single task update via WebSocket"""
+        message = {
+            'type': 'task_update',
+            'data': {
+                'task': asdict(task)
+            },
+            'timestamp': int(time.time() * 1000)
+        }
+        self.logger.broadcast('automation', json.dumps(message))
+
+    def _broadcast_tasks_full(self):
+        """Broadcast all tasks via WebSocket"""
+        tasks_dict = {}
+        for task_id, task in self.tasks.items():
+            t_dict = asdict(task)
+            if isinstance(t_dict['status'], AutomationStatus):
+                t_dict['status'] = t_dict['status'].value
+            tasks_dict[task_id] = t_dict
+
+        message = {
+            'type': 'tasks_full',
+            'data': tasks_dict,
+            'timestamp': int(time.time() * 1000)
+        }
+        self.logger.broadcast('automation', json.dumps(message))
+
+    def _broadcast_status(self):
+        """Broadcast system status via WebSocket"""
+        status = self.get_status()
+        message = {
+            'type': 'status_update',
+            'data': {
+                'automation_status': {
+                    'orchestrator_running': self.running,
+                    'total_tasks': len(self.tasks),
+                    'running_tasks': sum(1 for t in self.tasks.values() if t.status == AutomationStatus.RUNNING),
+                    'error_tasks': sum(1 for t in self.tasks.values() if t.status == AutomationStatus.ERROR),
+                    'last_cleanup': self.last_cleanup_time
+                },
+                'component_health': status.get('component_status', {})
+            },
+            'timestamp': int(time.time() * 1000)
+        }
+        self.logger.broadcast('automation', json.dumps(message))

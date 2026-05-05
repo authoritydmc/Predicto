@@ -817,10 +817,19 @@ const ControlPanel: React.FC = () => {
 
   // Handle WebSocket messages from automation orchestrator
   const handleWebSocketMessage = (message: any) => {
-    const { type, data, timestamp } = message;
+    let { type, data, timestamp } = message;
+
+    // Unwrap broadcast messages from EnhancedWebSocketLogger
+    if (type === 'broadcast' && data && data.type) {
+      type = data.type;
+      data = data.data || data; // Handle both direct data and nested data
+    }
 
     if (!type || message.level || message.window || message.source || message.message) {
-      return;
+      // Allow automation messages to pass through even if they lack some fields
+      if (type !== 'status_update' && type !== 'task_update' && type !== 'tasks_full') {
+        return;
+      }
     }
     
     switch (type) {
@@ -846,6 +855,12 @@ const ControlPanel: React.FC = () => {
             ...prev,
             [data.task.task_id]: data.task
           }));
+        }
+        break;
+
+      case 'tasks_full':
+        if (data) {
+          setAutomationTasks(data);
         }
         break;
         

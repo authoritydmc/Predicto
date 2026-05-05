@@ -89,6 +89,9 @@ class EnhancedAutomationSystem:
                 config = data.get('config')
                 result = self.orchestrator.update_config(config)
 
+            elif message_type == 'get_status':
+                result = self.orchestrator.get_status()
+
             elif message_type == 'get_job_history':
                 task_id = data.get('task_id')
                 limit = data.get('limit', 50)
@@ -116,7 +119,7 @@ class EnhancedAutomationSystem:
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
     
-    def start(self):
+    async def start(self):
         """Start the enhanced automation system"""
         if self.running:
             print("[EnhancedAutomation] System already running")
@@ -127,7 +130,7 @@ class EnhancedAutomationSystem:
         
         try:
             # Start orchestrator
-            self.orchestrator.start()
+            await self.orchestrator.start()
             self.running = True
             
             print("[EnhancedAutomation] System started successfully")
@@ -137,11 +140,24 @@ class EnhancedAutomationSystem:
             self._start_monitoring_thread()
             
             # Keep main thread alive
-            self._main_loop()
+            await self._main_loop_async()
             
         except Exception as e:
             print(f"[EnhancedAutomation] Error starting system: {e}")
             self.logger.error('enhanced_automation', f'System start failed: {str(e)}')
+            self.shutdown()
+
+    async def _main_loop_async(self):
+        """Main loop to keep system running (async)"""
+        try:
+            import asyncio
+            while self.running and not self.shutdown_requested:
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            print("\n[EnhancedAutomation] System loop cancelled")
+            self.shutdown()
+        except KeyboardInterrupt:
+            print("\n[EnhancedAutomation] Keyboard interrupt received")
             self.shutdown()
     
     def _start_monitoring_thread(self):
@@ -249,7 +265,8 @@ def main():
             sys.exit(1)
     
     try:
-        system.start()
+        import asyncio
+        asyncio.run(system.start())
     except Exception as e:
         print(f"Fatal error: {e}")
         system.shutdown()
