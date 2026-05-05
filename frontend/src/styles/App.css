@@ -1419,6 +1419,15 @@ body.desktop-embed {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--accent-blue);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.audience-header-code:hover {
+  color: #818cf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
   letter-spacing: 0.02em;
 }
 

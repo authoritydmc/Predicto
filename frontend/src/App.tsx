@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams, Outlet } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { onValue, get, set } from 'firebase/database';
 import { matchDiscoveryRef, matchMetaRef, matchLiveScoreRef, userRef, usernameDataRef, saveUserGlobalProfile, rotatePasskey, setFirebaseMode, verifyUserPasskey, generatePasskey, ensureUsernameDataExists } from './firebase/services';
 import AudienceGate from './components/Gate/AudienceGate';
@@ -395,6 +396,9 @@ function MatchPage() {
   const [loading, setLoading] = useState(false);
   const [matchStatus, setMatchStatus] = useState<string | null>(null);
   const [liveScore, setLiveScore] = useState<any>(null);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [copied, setCopied] = useState(false);
 
   // Resolve Tournament Context from Match Code
   useEffect(() => {
@@ -504,7 +508,58 @@ function MatchPage() {
             </button>
             <div className="audience-header-title">
               <span className="audience-header-kicker">Live Match</span>
-              <span className="audience-header-code">{matchCode?.toUpperCase() || ''}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span
+                  className="audience-header-code"
+                  onClick={() => {
+                    const url = `${window.location.origin}/match/${matchCode}`;
+                    navigator.clipboard.writeText(url).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    });
+                  }}
+                  style={{ cursor: 'pointer', position: 'relative' }}
+                  title="Click to copy link"
+                >
+                  {matchCode?.toUpperCase() || ''}
+                  {copied && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-24px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: '#10b981',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      whiteSpace: 'nowrap',
+                      zIndex: 10
+                    }}>
+                      Copied!
+                    </span>
+                  )}
+                </span>
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}/match/${matchCode}`;
+                    QRCode.toDataURL(url, { width: 280, margin: 2 }).then((dataUrl) => {
+                      setQrDataUrl(dataUrl);
+                      setShowQrModal(true);
+                    });
+                  }}
+                  className="share-btn"
+                  title="Show QR Code"
+                  style={{ width: '28px', height: '28px', padding: '4px' }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
           <div className="audience-header-right">
@@ -625,19 +680,53 @@ function MatchPage() {
                 )}
               </div>
             )}
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/match/${matchCode}`;
-                navigator.clipboard.writeText(url).then(() => {
-                  alert('Link copied to clipboard!');
-                });
-              }}
-              className="share-btn"
-            >
-              🔗
-            </button>
           </div>
         </header>
+
+        {showQrModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }} onClick={() => setShowQrModal(false)}>
+            <div style={{
+              background: '#1a1a2e',
+              padding: '24px',
+              borderRadius: '16px',
+              textAlign: 'center',
+              maxWidth: '320px'
+            }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ marginBottom: '16px', color: '#fff' }}>Scan to Join Match</h3>
+              {qrDataUrl && (
+                <img src={qrDataUrl} alt="QR Code" style={{ borderRadius: '8px', maxWidth: '100%' }} />
+              )}
+              <p style={{ marginTop: '16px', color: '#888', fontSize: '0.875rem' }}>
+                {matchCode?.toUpperCase()}
+              </p>
+              <button
+                onClick={() => setShowQrModal(false)}
+                style={{
+                  marginTop: '16px',
+                  padding: '8px 24px',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="match-content-grid grid-two">
           {activeMatch ? (
