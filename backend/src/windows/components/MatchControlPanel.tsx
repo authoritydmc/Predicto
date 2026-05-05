@@ -19,8 +19,16 @@ interface MatchControlPanelProps {
   onUpdateScraperUrl: (url: string) => void;
   
   // Score State
-  scoreSource: 'scraper' | 'manual' | 'api' | 'prediction';
-  onScoreSourceChange: (source: 'scraper' | 'manual' | 'api' | 'prediction') => void;
+  scoreSource: 'scraper' | 'manual';
+  onScoreSourceChange: (source: 'scraper' | 'manual') => void;
+  
+  // Extra Match Details
+  fVenue: string;
+  fSeries: string;
+  fMatchSummary: string;
+  setFVenue: (value: string) => void;
+  setFSeries: (value: string) => void;
+  setFMatchSummary: (value: string) => void;
   
   // Manual Score Controls
   scoreTeamARuns: string;
@@ -64,7 +72,7 @@ interface MatchControlPanelProps {
   onUpdateLiveScore: () => void;
 }
 
-type DataSourceMode = 'scraper' | 'manual' | 'api' | 'prediction';
+type DataSourceMode = 'scraper' | 'manual';
 type ActiveTab = 'data' | 'predictions' | 'match-status';
 
 export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
@@ -182,70 +190,6 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
               }} />
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => handleModeSwitch('api')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              borderRadius: '10px',
-              border: currentMode === 'api' ? '2px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
-              background: currentMode === 'api' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>📊</span>
-            <span>API</span>
-            {currentMode === 'api' && (
-              <span style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#34c759',
-                marginLeft: '4px'
-              }} />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeSwitch('prediction')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              borderRadius: '10px',
-              border: currentMode === 'prediction' ? '2px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
-              background: currentMode === 'prediction' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>🤔</span>
-            <span>Prediction</span>
-            {currentMode === 'prediction' && (
-              <span style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#34c759',
-                marginLeft: '4px'
-              }} />
-            )}
-          </button>
         </div>
         <p style={{
           margin: '12px 0 0 0',
@@ -254,8 +198,8 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
           lineHeight: '1.5'
         }}>
           {isScraperMode 
-            ? '🤖 Scraper mode automatically fetches match data (score, toss, batting info) from external sources.'
-            : `✏️ Manual mode (${props.scoreSource === 'manual' ? 'manual entry' : props.scoreSource === 'api' ? 'external API' : 'prediction fallback'}). You control all match details.`}
+            ? '🤖 Scraper mode automatically fetches match data (score, status, venue) from external sources.'
+            : '✏️ Manual mode. You control all match details and scores.'}
         </p>
       </div>
 
@@ -320,6 +264,64 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Venue</label>
+                    <input
+                      type="text"
+                      value={props.fVenue}
+                      onChange={(e) => props.setFVenue(e.target.value)}
+                      placeholder="e.g. Lords, London"
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.05)',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Series/Tournament</label>
+                    <input
+                      type="text"
+                      value={props.fSeries}
+                      onChange={(e) => props.setFSeries(e.target.value)}
+                      placeholder="e.g. IPL 2026"
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.05)',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Match Summary / Status (e.g. DC needs 5 runs)</label>
+                  <input
+                    type="text"
+                    value={props.fMatchSummary}
+                    onChange={(e) => props.setFMatchSummary(e.target.value)}
+                    placeholder="e.g. CSK won by 8 wickets"
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: '#fff',
+                      fontSize: '12px',
+                    }}
+                  />
+                </div>
+
                 <div>
                   <label style={{ 
                     fontSize: '11px', 
@@ -399,14 +401,22 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
                 </button>
                 
                 {props.scraperStatus && (
-                  <p style={{ 
-                    margin: '4px 0 0 0', 
-                    fontSize: '12px',
+                  <div style={{ 
+                    marginTop: '8px',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    fontFamily: 'monospace',
+                    fontSize: '11px',
+                    maxHeight: '150px',
+                    overflowY: 'auto',
+                    whiteSpace: 'pre-wrap',
                     color: props.scraperStatus.includes('Success') ? '#34c759' : 
-                           props.scraperStatus.includes('Failed') ? '#ef4444' : 'var(--muted)'
+                           props.scraperStatus.includes('Failed') ? '#ef4444' : '#818cf8'
                   }}>
                     {props.scraperStatus}
-                  </p>
+                  </div>
                 )}
                 
                 {/* Manual Override Toggle in Scraper Mode */}

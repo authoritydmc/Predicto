@@ -280,6 +280,9 @@ const ControlPanel: React.FC = () => {
   const [fPredictionsEnabled, setFPredictionsEnabled] = useState(true);
   const [fPredictionsPaused, setFPredictionsPaused] = useState(false);
   const [fPauseReason, setFPauseReason] = useState('');
+  const [fVenue, setFVenue] = useState('');
+  const [fSeries, setFSeries] = useState('');
+  const [fMatchSummary, setFMatchSummary] = useState('');
 
   // ── Legacy Form State (for backward compatibility)
   const [fRoomId, setFRoomId] = useState('ipl');
@@ -1668,13 +1671,12 @@ const ControlPanel: React.FC = () => {
             metaUpdate.battingFirst = battingFirst;
           }
           
-          // Add toss information if provided
-          if (fTossWinner) {
-            metaUpdate.tossWinner = fTossWinner;
-          }
-          if (fTossDecision) {
-            metaUpdate.tossDecision = fTossDecision;
-          }
+          // Add toss and metadata information
+          if (fTossWinner) metaUpdate.tossWinner = fTossWinner;
+          if (fTossDecision) metaUpdate.tossDecision = fTossDecision;
+          if (fMatchSummary) metaUpdate.summary = fMatchSummary;
+          if (fVenue) metaUpdate.venue = fVenue;
+          if (fSeries) metaUpdate.series = fSeries;
           
           // Remove autoMarked fields when updating live score (match is active)
           metaUpdate.autoMarked = false;
@@ -1714,49 +1716,121 @@ const ControlPanel: React.FC = () => {
       // @ts-ignore
       const result = await window.overlayDesktop.runScraper(fSport, matchId, fTeamA, fTeamB, scraperOrder, scraperMatchUrl || undefined);
       
+      // Update status log with stderr if available (it contains the debug logs)
+      if (result.stderr) {
+        setScraperStatus(prev => prev + '\n' + result.stderr);
+      }
+
       if (result.success) {
-        setScraperStatus(`Success! Fetched from ${result.data.source}`);
+        setScraperStatus(prev => prev + `\nSuccess! Fetched from ${result.data.source}`);
         
         // Auto-fill the form with scraped data
         if (fSport === 'cricket' && result.data.teamA && result.data.teamB) {
-          setScoreTeamARuns(result.data.teamA.runs?.toString() || '');
-          setScoreTeamAWickets(result.data.teamA.wickets?.toString() || '');
-          setScoreTeamAOvers(result.data.teamA.overs?.toString() || '');
-          setScoreTeamBRuns(result.data.teamB.runs?.toString() || '');
-          setScoreTeamBWickets(result.data.teamB.wickets?.toString() || '');
-          setScoreTeamBOvers(result.data.teamB.overs?.toString() || '');
-          setScoreMatchStatus(result.data.matchStatus || 'live');
+          const runsA = result.data.teamA.runs?.toString() || '';
+          const wicketsA = result.data.teamA.wickets?.toString() || '';
+          const oversA = result.data.teamA.overs?.toString() || '';
+          const runsB = result.data.teamB.runs?.toString() || '';
+          const wicketsB = result.data.teamB.wickets?.toString() || '';
+          const oversB = result.data.teamB.overs?.toString() || '';
+          const status = result.data.matchStatus || 'live';
+          const summary = result.data.matchSummary || '';
+          const venue = result.data.venue || '';
+          const series = result.data.series || '';
+
+          setScoreTeamARuns(runsA);
+          setScoreTeamAWickets(wicketsA);
+          setScoreTeamAOvers(oversA);
+          setScoreTeamBRuns(runsB);
+          setScoreTeamBWickets(wicketsB);
+          setScoreTeamBOvers(oversB);
+          setScoreMatchStatus(status);
           setScoreSource('scraper');
           
+          if (summary) setFMatchSummary(summary);
+          if (venue) setFVenue(venue);
+          if (series) setFSeries(series);
+
           // Update innings and batting team from scraper
+          let currentInn = fInnings;
           if (result.data.currentInnings) {
-            setFInnings(result.data.currentInnings === 1 ? '1' : '2');
-          }
-          if (result.data.teamA.battingTeam !== undefined) {
-            setFBattingTeam(result.data.teamA.battingTeam ? 'teamA' : 'teamB');
+            currentInn = result.data.currentInnings === 1 ? '1' : '2';
+            setFInnings(currentInn);
           }
           
-          // Extract additional match details if available from direct URL scraping
-          if (result.data.matchDateTime) {
-            // Could update match time/venue info here
-            console.log('[ControlPanel] Match DateTime:', result.data.matchDateTime);
+          let currentBatting = fBattingTeam;
+          if (result.data.teamA.battingTeam !== undefined) {
+            currentBatting = result.data.teamA.battingTeam ? 'teamA' : 'teamB';
+            setFBattingTeam(currentBatting);
           }
-          if (result.data.venue) {
-            console.log('[ControlPanel] Venue:', result.data.venue);
+
+          // Automatically update Firebase
+          if (tournamentId && matchId) {
+            const updates: any = {
+              status: status,
+              lastScraped: Date.now(),
+              source: result.data.source
+            };
+
+            if (summary) updates.summary = summary;
+            if (venue) updates.venue = venue;
+            if (series) updates.series = series;
+            if (result.data.currentInnings) updates.secondInnings = result.data.currentInnings === 2;
+            
+            // Only update toss if available
+            if (result.data.toss) {
+               updates.tossWinner = result.data.toss.winner === fTeamA ? 'teamA' : 'teamB';
+               updates.tossDecision = result.data.toss.decision === 'bat' ? 'bat' : 'bowl';
+               setFTossWinner(updates.tossWinner);
+               setFTossDecision(updates.tossDecision);
+            }
+
+            await update(matchMetaRef(fSport, tournamentId, matchId), updates);
+            
+            // Also update live score node
+            const scoreUpdates: any = {
+              lastUpdated: Date.now(),
+              teamA: {
+                runs: parseInt(runsA) || 0,
+                wickets: parseInt(wicketsA) || 0,
+                overs: parseFloat(oversA) || 0,
+                batting: currentBatting === 'teamA'
+              },
+              teamB: {
+                runs: parseInt(runsB) || 0,
+                wickets: parseInt(wicketsB) || 0,
+                overs: parseFloat(oversB) || 0,
+                batting: currentBatting === 'teamB'
+              },
+              matchStatus: status,
+              innings: parseInt(currentInn)
+            };
+            await update(matchLiveScoreRef(fSport, tournamentId, matchId), scoreUpdates);
           }
-          if (result.data.series) {
-            console.log('[ControlPanel] Series:', result.data.series);
-          }
+          
         } else if (fSport === 'football' && result.data.teamA && result.data.teamB) {
-          setScoreTeamARuns(result.data.teamA.goals?.toString() || '');
-          setScoreTeamBRuns(result.data.teamB.goals?.toString() || '');
-          setScoreMatchStatus(result.data.matchStatus || 'live');
+          const goalsA = result.data.teamA.goals?.toString() || '';
+          const goalsB = result.data.teamB.goals?.toString() || '';
+          const status = result.data.matchStatus || 'live';
+
+          setScoreTeamARuns(goalsA);
+          setScoreTeamBRuns(goalsB);
+          setScoreMatchStatus(status);
           setScoreSource('scraper');
+
+          if (tournamentId && matchId) {
+            await update(matchMetaRef(fSport, tournamentId, matchId), { status });
+            await update(matchLiveScoreRef(fSport, tournamentId, matchId), {
+              lastUpdated: Date.now(),
+              teamA: { goals: parseInt(goalsA) || 0 },
+              teamB: { goals: parseInt(goalsB) || 0 },
+              matchStatus: status
+            });
+          }
         }
         
         console.log('[ControlPanel] Scraper result:', result.data);
       } else {
-        setScraperStatus(`Failed: ${result.error}`);
+        setScraperStatus(prev => prev + `\nFailed: ${result.error}`);
         console.error('[ControlPanel] Scraper error:', result);
         
         // Fallback: Try to use prediction data if scraper fails
@@ -3081,6 +3155,12 @@ const ControlPanel: React.FC = () => {
                     onUpdateScraperUrl={setScraperMatchUrl}
                     scoreSource={scoreSource}
                     onScoreSourceChange={(source) => setScoreSource(source as any)}
+                    fVenue={fVenue}
+                    fSeries={fSeries}
+                    fMatchSummary={fMatchSummary}
+                    setFVenue={setFVenue}
+                    setFSeries={setFSeries}
+                    setFMatchSummary={setFMatchSummary}
                     scoreTeamARuns={scoreTeamARuns}
                     scoreTeamAWickets={scoreTeamAWickets}
                     scoreTeamAOvers={scoreTeamAOvers}

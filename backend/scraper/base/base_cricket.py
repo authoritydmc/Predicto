@@ -25,6 +25,7 @@ class CricketScoreData:
     team_b_batting: bool = False
     current_innings: int = 1
     match_status: str = "scheduled"  # live, completed, scheduled
+    match_summary: str = ""
     match_datetime: str = ""
     venue: str = ""
     series: str = ""
@@ -50,6 +51,7 @@ class CricketScoreData:
             },
             "currentInnings": self.current_innings,
             "matchStatus": self.match_status,
+            "matchSummary": self.match_summary,
             "matchDateTime": self.match_datetime,
             "venue": self.venue,
             "series": self.series,
@@ -106,8 +108,8 @@ class BaseCricketScraper(BaseScraper):
         team_b = kwargs.get('team_b')
         match_url = kwargs.get('match_url')
         
-        if not team_a or not team_b:
-            self.error("team_a and team_b are required")
+        if not match_url and (not team_a or not team_b):
+            self.error("Either match_url or both team_a and team_b are required")
             return None
         
         result = self.get_cricket_score(team_a, team_b, match_url)

@@ -72,13 +72,29 @@ class CricbuzzScraper(BaseCricketScraper):
             title_text = title_elem.get_text(strip=True) if title_elem else ""
             debug(f"[Cricbuzz] Title: {title_text}")
             
-            team_a, team_b = self.extract_teams_from_title(title_text)
+            # Try meta description first as it's very reliable
+            meta = soup.find('meta', attrs={'name': 'description'})
+            team_a, team_b = None, None
             
+            if meta and meta.get('content'):
+                meta_content = meta['content']
+                debug(f"[Cricbuzz] Meta content found: {meta_content[:100]}...")
+                
+                # Check for teams in title/meta
+                team_a, team_b = self.extract_teams_from_title(title_text)
+                if not team_a or not team_b:
+                     # Try extracting from meta if title fails
+                     # Example: "CSK 159/2 (17.3) vs DC 155/7"
+                     parts = meta_content.split('|')[0].split(' vs ')
+                     if len(parts) >= 2:
+                         team_a = parts[0].split(' ')[-1].strip()
+                         team_b = parts[1].split(' ')[0].strip()
+
             if not team_a or not team_b:
-                warn(f"[Cricbuzz] Could not extract teams from title")
+                warn(f"[Cricbuzz] Could not extract teams from title or meta")
                 return None
             
-            debug(f"[Cricbuzz] Teams: {team_a} vs {team_b}")
+            debug(f"[Cricbuzz] Teams identified: {team_a} vs {team_b}")
             
             # Extract scores from page text using regex patterns
             all_text = soup.get_text()
@@ -106,18 +122,19 @@ class CricbuzzScraper(BaseCricketScraper):
             
             match_status = self.determine_match_status(status_text, both_have_scores=True)
             
-            # Extract series name
-            series_elem = soup.find('h1') or soup.find('div', class_='cb-nav-hdr')
-            series_name = ""
-            if series_elem:
-                series_name = series_elem.get_text(strip=True)
+            # Extract series and venue from page text (robust to layout changes)
+            page_text = soup.get_text(separator=' ', strip=True)
+            series_match = re.search(r'Series:\s*([^,]+?)(?=\s+Venue:|$)', page_text)
+            venue_match = re.search(r'Venue:\s*([^,]+?,[^,]+?)(?=\s+Date & Time:|$)', page_text)
             
-            # Extract match info (date/time/venue)
-            info_elem = soup.find('div', class_='cb-nav-subhdr')
-            match_info = ""
-            if info_elem:
-                match_info = info_elem.get_text(strip=True)
+            series_name = series_match.group(1).strip() if series_match else ""
+            venue_name = venue_match.group(1).strip() if venue_match else ""
             
+            if not series_name:
+                series_elem = soup.find('h1') or soup.find('div', class_='cb-nav-hdr')
+                if series_elem:
+                    series_name = series_elem.get_text(strip=True)
+
             result = CricketScoreData(
                 team_a_name=team_a,
                 team_b_name=team_b,
@@ -131,8 +148,9 @@ class CricbuzzScraper(BaseCricketScraper):
                 team_b_batting=team_b_batting,
                 current_innings=self.determine_innings(float(team_a_overs), float(team_b_overs)),
                 match_status=match_status,
-                match_datetime=match_info,
-                venue="",
+                match_summary=status_text,
+                match_datetime="", # Will be set by caller if needed
+                venue=venue_name,
                 series=series_name,
                 match_url=match_url,
                 source=self.SOURCE
@@ -155,32 +173,43 @@ class CricbuzzScraper(BaseCricketScraper):
         if not soup:
             return None
         
-        # Find all match cards using multiple selectors
-        selectors = [
-            ('div', 'cb-mtch-lst'),
-            ('a', 'text-hvr-underline'),
-            ('div', 'cb-col-8'),
-            ('div', 'cb-col-100 cb-col cb-col-scores')
-        ]
-        
+        # Find all match cards/links
         match_cards = []
-        for tag, class_name in selectors:
-            cards = soup.find_all(tag, class_=class_name)
-            if cards:
-                match_cards = cards
-                debug(f"[Cricbuzz] Found {len(cards)} cards with {tag}.{class_name}")
-                break
         
-        if not match_cards:
-            # Try finding by match links
-            match_links = soup.find_all('a', href=re.compile(r'/live-cricket-scores/\d+'))
-            match_cards = match_links
+        # 1. Look for match links directly (very robust in new layout)
+        match_links = soup.find_all('a', href=re.compile(r'/live-cricket-scores/\d+'))
+        if match_links:
+            match_cards.extend(match_links)
             debug(f"[Cricbuzz] Found {len(match_links)} match links")
         
+        # 2. Add legacy containers if present
+        selectors = [
+            ('div', 'cb-mtch-lst'),
+            ('div', 'cb-col-100 cb-col cb-col-scores'),
+            ('div', 'cb-scr-wll-chvrn')
+        ]
+        for tag, cls in selectors:
+            found = soup.find_all(tag, class_=cls)
+            if found:
+                match_cards.extend(found)
+                debug(f"[Cricbuzz] Found {len(found)} cards with class {cls}")
+
         if not match_cards:
             warn(f"[Cricbuzz] No match cards or links found on live scores page. Site layout might have changed.")
-            # Log some of the page content for debugging
-            debug(f"[Cricbuzz] Page snippet: {str(soup)[:500]}...")
+            # Log first 200 chars of page text for debugging
+            debug(f"[Cricbuzz] Page text snippet: {soup.get_text()[:200]}...")
+            return None
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_cards = []
+        for card in match_cards:
+            cid = str(card.get('href') or card)
+            if cid not in seen:
+                seen.add(cid)
+                unique_cards.append(card)
+        
+        match_cards = unique_cards
         
         # Search for matching teams
         for card in match_cards:
@@ -223,11 +252,35 @@ class CricbuzzScraper(BaseCricketScraper):
     
     def _extract_teams_from_card(self, card) -> Optional[tuple[str, str]]:
         """Extract team names from a match card element"""
-        team_elements = card.find_all('div', class_='cb-ovr-flo')
+        # 1. Try new Tailwind layout title attribute
+        title = card.get('title', '')
+        if ' vs ' in title:
+            # Title often like "Delhi Capitals vs Chennai Super Kings, 48th Match..."
+            match_part = title.split(',')[0]
+            if ' vs ' in match_part:
+                teams = match_part.split(' vs ')
+                if len(teams) >= 2:
+                    return teams[0].strip(), teams[1].strip()
+        
+        # 2. Try span inside link (Tailwind layout)
+        span = card.find('span')
+        if span:
+            text = span.get_text(strip=True)
+            if ' vs ' in text:
+                # Text like "DC vs CSK - CSK won"
+                match_part = text.split('-')[0]
+                if ' vs ' in match_part:
+                    parts = match_part.split(' vs ')
+                    if len(parts) >= 2:
+                        return parts[0].strip(), parts[1].strip()
+
+        # 3. Legacy classes
+        team_elements = card.find_all('div', class_=re.compile(r'cb-ovr-flo|cb-hmwkr-tm|cb-hmscg-tm-nm'))
         if len(team_elements) >= 2:
             team_a = team_elements[0].get_text(strip=True)
             team_b = team_elements[1].get_text(strip=True)
             return team_a, team_b
+            
         return None
     
     def _extract_scores_from_card(self, card) -> list[dict]:
