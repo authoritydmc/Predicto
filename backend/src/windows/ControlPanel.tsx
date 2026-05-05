@@ -4455,11 +4455,13 @@ const ControlPanel: React.FC = () => {
             border: '1px solid var(--border)',
             minWidth: '400px',
             maxWidth: '500px',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)'
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+            maxHeight: '90vh',
+            overflowY: 'auto'
           }}>
             <h3 style={{ margin: '0 0 16px 0', color: 'var(--text)' }}>Pause Predictions</h3>
-            <p style={{ margin: '0 0 20px 0', color: 'var(--muted)', fontSize: '14px' }}>
-              Optionally provide a reason for pausing predictions. This will be visible to users.
+            <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--muted)' }}>
+              Enter a reason for pausing predictions (optional). This will be shown to users.
             </p>
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text)', fontSize: '14px' }}>
@@ -4471,14 +4473,14 @@ const ControlPanel: React.FC = () => {
                 placeholder="Enter reason for pausing predictions..."
                 style={{
                   width: '100%',
-                  minHeight: '80px',
                   padding: '12px',
                   backgroundColor: 'var(--input-bg)',
                   border: '1px solid var(--border)',
                   borderRadius: '4px',
                   color: 'var(--text)',
                   fontSize: '14px',
-                  resize: 'vertical'
+                  resize: 'vertical',
+                  minHeight: '80px'
                 }}
               />
             </div>

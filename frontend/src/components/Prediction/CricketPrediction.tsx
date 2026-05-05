@@ -146,6 +146,20 @@ export default function CricketPrediction({
     currentInnings,
     targetScore
   });
+  
+  // Debug live prediction panel conditions
+  const livePredictionConditions = {
+    notCompleted: !isMatchCompleted,
+    enabled: predictionsEnabled,
+    notPaused: !predictionsPaused,
+    isLive: matchStatus === 'live',
+    hasBattingFirst: !!battingFirst,
+    isFirstInnings: currentInnings === 1
+  };
+  console.log('[CricketPrediction] Live prediction conditions:', livePredictionConditions);
+  console.log('[CricketPrediction] Should show live panel:', 
+    Object.values(livePredictionConditions).every(Boolean)
+  );
 
   const handleSecondInningsPrediction = (e: FormEvent) => {
     e.preventDefault();
@@ -366,7 +380,7 @@ export default function CricketPrediction({
         </div>
       )}
 
-      {!isMatchCompleted && predictionsEnabled && !predictionsPaused && matchStatus === 'live' && battingFirst && currentInnings === 1 && (
+      {!isMatchCompleted && predictionsEnabled && !predictionsPaused && matchStatus === 'live' && currentInnings === 1 && (
         <div className="cricket-prediction-form">
           <div style={{
             padding: '16px',
