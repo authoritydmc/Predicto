@@ -558,6 +558,86 @@ const ControlPanel: React.FC = () => {
     setTempPauseReason('');
   };
 
+  // ── Automation Handlers
+  const handleTriggerAutomationTask = (taskId: string) => {
+    if (wsConnection) {
+      wsConnection.send(JSON.stringify({
+        type: 'trigger_task',
+        task_id: taskId,
+        timestamp: Date.now()
+      }));
+      showFeedback('info', `Triggering task: ${taskId}`);
+    }
+  };
+
+  const handleAddTask = (task: any) => {
+    if (wsConnection) {
+      wsConnection.send(JSON.stringify({
+        type: 'add_task',
+        task,
+        timestamp: Date.now()
+      }));
+      showFeedback('info', `Adding task: ${task.name}`);
+    }
+  };
+
+  const handleUpdateTask = (taskId: string, updates: any) => {
+    if (wsConnection) {
+      wsConnection.send(JSON.stringify({
+        type: 'update_task',
+        task_id: taskId,
+        updates,
+        timestamp: Date.now()
+      }));
+      showFeedback('info', `Updating task: ${taskId}`);
+    }
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    if (confirm(`Are you sure you want to delete task "${taskId}"?`)) {
+      if (wsConnection) {
+        wsConnection.send(JSON.stringify({
+          type: 'delete_task',
+          task_id: taskId,
+          timestamp: Date.now()
+        }));
+        showFeedback('info', `Deleting task: ${taskId}`);
+      }
+    }
+  };
+
+  const handleToggleTask = (taskId: string) => {
+    if (wsConnection) {
+      wsConnection.send(JSON.stringify({
+        type: 'toggle_task',
+        task_id: taskId,
+        timestamp: Date.now()
+      }));
+    }
+  };
+
+  // Handle WebSocket responses
+  useEffect(() => {
+    if (!wsConnection) return;
+    
+    const originalOnMessage = wsConnection.onmessage;
+    wsConnection.onmessage = (event) => {
+      if (originalOnMessage) originalOnMessage(event);
+      
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type && message.type.endsWith('_response')) {
+          const { data } = message;
+          if (data && data.success) {
+            showFeedback('success', 'Operation successful');
+          } else if (data && !data.success) {
+            showFeedback('error', `Operation failed: ${data.error || 'Unknown error'}`);
+          }
+        }
+      } catch (e) {}
+    };
+  }, [wsConnection]);
+
   // ── Note: Prediction controls are synced via Firebase subscription in subscribeToMeta
   // No auto-sync needed as changes from other clients will be reflected automatically
 
@@ -778,6 +858,16 @@ const ControlPanel: React.FC = () => {
       case 'log_entry':
         if (data.data) {
           setAutomationLogs(prev => [data.data, ...prev.slice(0, 999)]); // Keep last 1000 logs
+        }
+        break;
+        
+      case 'task_deleted':
+        if (data.task_id) {
+          setAutomationTasks(prev => {
+            const next = { ...prev };
+            delete next[data.task_id];
+            return next;
+          });
         }
         break;
         
@@ -2496,6 +2586,7 @@ const ControlPanel: React.FC = () => {
                   <span className="mode-indicator"></span>
                 </button>
               </div>
+            </div>
             <h1>Control Panel</h1>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <p style={{ margin: 0 }}>
@@ -2543,8 +2634,8 @@ const ControlPanel: React.FC = () => {
             Share Link
           </button>
         </div>
-        </div>
       </header>
+
 
       <div className="cp-content-grid">
 
@@ -2560,260 +2651,36 @@ const ControlPanel: React.FC = () => {
               {collapsedSections.tournament ? '▶' : '▼'}
             </span>
           </div>
-          <div className="cp-glass-card" style={{ display: collapsedSections.tournament ? 'none' : 'block' }}>
-            <div style={{ 
-              padding: '12px 16px', 
-              background: 'rgba(99, 102, 241, 0.1)', 
-              borderRadius: '8px', 
-              border: '1px solid rgba(99, 102, 241, 0.2)', 
-              marginBottom: '16px',
-              fontSize: '12px',
-              color: 'var(--muted)'
-            }}>
-              <strong>🏆 What this section does:</strong> Create tournaments, upload match schedules via CSV, and manage tournament status. Changes here update the tournament database and affect all associated matches.
-            </div>
-            {/* Sport Selection */}
-            <div className="cp-form-row">
-              <label>Sport Type *</label>
-              <select value={fSport} onChange={e => setFSport(e.target.value)} required>
-                <option value="">-- Select Sport --</option>
-                <option value="cricket">Cricket</option>
-                <option value="football">Football</option>
-                <option value="basketball">Basketball</option>
-                <option value="hockey">Hockey</option>
-                <option value="tennis">Tennis</option>
-              </select>
-            </div>
-
-            {/* Tournament List with Active Indicator */}
-            {availableTournaments.length > 0 && (
-              <div className="cp-form-row">
-                <label>Available Tournaments</label>
-                <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {availableTournaments.map((t) => (
-                    <div
-                      key={t.tournamentId}
-                      onClick={() => handleSelectTournament(t)}
-                      style={{
-                        padding: '12px',
-                        background: tournamentId === t.tournamentId ? 'rgba(0, 122, 255, 0.15)' : 'rgba(255,255,255,0.05)',
-                        borderRadius: '8px',
-                        border: tournamentId === t.tournamentId ? '1px solid var(--accent-blue)' : '1px solid rgba(255,255,255,0.08)',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        {/* Active Indicator Green Dot */}
-                        <div style={{
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          background: t.status === 'active' ? '#34C759' : t.status === 'paused' ? '#ff9f0a' : '#FF3B30',
-                          boxShadow: t.status === 'active' ? '0 0 8px rgba(52, 199, 89, 0.6)' : 'none'
-                        }} />
-                        <div>
-                          <div style={{ fontWeight: '600', color: 'var(--text)' }}>{t.tournamentName}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{t.tournamentId}</div>
-                        </div>
-                      </div>
-                      <span style={{
-                        fontSize: '10px',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        background: t.status === 'active' ? 'rgba(52, 199, 89, 0.2)' : t.status === 'paused' ? 'rgba(255, 159, 10, 0.2)' : 'rgba(255, 59, 48, 0.2)',
-                        color: t.status === 'active' ? '#34C759' : t.status === 'paused' ? '#ff9f0a' : '#FF3B30',
-                        textTransform: 'uppercase',
-                        fontWeight: '600'
-                      }}>
-                        {t.status || 'active'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="cp-divider" />
-
-            {/* Tab Navigation */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              <button
-                type="button"
-                onClick={() => handleTabChange('details')}
-                className={`cp-action-btn cp-small ${tournamentTab === 'details' ? 'cp-active' : ''}`}
-                style={{ flex: 1 }}
-              >
-                Tournament Details
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTabChange('schedule')}
-                className={`cp-action-btn cp-small ${tournamentTab === 'schedule' ? 'cp-active' : ''}`}
-                style={{ flex: 1 }}
-              >
-                Schedule Management
-              </button>
-            </div>
-
-            {/* Tournament Details Tab */}
-            {tournamentTab === 'details' && (
-              <>
-                <div className="cp-form-row">
-                  <label>Tournament Code</label>
-                  <input value={fTournamentCode} onChange={e => setFTournamentCode(e.target.value)} maxLength={40} placeholder="e.g. ipl-2024" />
-                </div>
-                <div className="cp-form-row">
-                  <label>Tournament Name</label>
-                  <input value={fTournamentName} onChange={e => setFTournamentName(e.target.value)} placeholder="e.g. IPL 2024" />
-                </div>
-
-                {/* Tournament Status */}
-                {tournamentId && (
-                  <div className="cp-form-row">
-                    <label>Tournament Status</label>
-                    <div className="cp-radio-group">
-                      <div className="cp-radio-option">
-                        <input type="radio" id="statusActive" name="tournamentStatus" value="active" checked={tournamentStatus === 'active'} onChange={() => handleUpdateTournamentStatus('active')} />
-                        <label className="cp-radio-label" htmlFor="statusActive">Active</label>
-                      </div>
-                      <div className="cp-radio-option">
-                        <input type="radio" id="statusPaused" name="tournamentStatus" value="paused" checked={tournamentStatus === 'paused'} onChange={() => handleUpdateTournamentStatus('paused')} />
-                        <label className="cp-radio-label" htmlFor="statusPaused">Paused</label>
-                      </div>
-                      <div className="cp-radio-option">
-                        <input type="radio" id="statusEnded" name="tournamentStatus" value="ended" checked={tournamentStatus === 'ended'} onChange={() => handleUpdateTournamentStatus('ended')} />
-                        <label className="cp-radio-label" htmlFor="statusEnded">Ended</label>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="cp-divider" />
-
-                {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="cp-primary-btn" style={{ flex: 1 }} type="button" onClick={handleCreateTournament as any}>
-                    {tournamentId ? 'Update Tournament' : 'Create Tournament'}
-                  </button>
-                  {tournamentId && (
-                    <button 
-                      className="cp-secondary-btn cp-danger" 
-                      type="button"
-                      onClick={handleDeleteTournament}
-                      style={{ flex: '0 0 auto' }}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Schedule Management Tab */}
-            {tournamentTab === 'schedule' && (
-              <>
-                {!tournamentId && (
-                  <div style={{ padding: '16px', background: 'rgba(255, 159, 10, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 159, 10, 0.3)', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600' }}>
-                      ⚠️ Please select a tournament first to manage its schedule
-                    </span>
-                  </div>
-                )}
-
-                {tournamentId && (
-                  <>
-                    <div className="cp-form-row">
-                      <label>Upload Schedule (CSV)</label>
-                      <input 
-                        type="file" 
-                        accept=".csv" 
-                        onChange={handleCSVUpload}
-                        disabled={uploadingSchedule}
-                      />
-                      {uploadingSchedule && <span style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Parsing CSV...</span>}
-                    </div>
-
-                    <div className="cp-divider" />
-
-                    <div className="cp-form-row">
-                      <label>Current Schedule ({schedule.length} matches)</label>
-                      <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {schedule.length === 0 ? (
-                          <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', textAlign: 'center', color: 'var(--muted)' }}>
-                            No matches in schedule. Upload CSV or click Edit to add matches manually.
-                          </div>
-                        ) : (
-                          schedule.map((match, idx) => (
-                            <div 
-                              key={idx}
-                              style={{ 
-                                padding: '10px', 
-                                background: 'rgba(255,255,255,0.05)', 
-                                borderRadius: '6px',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                fontSize: '12px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
-                                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.teamA} vs {match.teamB}</div>
-                                <div style={{ fontSize: '10px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleLoadMatchFromSchedule(match)}
-                                className="cp-action-btn cp-small"
-                                style={{ fontSize: '10px', padding: '4px 8px' }}
-                              >
-                                Load
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="cp-divider" />
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button 
-                        type="button"
-                        onClick={async () => {
-                          const loadedSchedule = await getTournamentSchedule(fSport, tournamentId);
-                          setEditingSchedule(loadedSchedule);
-                          setShowScheduleEditor(true);
-                        }}
-                        className="cp-primary-btn"
-                        style={{ flex: 1 }}
-                      >
-                        Edit Schedule
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={async () => {
-                          if (!confirm('Clear all matches from schedule?')) return;
-                          await saveTournamentSchedule(fSport, tournamentId, []);
-                          setSchedule([]);
-                          setEditingSchedule([]);
-                          alert('Schedule cleared');
-                        }}
-                        className="cp-secondary-btn cp-danger"
-                        style={{ flex: '0 0 auto' }}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
+          <div style={{ display: collapsedSections.tournament ? 'none' : 'block' }}>
+            <TournamentManagement
+              availableTournaments={availableTournaments}
+              tournamentId={tournamentId}
+              tournamentTab={tournamentTab}
+              fSport={fSport}
+              fTournamentCode={fTournamentCode}
+              fTournamentName={fTournamentName}
+              tournamentStatus={tournamentStatus}
+              uploadingSchedule={uploadingSchedule}
+              schedule={schedule}
+              onSelectTournament={handleSelectTournament}
+              onTabChange={handleTabChange}
+              setFSport={setFSport}
+              setFTournamentCode={setFTournamentCode}
+              setFTournamentName={setFTournamentName}
+              onUpdateTournamentStatus={handleUpdateTournamentStatus}
+              onCreateTournament={handleCreateTournament as any}
+              onDeleteTournament={handleDeleteTournament}
+              onCSVUpload={handleCSVUpload}
+              onLoadMatchFromSchedule={handleLoadMatchFromSchedule}
+              onEditSchedule={handleOpenScheduleEditor}
+              onClearSchedule={async () => {
+                if (!confirm('Clear all matches from schedule?')) return;
+                await saveTournamentSchedule(fSport, tournamentId, []);
+                setSchedule([]);
+                setEditingSchedule([]);
+                alert('Schedule cleared');
+              }}
+            />
           </div>
         </section>
 
@@ -2829,378 +2696,82 @@ const ControlPanel: React.FC = () => {
               {collapsedSections.match ? '▶' : '▼'}
             </span>
           </div>
-          <div className="cp-glass-card" style={{ display: collapsedSections.match ? 'none' : 'block' }}>
-            <div style={{ 
-              padding: '12px 16px', 
-              background: 'rgba(52, 199, 89, 0.1)', 
-              borderRadius: '8px', 
-              border: '1px solid rgba(52, 199, 89, 0.2)', 
-              marginBottom: '16px',
-              fontSize: '12px',
-              color: 'var(--muted)'
-            }}>
-              <strong>⚽ What this section does:</strong> Create individual matches, set match details, configure prediction settings, and manage live scores. Updates here affect the current match only.
-            </div>
-            {/* Tournament Selection Warning */}
-            {!tournamentId && (
-              <div style={{ padding: '16px', background: 'rgba(255, 159, 10, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 159, 10, 0.3)', marginBottom: '16px' }}>
-                <span style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600' }}>
-                  ⚠️ Please select a tournament first to manage matches
-                </span>
-              </div>
-            )}
-
-            {tournamentId && (
-              <>
-                {/* Schedule View */}
-                {schedule.length > 0 && (
-                  <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Next Scheduled Match</span>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button 
-                          type="button"
-                          onClick={async () => {
-                            const loadedSchedule = await getTournamentSchedule(fSport, tournamentId);
-                            setSchedule(loadedSchedule);
-                          }}
-                          className="cp-action-btn cp-small"
-                          style={{ fontSize: '10px' }}
-                        >
-                          Refresh
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={handleOpenScheduleEditor}
-                          className="cp-action-btn cp-small"
-                          style={{ fontSize: '10px' }}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                    <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {schedule
-                        .filter((match: any) => {
-                          // Only show matches that are scheduled with a date
-                          if (!match.date) return false;
-                          const matchDate = new Date(match.date);
-                          const now = new Date();
-                          // Compare date parts only (year, month, day) - ignore time for filtering
-                          const matchDateOnly = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
-                          const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                          // Show today's matches and future matches
-                          return matchDateOnly >= nowDateOnly;
-                        })
-                        .sort((a: any, b: any) => {
-                          // Sort by full date/time to get the next upcoming match
-                          return new Date(a.date).getTime() - new Date(b.date).getTime();
-                        })
-                        .slice(0, 1) // Only show the best candidate (next upcoming match)
-                        .map((match, idx) => {
-                          const now = new Date();
-                          const matchDate = match.date ? new Date(match.date) : null;
-                          const isUpcoming = matchDate && matchDate >= now;
-                          const isSelected = fMatchTitle === match.matchTitle && fTeamA === match.teamA && fTeamB === match.teamB;
-                          const matchStatus = matchStatuses[match.matchId] || 'scheduled';
-                          
-                          // Calculate days until match
-                          let statusText = '';
-                          let statusColor = '';
-                          let statusBg = '';
-                          
-                          // Priority: match status > date-based status
-                          if (matchStatus === 'live') {
-                            statusText = 'LIVE';
-                            statusColor = '#ef4444';
-                            statusBg = 'rgba(239, 68, 68, 0.2)';
-                          } else if (matchStatus === 'done') {
-                            statusText = 'DONE';
-                            statusColor = '#8e8e93';
-                            statusBg = 'rgba(142, 142, 147, 0.2)';
-                          } else if (matchDate) {
-                            const diffTime = matchDate.getTime() - now.getTime();
-                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            
-                            if (diffDays === 0) {
-                              statusText = 'TODAY';
-                              statusColor = '#ff9f0a';
-                              statusBg = 'rgba(255, 159, 10, 0.2)';
-                            } else if (diffDays === 1) {
-                              statusText = 'TOMORROW';
-                              statusColor = '#34c759';
-                              statusBg = 'rgba(52, 199, 89, 0.2)';
-                            } else {
-                              statusText = `IN ${diffDays} DAYS`;
-                              statusColor = '#34c759';
-                              statusBg = 'rgba(52, 199, 89, 0.15)';
-                            }
-                          } else {
-                            statusText = 'SCHEDULED';
-                            statusColor = '#8e8e93';
-                            statusBg = 'rgba(142, 142, 147, 0.15)';
-                          }
-                          
-                          return (
-                            <div 
-                              key={idx}
-                              style={{ 
-                                padding: '10px', 
-                                background: isSelected ? 'rgba(0, 122, 255, 0.15)' : (matchStatus === 'live' ? 'rgba(239, 68, 68, 0.05)' : (matchStatus === 'done' ? 'rgba(142, 142, 147, 0.05)' : (isUpcoming ? 'rgba(52, 199, 89, 0.05)' : 'rgba(255,255,255,0.05)'))), 
-                                borderRadius: '6px',
-                                border: isSelected ? '1px solid var(--accent-blue)' : (matchStatus === 'live' ? '1px solid rgba(239, 68, 68, 0.3)' : (matchStatus === 'done' ? '1px solid rgba(142, 142, 147, 0.2)' : (isUpcoming ? '1px solid rgba(52, 199, 89, 0.2)' : '1px solid rgba(255,255,255,0.08)'))),
-                                fontSize: '12px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontWeight: '600', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  {match.matchTitle}
-                                  <span style={{ fontSize: '9px', background: statusBg, color: statusColor, padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>{statusText}</span>
-                                  {isSelected && <span style={{ fontSize: '9px', background: 'rgba(0, 122, 255, 0.2)', color: '#007aff', padding: '2px 6px', borderRadius: '4px' }}>SELECTED</span>}
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.date || 'TBD'} • {match.venue || ''}</div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleLoadMatchFromSchedule(match)}
-                                className="cp-action-btn cp-small"
-                                style={{ fontSize: '10px', padding: '4px 8px' }}
-                              >
-                                {isSelected ? 'Selected' : 'Load'}
-                              </button>
-                            </div>
-                          );
-                        })}
-                      {schedule.filter((m: any) => {
-                        if (!m.date) return false;
-                        const matchDate = new Date(m.date);
-                        const now = new Date();
-                        const matchDateOnly = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
-                        const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                        return matchDateOnly >= nowDateOnly;
-                      }).length === 0 && (
-                        <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', textAlign: 'center', color: 'var(--muted)' }}>
-                          No upcoming scheduled matches
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Existing Matches */}
-                {availableMatches.length > 0 && (
-                  <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Existing Matches ({availableMatches.length})</span>
-                    </div>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {availableMatches.map((match) => (
-                        <div 
-                          key={match.matchId}
-                          style={{ 
-                            padding: '10px', 
-                            background: matchId === match.matchId ? 'rgba(0, 122, 255, 0.15)' : 'rgba(255,255,255,0.05)', 
-                            borderRadius: '6px',
-                            border: matchId === match.matchId ? '1px solid var(--accent-blue)' : '1px solid rgba(255,255,255,0.08)',
-                            fontSize: '12px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: '600', color: 'var(--text)' }}>{match.matchTitle}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{match.teamA} vs {match.teamB}</div>
-                            <div style={{ marginTop: '4px' }}>
-                              <span 
-                                style={{ 
-                                  fontSize: '10px', 
-                                  padding: '2px 6px', 
-                                  borderRadius: '4px',
-                                  background: matchStatuses[match.matchId] === 'live' 
-                                    ? 'rgba(239, 68, 68, 0.2)' 
-                                    : matchStatuses[match.matchId] === 'done' 
-                                      ? 'rgba(142, 142, 147, 0.2)' 
-                                      : 'rgba(52, 199, 89, 0.2)',
-                                  color: matchStatuses[match.matchId] === 'live' 
-                                    ? '#ef4444' 
-                                    : matchStatuses[match.matchId] === 'done' 
-                                      ? '#8e8e93' 
-                                      : '#34c759',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                {(matchStatuses[match.matchId] || 'scheduled').toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            {matchStatuses[match.matchId] === 'done' && (
-                              <button
-                                type="button"
-                                onClick={() => handleRestoreMatch(match.matchId)}
-                                className="cp-action-btn cp-small"
-                                style={{ fontSize: '10px', padding: '4px 8px', background: 'rgba(52, 199, 89, 0.2)', color: '#34c759' }}
-                              >
-                                Restore
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleSelectMatch(match)}
-                              className="cp-action-btn cp-small"
-                              style={{ fontSize: '10px', padding: '4px 8px' }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteMatch(match.matchId)}
-                              className="cp-action-btn cp-small cp-danger"
-                              style={{ fontSize: '10px', padding: '4px 8px' }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="cp-divider" />
-
-                {/* Match Tabs */}
-                <div className="cp-tabs">
-                  <button 
-                    className={`cp-tab ${activeMatchTab === 'details' ? 'active' : ''}`}
-                    onClick={() => setActiveMatchTab('details')}
-                  >
-                    <span className="cp-tab-icon">📋</span>
-                    Match Details
-                  </button>
-                  <button 
-                    className={`cp-tab-btn ${activeMatchTab === 'live' ? 'active' : ''}`}
-                    onClick={() => setActiveMatchTab('live')}
-                  >
-                    <span className="cp-tab-icon">📊</span>
-                    Match Control
-                  </button>
-                </div>
-
-                {/* Match Details Tab */}
-                <div className={`cp-tab-content ${activeMatchTab === 'details' ? 'active' : ''}`}>
-                  <form onSubmit={handleCreateMatch}>
-                    <div className="cp-form-row">
-                      <label>Tournament</label>
-                      <input value={tournamentId} readOnly style={{ background: 'rgba(255,255,255,0.02)', cursor: 'not-allowed' }} />
-                    </div>
-                    <div className="cp-dual-row">
-                      <div className="cp-form-row">
-                        <label>Match Code</label>
-                        <input value={fMatchCode} onChange={e => setFMatchCode(e.target.value)} maxLength={40} placeholder="e.g. csk-vs-mi" required />
-                      </div>
-                      <div className="cp-form-row">
-                        <label>Match Title</label>
-                        <input value={fMatchTitle} onChange={e => setFMatchTitle(e.target.value)} placeholder="e.g. CSK vs MI - Match 1" required />
-                      </div>
-                    </div>
-                    <div className="cp-dual-row">
-                      <div className="cp-form-row">
-                        <label>Home Team</label>
-                        <div className="cp-input-action-group">
-                          <input value={fTeamA} onChange={e => setFTeamA(e.target.value)} maxLength={30} placeholder="Team A" required />
-                          {getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos') && (
-                            <img 
-                              src={getTeamLogoUrl(fTeamA, '../desktop/assets/team-logos')!} 
-                              alt={fTeamA}
-                              style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                      <div className="cp-form-row">
-                        <label>Away Team</label>
-                        <div className="cp-input-action-group">
-                          <input value={fTeamB} onChange={e => setFTeamB(e.target.value)} maxLength={30} placeholder="Team B" required />
-                          {getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos') && (
-                            <img 
-                              src={getTeamLogoUrl(fTeamB, '../desktop/assets/team-logos')!} 
-                              alt={fTeamB}
-                              style={{ width: 40, height: 40, objectFit: 'contain', padding: 4 }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="cp-divider" />
-                    <button className="cp-primary-btn cp-wide-btn" type="submit">Create Match</button>
-                  </form>
-                </div>
-
-                {/* Match Control Tab - Refactored */}
-                <div className={`cp-tab-content ${activeMatchTab === 'live' ? 'active' : ''}`}>
-                  <MatchControlPanel
-                    fSport={fSport}
-                    fTeamA={fTeamA}
-                    fTeamB={fTeamB}
-                    matchId={matchId}
-                    tournamentId={tournamentId}
-                    scraperRunning={scraperRunning}
-                    scraperStatus={scraperStatus}
-                    scraperOrder={scraperOrder}
-                    scraperMatchUrl={scraperMatchUrl}
-                    onRunScraper={handleRunScraper}
-                    onUpdateScraperOrder={setScraperOrder}
-                    onUpdateScraperUrl={setScraperMatchUrl}
-                    scoreSource={scoreSource}
-                    onScoreSourceChange={(source) => setScoreSource(source as any)}
-                    fVenue={fVenue}
-                    fSeries={fSeries}
-                    fMatchSummary={fMatchSummary}
-                    setFVenue={setFVenue}
-                    setFSeries={setFSeries}
-                    setFMatchSummary={setFMatchSummary}
-                    scoreTeamARuns={scoreTeamARuns}
-                    scoreTeamAWickets={scoreTeamAWickets}
-                    scoreTeamAOvers={scoreTeamAOvers}
-                    scoreTeamBRuns={scoreTeamBRuns}
-                    scoreTeamBWickets={scoreTeamBWickets}
-                    scoreTeamBOvers={scoreTeamBOvers}
-                    setScoreTeamARuns={setScoreTeamARuns}
-                    setScoreTeamAWickets={setScoreTeamAWickets}
-                    setScoreTeamAOvers={setScoreTeamAOvers}
-                    setScoreTeamBRuns={setScoreTeamBRuns}
-                    setScoreTeamBWickets={setScoreTeamBWickets}
-                    setScoreTeamBOvers={setScoreTeamBOvers}
-                    fMatchStatus={fMatchStatus}
-                    setFMatchStatus={setFMatchStatus}
-                    fBattingTeam={fBattingTeam}
-                    fInnings={fInnings}
-                    fTossWinner={fTossWinner}
-                    fTossDecision={fTossDecision}
-                    setFBattingTeam={setFBattingTeam}
-                    setFInnings={setFInnings}
-                    setFTossWinner={setFTossWinner}
-                    setFTossDecision={setFTossDecision}
-                    fPredictionsEnabled={fPredictionsEnabled}
-                    fPredictionsPaused={fPredictionsPaused}
-                    fPauseReason={fPauseReason}
-                    fAllowReprediction={fAllowReprediction}
-                    onTogglePredictions={handleTogglePredictions}
-                    onTogglePause={handlePausePredictionsWithReason}
-                    onToggleReprediction={handleToggleReprediction}
-                    onUpdatePauseReason={setFPauseReason}
-                    onUpdateLiveScore={handleUpdateLiveScore}
-                  />
-                </div>
-              </>
-            )}
+          <div style={{ display: collapsedSections.match ? 'none' : 'block' }}>
+            <MatchManagement
+              tournamentId={tournamentId}
+              schedule={schedule}
+              availableMatches={availableMatches}
+              matchStatuses={matchStatuses}
+              activeMatchTab={activeMatchTab}
+              fMatchCode={fMatchCode}
+              fMatchTitle={fMatchTitle}
+              fTeamA={fTeamA}
+              fTeamB={fTeamB}
+              fMatchId={matchId}
+              fSport={fSport}
+              onSelectMatch={handleSelectMatch}
+              onDeleteMatch={handleDeleteMatch}
+              onRestoreMatch={handleRestoreMatch}
+              onLoadMatchFromSchedule={handleLoadMatchFromSchedule}
+              onTabChange={setActiveMatchTab}
+              onOpenScheduleEditor={handleOpenScheduleEditor}
+              onCreateMatch={handleCreateMatch}
+              setFMatchCode={setFMatchCode}
+              setFMatchTitle={setFMatchTitle}
+              setFTeamA={setFTeamA}
+              setFTeamB={setFTeamB}
+              getTeamLogoUrl={getTeamLogoUrl}
+              // Match Control Props
+              scraperRunning={scraperRunning}
+              scraperStatus={scraperStatus}
+              scraperOrder={scraperOrder}
+              scraperMatchUrl={scraperMatchUrl}
+              onRunScraper={handleRunScraper}
+              onUpdateScraperOrder={setScraperOrder}
+              onUpdateScraperUrl={setScraperMatchUrl}
+              scoreSource={scoreSource}
+              onScoreSourceChange={(source) => setScoreSource(source as any)}
+              fVenue={fVenue}
+              fSeries={fSeries}
+              fMatchSummary={fMatchSummary}
+              setFVenue={setFVenue}
+              setFSeries={setFSeries}
+              setFMatchSummary={setFMatchSummary}
+              scoreTeamARuns={scoreTeamARuns}
+              scoreTeamAWickets={scoreTeamAWickets}
+              scoreTeamAOvers={scoreTeamAOvers}
+              scoreTeamBRuns={scoreTeamBRuns}
+              scoreTeamBWickets={scoreTeamBWickets}
+              scoreTeamBOvers={scoreTeamBOvers}
+              setScoreTeamARuns={setScoreTeamARuns}
+              setScoreTeamAWickets={setScoreTeamAWickets}
+              setScoreTeamAOvers={setScoreTeamAOvers}
+              setScoreTeamBRuns={setScoreTeamBRuns}
+              setScoreTeamBWickets={setScoreTeamBWickets}
+              setScoreTeamBOvers={setScoreTeamBOvers}
+              fMatchStatus={fMatchStatus}
+              setFMatchStatus={setFMatchStatus}
+              fBattingTeam={fBattingTeam}
+              fInnings={fInnings}
+              fTossWinner={fTossWinner}
+              fTossDecision={fTossDecision}
+              setFBattingTeam={setFBattingTeam}
+              setFInnings={setFInnings}
+              setFTossWinner={setFTossWinner}
+              setFTossDecision={setFTossDecision}
+              fPredictionsEnabled={fPredictionsEnabled}
+              fPredictionsPaused={fPredictionsPaused}
+              fPauseReason={fPauseReason}
+              fAllowReprediction={fAllowReprediction}
+              onTogglePredictions={handleTogglePredictions}
+              onTogglePause={handlePausePredictionsWithReason}
+              onToggleReprediction={handleToggleReprediction}
+              onUpdatePauseReason={setFPauseReason}
+              onUpdateLiveScore={handleUpdateLiveScore}
+            />
           </div>
         </section>
+
 
         {/* ── Window Management ── */}
         <CollapsibleSection
@@ -3211,6 +2782,31 @@ const ControlPanel: React.FC = () => {
           <WindowManagement
             windowVisibility={windowVisibility}
             onVisibilityChange={handleWindowVisibilityChange}
+            opacity={opacity}
+            onOpacityChange={v => updateS({ opacity: v })}
+            reactionOpacity={reactionOpacity}
+            onReactionOpacityChange={v => updateS({ reactionOpacity: v })}
+            onShowOverlay={() => (window as any).overlayDesktop.showOverlay()}
+            onHideOverlay={() => (window as any).overlayDesktop.hideOverlay()}
+            onReloadOverlay={() => (window as any).overlayDesktop.reloadOverlay()}
+            onResetBounds={() => (window as any).overlayDesktop.resetBounds()}
+            onShowTicker={() => (window as any).overlayDesktop.showTicker()}
+            onHideTicker={() => (window as any).overlayDesktop.hideTicker()}
+            onReloadTicker={() => (window as any).overlayDesktop.reloadTicker()}
+            onResetTickerBounds={() => (window as any).overlayDesktop.resetTickerBounds()}
+            onShowReaction={() => (window as any).overlayDesktop.showReaction()}
+            onHideReaction={() => (window as any).overlayDesktop.hideReaction()}
+            onReloadReaction={() => (window as any).overlayDesktop.reloadReaction()}
+            onResetReactionBounds={() => (window as any).overlayDesktop.resetReactionBounds()}
+            onClear={handleClear}
+            predPaused={Boolean(meta.predictionsPaused)}
+            onTogglePredPause={togglePredictionPause}
+            sortMode={meta.predictionSort || 'newest'}
+            onToggleSortMode={toggleSortMode}
+            chatHidden={Boolean(meta.hideChat)}
+            onToggleHideChat={toggleHideChat}
+            joinHidden={Boolean(meta.hideJoin)}
+            onToggleHideJoin={toggleHideJoin}
           />
         </CollapsibleSection>
 
@@ -3264,219 +2860,17 @@ const ControlPanel: React.FC = () => {
           onToggle={() => toggleSection('scheduler')}
           badge={schedulerRunning ? '● Running' : undefined}
         >
-          <div className="cp-glass-card">
-            {/* Enhanced Automation Status */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600 }}>
-                  Enhanced Automation Status
-                </span>
-                <span className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
-              </div>
-              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                {schedulerRunning ? 'Running' : 'Offline'}
-              </span>
-              {wsConnection && (
-                <span style={{ fontSize: '10px', color: '#34c759', marginLeft: '8px' }}>
-                  ● Connected
-                </span>
-              )}
-            </div>
-
-            {/* Automation Tasks */}
-            {automationStatus && (
-              <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                <div className="cp-section-header">
-                  <span>Active Tasks ({automationStatus.total_tasks || 0})</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px', fontSize: '11px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Running:</span>
-                    <span style={{ color: '#34c759' }}>{automationStatus.running_tasks || 0}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Errors:</span>
-                    <span style={{ color: '#ff3b30' }}>{automationStatus.error_tasks || 0}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Uptime:</span>
-                    <span>{Math.floor((automationStatus.uptime || 0) / 60000)}m</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Control Buttons */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={async () => {
-                  try {
-                    // @ts-ignore
-                    const result = await window.overlayDesktop.triggerAutomationTask('live_scraping');
-                    if (result.success) {
-                      console.log('Live scraping triggered');
-                    } else {
-                      console.error('Failed to trigger live scraping:', result.error);
-                    }
-                  } catch (error) {
-                    console.error('Error triggering live scraping:', error);
-                  }
-                }}
-              >
-                Trigger Scraping
-              </button>
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={async () => {
-                  try {
-                    // @ts-ignore
-                    const result = await window.overlayDesktop.triggerAutomationTask('score_processing');
-                    if (result.success) {
-                      console.log('Score processing triggered');
-                    } else {
-                      console.error('Failed to trigger score processing:', result.error);
-                    }
-                  } catch (error) {
-                    console.error('Error triggering score processing:', error);
-                  }
-                }}
-              >
-                Process Scores
-              </button>
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={async () => {
-                  try {
-                    // @ts-ignore
-                    const result = await window.overlayDesktop.triggerAutomationTask('match_creation');
-                    if (result.success) {
-                      console.log('Match creation triggered');
-                    } else {
-                      console.error('Failed to trigger match creation:', result.error);
-                    }
-                  } catch (error) {
-                    console.error('Error triggering match creation:', error);
-                  }
-                }}
-              >
-                Create Matches
-              </button>
-            </div>
-
-            {/* Legacy Scheduler Status */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>
-                  Legacy Scheduler
-                </span>
-                <span className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
-              </div>
-              <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                {schedulerRunning ? 'Running' : 'Stopped'}
-              </span>
-            </div>
-
-            {/* Task List */}
-            <div className="cp-section-header">
-              <span>Scheduled Tasks</span>
-            </div>
-            {Object.keys(schedulerTasks).length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px' }}>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>
-                  No tasks configured
-                </p>
-                <button 
-                  className="cp-action-btn cp-small"
-                  onClick={initializeSchedulerTasks}
-                >
-                  Initialize Default Tasks
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {Object.entries(schedulerTasks).map(([taskId, task]: [string, any]) => (
-                  <div key={taskId} style={{ 
-                    padding: '12px', 
-                    background: 'rgba(255,255,255,0.03)', 
-                    borderRadius: '8px',
-                    border: '1px solid var(--panel-border)'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600 }}>{task.name}</span>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span className={`cp-dot ${task.enabled ? 'active' : 'inactive'}`} />
-                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                          {task.last_status || 'idle'}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
-                      <span>Interval: {task.interval_seconds}s</span>
-                      {task.last_run && <span>Last run: {new Date(task.last_run).toLocaleTimeString()}</span>}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                      <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        Interval (s):
-                        <input 
-                          type="number" 
-                          value={task.interval_seconds}
-                          onChange={(e) => handleUpdateSchedulerTask(taskId, { interval_seconds: parseInt(e.target.value) })}
-                          style={{ width: '60px', padding: '4px', fontSize: '11px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', borderRadius: '4px', color: 'var(--text)' }}
-                          min="10"
-                        />
-                      </label>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button 
-                        className="cp-action-btn cp-small"
-                        onClick={() => handleTriggerSchedulerTask(taskId)}
-                        disabled={task.last_status === 'running'}
-                      >
-                        Run Now
-                      </button>
-                      <button 
-                        className="cp-action-btn cp-small"
-                        onClick={() => handleToggleSchedulerTask(taskId)}
-                      >
-                        {task.enabled ? 'Disable' : 'Enable'}
-                      </button>
-                      <button 
-                        className="cp-action-btn cp-small cp-danger"
-                        onClick={() => {
-                          if (confirm(`Delete task "${task.name}"?`)) {
-                            // @ts-ignore
-                            update(ref(db, getDbRoot() + '/scheduler_config/tasks/' + taskId), null);
-                            loadSchedulerTasks();
-                          }
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-              <button 
-                className="cp-secondary-btn"
-                onClick={loadSchedulerTasks}
-                style={{ flex: 1 }}
-              >
-                Refresh Tasks
-              </button>
-              <button 
-                className="cp-secondary-btn"
-                onClick={checkSchedulerStatus}
-                style={{ flex: 1 }}
-              >
-                Check Status
-              </button>
-            </div>
-          </div>
+          <AutomationScheduler
+            schedulerRunning={schedulerRunning}
+            wsConnection={wsConnection}
+            automationStatus={automationStatus}
+            automationTasks={automationTasks}
+            onTriggerTask={handleTriggerAutomationTask}
+            onAddTask={handleAddTask}
+            onUpdateTask={handleUpdateTask}
+            onDeleteTask={handleDeleteTask}
+            onToggleTask={handleToggleTask}
+          />
         </CollapsibleSection>
 
         {/* ── Discord Notifications ── */}
@@ -3491,224 +2885,28 @@ const ControlPanel: React.FC = () => {
               {collapsedSections.discordNotifications ? '▶' : '▼'}
             </span>
           </div>
-          <div className="cp-glass-card" style={{ display: collapsedSections.discordNotifications ? 'none' : 'block' }}>
-            {/* Discord Status */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600 }}>
-                  Discord Integration
-                </span>
-                <span className={`cp-dot ${wsConnection ? 'active' : 'inactive'}`} />
-              </div>
-              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                {wsConnection ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-
-            {/* Discord Configuration */}
-            <div className="cp-section-header">
-              <span>Webhook Configuration</span>
-            </div>
-            
-            <div className="cp-form-row">
-              <label>Webhook URL</label>
-              <input 
-                type="url" 
-                placeholder="https://discord.com/api/webhooks/..."
-                style={{ 
-                  background: 'rgba(0,0,0,0.2)', 
-                  border: '1px solid var(--panel-border)', 
-                  borderRadius: '6px', 
-                  color: 'var(--text)',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  width: '100%'
-                }}
-                onChange={(e) => {
-                  // TODO: Save to Firebase
-                  console.log('Discord webhook URL:', e.target.value);
-                }}
-              />
-            </div>
-
-            <div className="cp-dual-row">
-              <div className="cp-form-row">
-                <label>Bot Username</label>
-                <input 
-                  type="text" 
-                  placeholder="Automation Bot"
-                  maxLength={32}
-                  style={{ 
-                    background: 'rgba(0,0,0,0.2)', 
-                    border: '1px solid var(--panel-border)', 
-                    borderRadius: '6px', 
-                    color: 'var(--text)',
-                    padding: '8px 12px',
-                    fontSize: '13px'
-                  }}
-                  onChange={(e) => {
-                    // TODO: Save to Firebase
-                    console.log('Bot username:', e.target.value);
-                  }}
-                />
-              </div>
-              <div className="cp-form-row">
-                <label>Avatar URL (Optional)</label>
-                <input 
-                  type="url" 
-                  placeholder="https://example.com/avatar.png"
-                  style={{ 
-                    background: 'rgba(0,0,0,0.2)', 
-                    border: '1px solid var(--panel-border)', 
-                    borderRadius: '6px', 
-                    color: 'var(--text)',
-                    padding: '8px 12px',
-                    fontSize: '13px'
-                  }}
-                  onChange={(e) => {
-                    // TODO: Save to Firebase
-                    console.log('Avatar URL:', e.target.value);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Enable Rich Embeds</span>
-                <Toggle checked={true} onChange={(v) => {
-                  // TODO: Save to Firebase
-                  console.log('Rich embeds:', v);
-                }} />
-              </label>
-            </div>
-
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Enable Notifications</span>
-                <Toggle checked={true} onChange={(v) => {
-                  // TODO: Save to Firebase
-                  console.log('Enable notifications:', v);
-                }} />
-              </label>
-            </div>
-
-            <div className="cp-divider" />
-
-            {/* Notification Types */}
-            <div className="cp-section-header">
-              <span>Notification Types</span>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '16px' }}>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Match Created</span>
-                <Toggle checked={true} onChange={(v) => console.log('Match created:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Match Started</span>
-                <Toggle checked={true} onChange={(v) => console.log('Match started:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Match Completed</span>
-                <Toggle checked={true} onChange={(v) => console.log('Match completed:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Score Updates</span>
-                <Toggle checked={false} onChange={(v) => console.log('Score updates:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Automation Errors</span>
-                <Toggle checked={true} onChange={(v) => console.log('Automation errors:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>System Alerts</span>
-                <Toggle checked={true} onChange={(v) => console.log('System alerts:', v)} />
-              </label>
-            </div>
-
-            {/* Rate Limiting */}
-            <div className="cp-form-row">
-              <label>Rate Limit (messages per minute)</label>
-              <input 
-                type="number" 
-                min="1" 
-                max="60" 
-                defaultValue="10"
-                style={{ 
-                  background: 'rgba(0,0,0,0.2)', 
-                  border: '1px solid var(--panel-border)', 
-                  borderRadius: '6px', 
-                  color: 'var(--text)',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  width: '120px'
-                }}
-                onChange={(e) => {
-                  // TODO: Save to Firebase
-                  console.log('Rate limit:', e.target.value);
-                }}
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={async () => {
-                  try {
-                    // @ts-ignore
-                    const result = await window.overlayDesktop.testDiscordNotification();
-                    if (result.success) {
-                      alert('Test notification sent successfully!');
-                    } else {
-                      alert(`Test failed: ${result.error}`);
-                    }
-                  } catch (error) {
-                    console.error('Error testing Discord:', error);
-                    alert('Failed to test Discord notification');
+          <div style={{ display: collapsedSections.discordNotifications ? 'none' : 'block' }}>
+            <DiscordNotifications
+              wsConnection={!!wsConnection}
+              onTestNotification={async () => {
+                try {
+                  // @ts-ignore
+                  const result = await window.overlayDesktop.testDiscordNotification();
+                  if (result.success) {
+                    alert('Test notification sent successfully!');
+                  } else {
+                    alert(`Test failed: ${result.error}`);
                   }
-                }}
-              >
-                Test Notification
-              </button>
-              <button 
-                className="cp-primary-btn cp-small"
-                onClick={() => {
-                  // TODO: Save configuration to Firebase
-                  alert('Configuration saved!');
-                }}
-              >
-                Save Configuration
-              </button>
-            </div>
-
-            <div className="cp-divider" />
-
-            {/* Setup Guide Link */}
-            <div style={{ 
-              padding: '12px', 
-              background: 'rgba(255,255,255,0.02)', 
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#818cf8' }}>
-                📖 Setup Guide
-              </h4>
-              <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8px 0' }}>
-                Need help setting up Discord notifications? Follow our comprehensive setup guide.
-              </p>
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={() => setSetupGuideViewer({ open: true, type: 'discord' })}
-              >
-                View Setup Guide
-              </button>
-            </div>
-
-            <p className="cp-panel-note" style={{ marginTop: '12px' }}>
-              Discord notifications provide real-time updates about match events, automation status, and system alerts directly to your Discord server.
-            </p>
+                } catch (error) {
+                  console.error('Error testing Discord:', error);
+                  alert('Failed to test Discord notification');
+                }
+              }}
+              onSaveConfig={() => {
+                alert('Configuration saved!');
+              }}
+              onViewSetupGuide={() => setSetupGuideViewer({ open: true, type: 'discord' })}
+            />
           </div>
         </section>
 
@@ -3724,245 +2922,31 @@ const ControlPanel: React.FC = () => {
               {collapsedSections.pushNotifications ? '▶' : '▼'}
             </span>
           </div>
-          <div className="cp-glass-card" style={{ display: collapsedSections.pushNotifications ? 'none' : 'block' }}>
-            {/* Push Notification Status */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#10b981', fontWeight: 600 }}>
-                  Push Notification System
-                </span>
-                <span className={`cp-dot ${wsConnection ? 'active' : 'inactive'}`} />
-              </div>
-              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                {wsConnection ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-
-            {/* User Statistics */}
-            <div className="cp-section-header">
-              <span>User Statistics</span>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
-              <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: '600', color: '#10b981' }}>0</div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Total Users</div>
-              </div>
-              <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: '600', color: '#3b82f6' }}>0</div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Active Devices</div>
-              </div>
-              <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>0</div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Sent Today</div>
-              </div>
-            </div>
-
-            {/* Push Notification Configuration */}
-            <div className="cp-section-header">
-              <span>Push Notification Configuration</span>
-            </div>
-            
-            <div className="cp-form-row">
-              <label className="cp-toggle-row">
-                <span>Enable Push Notifications</span>
-                <Toggle checked={true} onChange={(v) => {
-                  // TODO: Save to Firebase
-                  console.log('Enable push notifications:', v);
-                }} />
-              </label>
-            </div>
-
-            <div className="cp-form-row">
-              <label>Firebase Project ID</label>
-              <input 
-                type="text" 
-                placeholder="your-project-id"
-                style={{ 
-                  background: 'rgba(0,0,0,0.2)', 
-                  border: '1px solid var(--panel-border)', 
-                  borderRadius: '6px', 
-                  color: 'var(--text)',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  width: '100%'
-                }}
-                onChange={(e) => {
-                  // TODO: Save to Firebase
-                  console.log('Firebase project ID:', e.target.value);
-                }}
-              />
-            </div>
-
-            <div className="cp-form-row">
-              <label>Service Account Key (JSON)</label>
-              <textarea 
-                placeholder="Paste Firebase service account key JSON..."
-                rows={4}
-                style={{ 
-                  background: 'rgba(0,0,0,0.2)', 
-                  border: '1px solid var(--panel-border)', 
-                  borderRadius: '6px', 
-                  color: 'var(--text)',
-                  padding: '8px 12px',
-                  fontSize: '12px',
-                  width: '100%',
-                  fontFamily: 'monospace'
-                }}
-                onChange={(e) => {
-                  // TODO: Save to Firebase
-                  console.log('Service account key updated');
-                }}
-              />
-            </div>
-
-            <div className="cp-form-row">
-              <label>VAPID Public Key</label>
-              <input 
-                type="text" 
-                placeholder="Generated automatically"
-                readOnly
-                style={{ 
-                  background: 'rgba(0,0,0,0.1)', 
-                  border: '1px solid var(--panel-border)', 
-                  borderRadius: '6px', 
-                  color: 'var(--muted)',
-                  padding: '8px 12px',
-                  fontSize: '12px',
-                  width: '100%',
-                  fontFamily: 'monospace'
-                }}
-                value="Generated when Web Push is configured"
-              />
-            </div>
-
-            <div className="cp-divider" />
-
-            {/* Notification Types */}
-            <div className="cp-section-header">
-              <span>Default Notification Types</span>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '16px' }}>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Match Created</span>
-                <Toggle checked={true} onChange={(v) => console.log('Push match created:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Match Started</span>
-                <Toggle checked={true} onChange={(v) => console.log('Push match started:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Match Completed</span>
-                <Toggle checked={true} onChange={(v) => console.log('Push match completed:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Score Updates</span>
-                <Toggle checked={false} onChange={(v) => console.log('Push score updates:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>Automation Errors</span>
-                <Toggle checked={true} onChange={(v) => console.log('Push automation errors:', v)} />
-              </label>
-              <label className="cp-toggle-row" style={{ fontSize: '12px' }}>
-                <span>System Alerts</span>
-                <Toggle checked={true} onChange={(v) => console.log('Push system alerts:', v)} />
-              </label>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={async () => {
-                  try {
-                    // @ts-ignore
-                    const result = await window.overlayDesktop.testPushNotification();
-                    if (result.success) {
-                      alert('Test push notification sent successfully!');
-                    } else {
-                      alert(`Test failed: ${result.error}`);
-                    }
-                  } catch (error) {
-                    console.error('Error testing push notification:', error);
-                    alert('Failed to test push notification');
+          <div style={{ display: collapsedSections.pushNotifications ? 'none' : 'block' }}>
+            <PushNotifications
+              wsConnection={!!wsConnection}
+              onTestPush={async () => {
+                try {
+                  // @ts-ignore
+                  const result = await window.overlayDesktop.testPushNotification();
+                  if (result.success) {
+                    alert('Test push notification sent successfully!');
+                  } else {
+                    alert(`Test failed: ${result.error}`);
                   }
-                }}
-              >
-                Test Push Notification
-              </button>
-              <button 
-                className="cp-primary-btn cp-small"
-                onClick={() => {
-                  // TODO: Save configuration to Firebase
-                  alert('Push notification configuration saved!');
-                }}
-              >
-                Save Configuration
-              </button>
-            </div>
-
-            <div className="cp-divider" />
-
-            {/* User Management */}
-            <div className="cp-section-header">
-              <span>User Management</span>
-            </div>
-            
-            <div style={{ marginBottom: '16px' }}>
-              <input 
-                type="text" 
-                placeholder="Search users by ID or email..."
-                style={{ 
-                  background: 'rgba(0,0,0,0.2)', 
-                  border: '1px solid var(--panel-border)', 
-                  borderRadius: '6px', 
-                  color: 'var(--text)',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  width: '100%',
-                  marginBottom: '8px'
-                }}
-                onChange={(e) => {
-                  // TODO: Implement user search
-                  console.log('Search users:', e.target.value);
-                }}
-              />
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={() => {
-                  // TODO: Load user list
-                  alert('User management feature coming soon!');
-                }}
-              >
-                Manage Users
-              </button>
-            </div>
-
-            {/* Setup Guide Link */}
-            <div style={{ 
-              padding: '12px', 
-              background: 'rgba(255,255,255,0.02)', 
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}>
-              <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#10b981' }}>
-                📱 Push Notification Setup
-              </h4>
-              <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 8px 0' }}>
-                Configure Firebase Cloud Messaging and Web Push API to deliver notifications directly to users' devices.
-              </p>
-              <button 
-                className="cp-action-btn cp-small"
-                onClick={() => setSetupGuideViewer({ open: true, type: 'push' })}
-              >
-                View Setup Guide
-              </button>
-            </div>
-
-            <p className="cp-panel-note" style={{ marginTop: '12px' }}>
-              Push notifications deliver messages directly to individual users' devices based on their preferences. Unlike Discord, users can control exactly what they receive.
-            </p>
+                } catch (error) {
+                  console.error('Error testing push notification:', error);
+                  alert('Failed to test push notification');
+                }
+              }}
+              onSaveConfig={() => {
+                alert('Push notification configuration saved!');
+              }}
+              onViewSetupGuide={() => setSetupGuideViewer({ open: true, type: 'push' })}
+              onManageUsers={() => {
+                alert('User management feature coming soon!');
+              }}
+            />
           </div>
         </section>
 
@@ -4113,130 +3097,7 @@ const ControlPanel: React.FC = () => {
           </div>
         </CollapsibleSection>
 
-        {/* ── Window & Engine ── */}
-        <section className="cp-panel-group">
-          <div 
-            className="cp-group-header" 
-            onClick={() => toggleSection('windowEngine')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <h2 className="cp-group-title" style={{ margin: 0 }}>Window &amp; Engine</h2>
-            <span style={{ fontSize: '18px', color: 'var(--muted)', transition: 'transform 0.2s' }}>
-              {collapsedSections.windowEngine ? '▶' : '▼'}
-            </span>
-          </div>
-          <div className="cp-glass-card cp-stack" style={{ display: collapsedSections.windowEngine ? 'none' : 'block' }}>
-            <div className="cp-control-row">
-              <label>Master Opacity</label>
-              <div className="cp-slider-group">
-                <input id="opacity" type="range" min="0.2" max="1" step="0.05" value={opacity}
-                  onChange={async e => {
-                    const v = parseFloat(e.target.value);
-                    setOpacity(v);
-                    await updateS({ opacity: v });
-                  }} />
-                <span className="cp-value-tag">{Math.round(opacity * 100)}%</span>
-              </div>
-            </div>
-            <div className="cp-action-grid">
-              {/* @ts-ignore */}
-              <button id="showOverlay" className="cp-glass-btn" onClick={() => window.overlayDesktop.showOverlay()}>Show</button>
-              {/* @ts-ignore */}
-              <button id="hideOverlay" className="cp-glass-btn" onClick={() => window.overlayDesktop.hideOverlay()}>Hide</button>
-              {/* @ts-ignore */}
-              <button id="reloadOverlay" className="cp-glass-btn" onClick={() => window.overlayDesktop.reloadOverlay()}>Reload</button>
-              {/* @ts-ignore */}
-              <button id="resetBounds" className="cp-glass-btn" onClick={() => window.overlayDesktop.resetBounds()}>Reset</button>
-            </div>
-            <div className="cp-control-row">
-              <label>Ticker Overlay</label>
-              <div className="cp-action-grid">
-                {/* @ts-ignore */}
-                <button id="showTicker" className="cp-glass-btn" onClick={() => window.overlayDesktop.showTicker()}>Show Ticker</button>
-                {/* @ts-ignore */}
-                <button id="hideTicker" className="cp-glass-btn" onClick={() => window.overlayDesktop.hideTicker()}>Hide Ticker</button>
-                {/* @ts-ignore */}
-                <button id="reloadTicker" className="cp-glass-btn" onClick={() => window.overlayDesktop.reloadTicker()}>Reload</button>
-                {/* @ts-ignore */}
-                <button id="resetTickerBounds" className="cp-glass-btn" onClick={() => window.overlayDesktop.resetTickerBounds()}>Reset Ticker</button>
-              </div>
-            </div>
-            <button id="togglePredictionPause" className="cp-secondary-btn cp-wide-btn" onClick={togglePredictionPause}>
-              {predPaused ? 'Resume Predictions' : 'Pause Predictions'}
-            </button>
-            <button id="toggleSortMode" className="cp-secondary-btn cp-wide-btn" onClick={toggleSortMode}>
-              {sortMode === 'newest' ? 'Sort by Score' : 'Sort by Newest'}
-            </button>
-            <button id="toggleHideChat" className="cp-secondary-btn cp-wide-btn" onClick={toggleHideChat}>
-              {chatHidden ? 'Show Live Chat' : 'Hide Live Chat'}
-            </button>
-            <button id="toggleHideJoin" className="cp-secondary-btn cp-wide-btn" onClick={toggleHideJoin}>
-              {joinHidden ? 'Show Join Section' : 'Hide Join Section'}
-            </button>
-            <div className="cp-divider" />
-            <div className="cp-action-grid" style={{ marginTop: 12 }}>
-              <button id="clearPredictions" className="cp-glass-btn cp-danger" onClick={() => handleClear('predictions')}>Clear Predictions</button>
-              <button id="clearChat" className="cp-glass-btn cp-danger" onClick={() => handleClear('chat')}>Clear Chat</button>
-            </div>
-          </div>
 
-          <h2 className="cp-group-title" style={{ marginTop: 20 }}>GIF Reactions</h2>
-          <div className="cp-glass-card cp-stack">
-            <div className="cp-control-row">
-              <label>Reaction Opacity</label>
-              <div className="cp-slider-group">
-                <input id="reactionOpacity" type="range" min="0" max="1" step="0.05" value={reactionOpacity}
-                  onChange={async e => {
-                    const v = parseFloat(e.target.value);
-                    setReactionOpacity(v);
-                    await updateS({ reactionOpacity: v });
-                  }} />
-                <span className="cp-value-tag">{Math.round(reactionOpacity * 100)}%</span>
-              </div>
-            </div>
-            <p className="cp-section-hint">Control the reaction window for Klipy GIFs.</p>
-            <div className="cp-action-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-              {/* @ts-ignore */}
-              <button id="showReaction" className="cp-glass-btn" onClick={() => window.overlayDesktop.showReaction()}>Show Window</button>
-              {/* @ts-ignore */}
-              <button id="hideReaction" className="cp-glass-btn" onClick={() => window.overlayDesktop.hideReaction()}>Hide Window</button>
-              {/* @ts-ignore */}
-              <button id="reloadReaction" className="cp-glass-btn" onClick={() => window.overlayDesktop.reloadReaction()}>Reload</button>
-              {/* @ts-ignore */}
-              <button id="resetReactionBounds" className="cp-glass-btn" onClick={() => window.overlayDesktop.resetReactionBounds()}>Reset Pos</button>
-              <button id="clearReactions" className="cp-glass-btn cp-danger" onClick={() => handleClear('reaction')}>Clear Reactions</button>
-            </div>
-          </div>
-
-          {/* ── Status Panel ── */}
-          <div className="cp-status-panel">
-            <div className="cp-status-item">
-              <span className={`cp-dot ${settings?.overlayVisible ? 'active' : 'inactive'}`} />
-              <span className="cp-status-label">Visibility</span>
-              <span className="cp-status-value">{settings?.overlayVisible ? 'Visible' : 'Hidden'}</span>
-            </div>
-            <div className="cp-status-item">
-              <span className={`cp-dot ${settings?.clickThrough ? 'warning' : 'active'}`} />
-              <span className="cp-status-label">Interaction</span>
-              <span className="cp-status-value">{settings?.clickThrough ? 'Click-thru' : 'Interactive'}</span>
-            </div>
-            <div className="cp-status-item">
-              <span className={`cp-dot ${predPaused ? 'inactive' : 'active'}`} />
-              <span className="cp-status-label">Predictions</span>
-              <span className="cp-status-value">{predPaused ? 'Paused' : 'Live'}</span>
-            </div>
-            <div className="cp-status-item">
-              <span className={`cp-dot ${sortMode === 'score' ? 'active' : 'warning'}`} />
-              <span className="cp-status-label">Sort Priority</span>
-              <span className="cp-status-value">{sortMode === 'score' ? 'Score (Asc)' : 'Newest First'}</span>
-            </div>
-            <div className="cp-status-item">
-              <span className={`cp-dot ${schedulerRunning ? 'active' : 'inactive'}`} />
-              <span className="cp-status-label">Automation</span>
-              <span className="cp-status-value">{schedulerRunning ? 'Running' : 'Offline'}</span>
-            </div>
-          </div>
-        </section>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════

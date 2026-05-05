@@ -286,8 +286,8 @@ class NotificationRegistry:
         return {
             'match_created': NotificationTemplate(
                 'match_created',
-                '🏏 Match Created: {team_a} vs {team_b}',
-                'A new match has been scheduled:\n\n**{team_a} vs {team_b}**\nDate: {date}\nVenue: {venue}\nSport: {sport}'
+                '🏏 New Match Discovered: {team_a} vs {team_b}',
+                'A new match has been automatically discovered and scheduled:\n\n**{team_a} vs {team_b}**\n📅 **Date**: {date}\n📍 **Venue**: {venue}\n🏆 **Tournament**: {tournament_id}\n\n*This match was automatically created by the Automation Service.*'
             ),
             'match_started': NotificationTemplate(
                 'match_started',

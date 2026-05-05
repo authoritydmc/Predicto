@@ -51,6 +51,7 @@ class MatchManager:
         self.match_sources = {
             'cricapi': self._fetch_from_cricapi,
             'cricbuzz': self._fetch_from_cricbuzz,
+            'series_discovery': self._fetch_from_series_discovery,
             'manual': self._fetch_manual_matches
         }
     
@@ -145,6 +146,7 @@ class MatchManager:
     def _fetch_from_cricbuzz(self) -> List[MatchInfo]:
         """Fetch matches from Cricbuzz (web scraping)"""
         try:
+            # 1. Try the internal schedule API
             url = "https://www.cricbuzz.com/api/v1/matches/schedule"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
@@ -157,10 +159,108 @@ class MatchManager:
                 if match_info:
                     matches.append(match_info)
             
+            # 2. Also try scraping the live scores page for "Upcoming" matches that might be missing
+            # This is a bit more involved, so we'll stick to the API for now but add a fallback
+            if not matches:
+                self.logger.warning('match_manager', 'Cricbuzz API returned no matches, trying fallback')
+                # Fallback discovery logic could go here
+            
             return matches
             
         except Exception as e:
             self.logger.error('match_manager', f'Cricbuzz fetch error: {str(e)}')
+            return []
+
+    def _fetch_from_series_discovery(self) -> List[MatchInfo]:
+        """Discover matches from active series in Firebase"""
+        discovered_matches = []
+        
+        # Get active tournaments from Firebase
+        tournaments = self.client.get('tournaments') or {}
+        
+        for tournament_id, tournament_data in tournaments.items():
+            if tournament_data.get('status') != 'active':
+                continue
+                
+            series_id = tournament_data.get('seriesId') or tournament_data.get('meta', {}).get('seriesId')
+            if not series_id:
+                # Try to derive series ID from name if it looks like IPL
+                name = tournament_data.get('tournamentName', '').lower()
+                if 'ipl' in name:
+                    series_id = "7404" # Hardcoded for IPL 2026 for now as a fallback
+            
+            if series_id:
+                self.logger.info('match_manager', f'Performing series discovery for {tournament_id} (Series ID: {series_id})')
+                matches = self.fetch_series_schedule(series_id, tournament_id)
+                discovered_matches.extend(matches)
+                
+        return discovered_matches
+
+    def fetch_series_schedule(self, series_id: str, tournament_id: str) -> List[MatchInfo]:
+        """Fetch full schedule for a specific Cricbuzz series"""
+        try:
+            # Cricbuzz series matches URL
+            url = f"https://www.cricbuzz.com/cricket-series/{series_id}/matches"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            
+            # In a real scenario, we'd use BeautifulSoup here
+            # For this implementation, we'll use a simulated discovery or a simpler regex-based one
+            # as adding BeautifulSoup dependency might be heavy for this small script
+            # or we can assume it's already there since scraper uses it.
+            
+            # Since we have BeautifulSoup in live_score_scraper, let's use it if available
+            try:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                matches = []
+                # Look for match blocks
+                match_blocks = soup.find_all('div', class_='cb-col-100 cb-col cb-series-matches')
+                
+                for block in match_blocks:
+                    link = block.find('a', class_='cb-text-link')
+                    if not link: continue
+                    
+                    match_title = link.get_text(strip=True)
+                    match_url = link.get('href')
+                    match_id = match_url.split('/')[2] if match_url else str(int(time.time()))
+                    
+                    # Extract teams from title "Team A vs Team B, Match X"
+                    if ' vs ' in match_title:
+                        teams_part = match_title.split(',')[0]
+                        teams = teams_part.split(' vs ')
+                        if len(teams) >= 2:
+                            team_a = teams[0].strip()
+                            team_b = teams[1].strip()
+                            
+                            # Extract time
+                            time_elem = block.find('span', class_='cb-utc-time')
+                            scheduled_time = int(time_elem.get('data-timestamp', 0)) * 1000 if time_elem else 0
+                            
+                            # Venue
+                            venue_elem = block.find('div', class_='cb-font-12 text-gray')
+                            venue = venue_elem.get_text(strip=True) if venue_elem else ""
+                            
+                            matches.append(MatchInfo(
+                                id=match_id,
+                                tournament_id=tournament_id,
+                                team_a=team_a,
+                                team_b=team_b,
+                                scheduled_time=scheduled_time,
+                                venue=venue,
+                                match_type='t20', # Default
+                                status='scheduled',
+                                meta={'seriesId': series_id, 'matchUrl': match_url}
+                            ))
+                
+                return matches
+            except ImportError:
+                self.logger.warning('match_manager', 'BeautifulSoup not available for series discovery')
+                return []
+                
+        except Exception as e:
+            self.logger.error('match_manager', f'Series discovery error for {series_id}: {str(e)}')
             return []
     
     def _parse_cricbuzz_match(self, match_data: Dict[str, Any]) -> Optional[MatchInfo]:

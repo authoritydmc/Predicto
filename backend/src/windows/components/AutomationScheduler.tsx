@@ -223,7 +223,7 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                     ✎
                   </button>
                   {/* Don't allow deleting core tasks */}
-                  {!['match_creation', 'live_scraping', 'score_processing'].includes(task.task_id) && (
+                  {!['match_creation', 'live_scraping', 'match_reconciliation'].includes(task.task_id) && (
                     <button 
                       className="cp-action-btn cp-small cp-danger" 
                       onClick={() => onDeleteTask(task.task_id)}
@@ -283,7 +283,7 @@ export const AutomationScheduler: React.FC<AutomationSchedulerProps> = ({
                 >
                   <option value="scraping">Scraping</option>
                   <option value="match_creation">Match Creation</option>
-                  <option value="scoring">Scoring</option>
+                  <option value="reconciliation">Reconciliation</option>
                 </select>
               </div>
               <div className="cp-form-row">

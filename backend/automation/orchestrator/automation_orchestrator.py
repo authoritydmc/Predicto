@@ -90,10 +90,10 @@ class AutomationOrchestrator:
         }
 
         # Task handlers
-        self.task_handlers = {
+        self.task_handlers: Dict[str, Callable] = {
             'match_creation': self._handle_match_creation,
             'scraping': self._handle_live_scraping,
-            'scoring': self._handle_score_processing
+            'reconciliation': self._handle_match_reconciliation
         }
 
         # Initialize tasks
@@ -138,12 +138,12 @@ class AutomationOrchestrator:
                     'interval_seconds': 60,
                     'enabled': True
                 },
-                'score_processing': {
-                    'task_id': 'score_processing',
-                    'name': 'Score Processing Engine',
-                    'type': 'scoring',
+                'match_reconciliation': {
+                    'task_id': 'match_reconciliation',
+                    'name': 'Match Reconciliation & Leaderboard',
+                    'type': 'reconciliation',
                     'status': 'idle',
-                    'interval_seconds': 30,
+                    'interval_seconds': 60,
                     'enabled': True
                 }
             }
@@ -182,8 +182,8 @@ class AutomationOrchestrator:
                 'timestamp': datetime.now().isoformat()
             })
         
-        # Start main orchestration loop
-        self._orchestration_loop()
+        # Start main orchestration loop as a background task
+        asyncio.create_task(self._orchestration_loop())
     
     async def stop(self):
         """Stop the automation orchestrator"""
@@ -215,8 +215,9 @@ class AutomationOrchestrator:
             except Exception as e:
                 self.logger.error('orchestrator', f'Failed to stop notifications: {str(e)}')
     
-    def _orchestration_loop(self):
-        """Main orchestration loop"""
+    async def _orchestration_loop(self):
+        """Main orchestration loop (Asynchronous)"""
+        self.start_time = datetime.now()
         while self.running:
             try:
                 current_time = int(time.time() * 1000)
@@ -224,20 +225,21 @@ class AutomationOrchestrator:
                 # Check and run due tasks
                 for task_id, task in self.tasks.items():
                     if task.enabled and task.status == AutomationStatus.IDLE and task.next_run and current_time >= task.next_run:
-                        self._run_task(task_id)
+                        # Run in background to not block other tasks
+                        asyncio.create_task(self._run_task(task_id))
                 
                 # Update status
                 self._update_overall_status()
                 
-                # Sleep for short interval
-                time.sleep(1)
+                # Sleep for short interval without blocking loop
+                await asyncio.sleep(1)
                 
             except Exception as e:
                 self.logger.error('orchestrator', f'Orchestration loop error: {str(e)}')
-                time.sleep(5)
+                await asyncio.sleep(5)
     
-    def _run_task(self, task_id: str):
-        """Run a specific automation task"""
+    async def _run_task(self, task_id: str):
+        """Run a specific automation task (Asynchronous)"""
         if task_id not in self.tasks:
             self.logger.error('orchestrator', f'Unknown task: {task_id}')
             return
@@ -259,8 +261,12 @@ class AutomationOrchestrator:
         self._broadcast_task_update(task)
         
         try:
-            # Run the task handler
-            handler(task)
+            # Run the task handler (await if it's async)
+            if asyncio.iscoroutinefunction(handler):
+                await handler(task)
+            else:
+                # If sync, run in thread to avoid blocking loop
+                await asyncio.to_thread(handler, task)
             
             # Mark as completed
             task.status = AutomationStatus.IDLE
@@ -277,8 +283,8 @@ class AutomationOrchestrator:
         # Broadcast final status
         self._broadcast_task_update(task)
     
-    def _handle_match_creation(self, task: AutomationTask):
-        """Handle match creation task"""
+    async def _handle_match_creation(self, task: AutomationTask):
+        """Handle match creation task (Asynchronous)"""
         self.logger.info('orchestrator', 'Starting match creation task')
         
         # Update progress
@@ -286,7 +292,8 @@ class AutomationOrchestrator:
         self._broadcast_task_update(task)
         
         # Get upcoming matches from external sources
-        upcoming_matches = self.match_manager.fetch_upcoming_matches()
+        # fetch_upcoming_matches is sync, so run in thread
+        upcoming_matches = await asyncio.to_thread(self.match_manager.fetch_upcoming_matches)
         
         task.progress = 50.0
         self._broadcast_task_update(task)
@@ -294,8 +301,25 @@ class AutomationOrchestrator:
         # Create matches in Firebase if they don't exist
         created_count = 0
         for match in upcoming_matches:
-            if self.match_manager.create_match_if_not_exists(match):
+            # create_match_if_not_exists is sync
+            result = await asyncio.to_thread(self.match_manager.create_match_if_not_exists, match)
+            if result:
                 created_count += 1
+                # Trigger notification for newly created match
+                if self.notification_integration:
+                    try:
+                        # Extract data for notification
+                        match_data = {
+                            'team_a': match.team_a,
+                            'team_b': match.team_b,
+                            'date': datetime.fromtimestamp(match.scheduled_time / 1000).strftime('%Y-%m-%d %H:%M'),
+                            'venue': match.venue,
+                            'sport': 'Cricket',
+                            'tournament_id': match.tournament_id
+                        }
+                        await self.notification_integration.on_match_created(match_data)
+                    except Exception as e:
+                        self.logger.error('orchestrator', f'Failed to send match creation notification: {str(e)}')
         
         task.progress = 100.0
         task.metadata['matches_processed'] = len(upcoming_matches)
@@ -340,24 +364,24 @@ class AutomationOrchestrator:
         
         self.logger.info('orchestrator', f'Live scraping completed: {processed_count}/{total_matches} matches updated')
     
-    def _handle_score_processing(self, task: AutomationTask):
-        """Handle score processing task"""
-        self.logger.info('orchestrator', 'Starting score processing task')
+    def _handle_match_reconciliation(self, task: AutomationTask):
+        """Handle match reconciliation task"""
+        self.logger.info('orchestrator', 'Starting match reconciliation task')
         
-        # Get matches that need score processing
+        # Get matches that need reconciliation
         matches_to_process = self.scoring_engine.get_matches_needing_processing()
         
         total_matches = len(matches_to_process)
         if total_matches == 0:
             task.progress = 100.0
-            task.metadata['matches_processed'] = 0
+            task.metadata['matches_reconciled'] = 0
             return
         
         processed_count = 0
         
         for i, match in enumerate(matches_to_process):
             try:
-                # Process scores for the match
+                # Process scores and leaderboard for the match
                 result = self.scoring_engine.process_match_scores(match)
                 
                 if result['success']:
@@ -368,12 +392,12 @@ class AutomationOrchestrator:
                 self._broadcast_task_update(task)
                 
             except Exception as e:
-                self.logger.error('orchestrator', f'Failed to process scores for match {match["id"]}: {str(e)}')
+                self.logger.error('orchestrator', f'Failed to reconcile match {match.get("id")}: {str(e)}')
         
-        task.metadata['matches_processed'] = processed_count
+        task.metadata['matches_reconciled'] = processed_count
         task.metadata['total_matches'] = total_matches
         
-        self.logger.info('orchestrator', f'Score processing completed: {processed_count}/{total_matches} matches processed')
+        self.logger.info('orchestrator', f'Match reconciliation completed: {processed_count}/{total_matches} matches processed')
     
     def _schedule_next_run(self, task: AutomationTask):
         """Schedule next run for a task"""
@@ -435,8 +459,8 @@ class AutomationOrchestrator:
         if task.status == AutomationStatus.RUNNING:
             return {'success': False, 'error': 'Task already running'}
         
-        # Run the task in a separate thread to avoid blocking
-        threading.Thread(target=self._run_task, args=(task_id,)).start()
+        # Run the task in the background
+        asyncio.create_task(self._run_task(task_id))
         
         return {'success': True, 'task_id': task_id}
     
