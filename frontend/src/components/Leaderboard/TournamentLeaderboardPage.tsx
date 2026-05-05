@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { onValue, get, ref } from 'firebase/database';
+import { get, ref } from 'firebase/database';
 import { rtdb } from '../../firebase/config';
 
 interface TournamentLeaderboardPageProps {}
@@ -116,7 +116,7 @@ export default function TournamentLeaderboardPage({}: TournamentLeaderboardPageP
         <div className="tournament-info">
           {tournamentInfo && (
             <>
-              <span className="tournament-label">{sport.toUpperCase()}</span>
+              <span className="tournament-label">{sport?.toUpperCase()}</span>
               <span className="tournament-name">{tournamentInfo.name || 'Tournament'}</span>
             </>
           )}

@@ -97,7 +97,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
           })
         );
 
-        setActiveMatches(liveMatches.filter((m): m is ActiveMatch => m !== null));
+        setActiveMatches(liveMatches.filter((m) => m !== null) as ActiveMatch[]);
       } else {
         setActiveMatches([]);
       }
@@ -145,7 +145,7 @@ export default function AudienceGate({ onJoinMatch, onJoinTournament }: Audience
           })
         );
 
-        setActiveTournaments(activeTournaments.filter((t): t is ActiveTournament => t !== null));
+        setActiveTournaments(activeTournaments.filter((t) => t !== null) as ActiveTournament[]);
       } else {
         setActiveTournaments([]);
       }
