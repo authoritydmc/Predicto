@@ -159,6 +159,14 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
         setDisableReason(data.disableReason);
         console.log('[PredictionPanel] Synced disableReason:', data.disableReason);
       }
+      
+      // Update match status in real-time
+      if (data?.status !== undefined) {
+        setMatchStatus(data.status);
+        console.log('[PredictionPanel] Synced matchStatus:', data.status);
+        // Lock predictions if match is completed
+        setIsMatchCompleted(data.status === 'done' || data.status === 'completed');
+      }
     }, (error) => {
       console.error('[PredictionPanel] Error listening to match meta:', error);
     });
