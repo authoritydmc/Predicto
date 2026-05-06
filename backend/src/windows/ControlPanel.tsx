@@ -310,6 +310,7 @@ const ControlPanel: React.FC = () => {
   const [scraperStatus, setScraperStatus] = useState('');
   const [scraperOrder, setScraperOrder] = useState('cricbuzz,google,cricapi');
   const [scraperMatchUrl, setScraperMatchUrl] = useState('');
+  const [autoScrapeEnabled, setAutoScrapeEnabled] = useState(true);
   const [activeMatchTab, setActiveMatchTab] = useState<'details' | 'live'>('details');
   const [isEditingScore, setIsEditingScore] = useState(false);
 
@@ -1002,6 +1003,7 @@ const ControlPanel: React.FC = () => {
     loadSchedule();
   }, [tournamentId, fSport]);
 
+  
   // Auto-mark matches as done if no live score update for past 6 hours
   useEffect(() => {
     if (!tournamentId || !isFirebaseConfigured || !db || schedule.length === 0) return;
@@ -1702,48 +1704,19 @@ const ControlPanel: React.FC = () => {
     }
 
     const firebaseOperations = [
-      set(matchLiveScoreRef(fSport, tournamentId, matchId), {}),
-      update(matchMetaRef(fSport, tournamentId, matchId), {})
+      set(matchLiveScoreRef(fSport, tournamentId, matchId), {})
     ];
-
+    
     return await executeWithLogging(
       'Update Live Score',
       firebaseOperations,
       async () => {
-        const scoreData: any = {
-          matchStatus: scoreMatchStatus,
-          source: scoreSource,
-          lastUpdated: Date.now()
-        };
+        const scoreData: any = {};
+        let battingFirst = null;
 
         if (fSport === 'cricket') {
-          scoreData.teamA = {
-            runs: parseInt(scoreTeamARuns) || 0,
-            wickets: parseInt(scoreTeamAWickets) || 0,
-            overs: parseFloat(scoreTeamAOvers) || 0,
-            battingTeam: true
-          };
-          scoreData.teamB = {
-            runs: parseInt(scoreTeamBRuns) || 0,
-            wickets: parseInt(scoreTeamBWickets) || 0,
-            overs: parseFloat(scoreTeamBOvers) || 0,
-            battingTeam: false
-          };
-          scoreData.currentInnings = fInnings === '2' ? 2 : 1;
-          
-          // Set secondInningsStart if transitioning to 2nd innings
-          if (fInnings === '2' && (!liveScore || liveScore.currentInnings !== 2)) {
-            scoreData.secondInningsStart = Date.now();
-          }
-          
-          // Calculate battingFirst
-          let battingFirst: string | null = null;
-          if (fInnings === '2' && meta.innings !== '2') {
-            // When moving to 2nd innings, the team that was batting first is now known
-            // It's the opposite of the current batting team
-            battingFirst = fBattingTeam === 'teamA' ? 'teamB' : 'teamA';
-          } else if (fInnings === '1' && !meta.battingFirst) {
-            // In 1st innings, the current batting team is batting first
+          // Determine battingFirst for first innings
+          if (fInnings === '1') {
             battingFirst = fBattingTeam;
           } else {
             // Use existing value from meta
@@ -1804,20 +1777,60 @@ const ControlPanel: React.FC = () => {
   };
 
   const handleRunScraper = useCallback(async () => {
-    if (!matchId || !fTeamA || !fTeamB) {
-      alert('Please select a match with team names first');
+    console.log('[DEBUG] handleRunScraper called with:', {
+      matchId,
+      fTeamA,
+      fTeamB,
+      fSport,
+      scraperOrder,
+      scraperMatchUrl
+    });
+
+    if (!matchId) {
+      console.log('[DEBUG] No matchId selected');
+      alert('Please select a match first');
       return;
     }
+    
+    if (!fTeamA || !fTeamB) {
+      console.log('[DEBUG] Team names missing:', { fTeamA, fTeamB });
+      if (scraperMatchUrl) {
+        console.log('[DEBUG] Using direct URL scraping');
+        // Allow running if match URL is provided (direct scraping)
+        if (!confirm('Team names are not set. Continue with direct URL scraping?')) {
+          console.log('[DEBUG] User cancelled direct URL scraping');
+          return;
+        }
+      } else {
+        console.log('[DEBUG] No team names and no URL provided');
+        alert('Please set team names first or provide a direct match URL');
+        return;
+      }
+    }
 
+    console.log('[DEBUG] Starting scraper execution');
     setScraperRunning(true);
     setScraperStatus('Initializing scraper...');
 
     try {
       // @ts-ignore
-      const result = await window.overlayDesktop.runScraper(fSport, matchId, fTeamA, fTeamB, scraperOrder, scraperMatchUrl || undefined);
+      console.log('[DEBUG] Calling window.overlayDesktop.runScraper with params:', {
+        sport: fSport,
+        matchId,
+        teamA: fTeamA,
+        teamB: fTeamB,
+        scraperOrder,
+        matchUrl: scraperMatchUrl || undefined
+      });
+      
+      // @ts-ignore
+      const result = await (window as any).overlayDesktop.runScraper(fSport, matchId, fTeamA, fTeamB, scraperOrder, scraperMatchUrl || undefined);
+      
+      console.log('[DEBUG] Scraper result received:', result);
       
       // Update status log with stderr if available (it contains the debug logs)
       if (result.stderr) {
+        console.log('[DEBUG] Scraper stderr:', result.stderr);
         setScraperStatus(prev => prev + '\n' + result.stderr);
       }
 
@@ -1845,11 +1858,10 @@ const ControlPanel: React.FC = () => {
           setScoreTeamBOvers(oversB);
           setScoreMatchStatus(status);
           setScoreSource('scraper');
+          setFMatchSummary(summary);
+          setFVenue(venue);
+          setFSeries(series);
           
-          if (summary) setFMatchSummary(summary);
-          if (venue) setFVenue(venue);
-          if (series) setFSeries(series);
-
           // Update innings and batting team from scraper
           let currentInn = fInnings;
           if (result.data.currentInnings) {
@@ -1860,6 +1872,18 @@ const ControlPanel: React.FC = () => {
           let currentBatting = fBattingTeam;
           if (result.data.teamA.battingTeam !== undefined) {
             currentBatting = result.data.teamA.battingTeam ? 'teamA' : 'teamB';
+            setFBattingTeam(currentBatting);
+          } else if (result.data.matchStatus === 'completed') {
+            // For completed matches, determine batting based on which team has more overs
+            const teamAOvers = parseFloat(oversA) || 0;
+            const teamBOvers = parseFloat(oversB) || 0;
+            currentBatting = teamAOvers > teamBOvers ? 'teamA' : 'teamB';
+            setFBattingTeam(currentBatting);
+          } else if (result.data.matchStatus === 'live' && result.data.teamA.overs && result.data.teamB.overs) {
+            // For live matches, determine batting based on who has more overs
+            const teamAOvers = parseFloat(oversA) || 0;
+            const teamBOvers = parseFloat(oversB) || 0;
+            currentBatting = teamAOvers > teamBOvers ? 'teamA' : 'teamB';
             setFBattingTeam(currentBatting);
           }
 
@@ -1973,23 +1997,28 @@ const ControlPanel: React.FC = () => {
                   setScoreTeamBRuns(fBattingTeam === 'teamB' ? parts[0] || '' : '');
                   setScoreTeamBWickets(fBattingTeam === 'teamB' ? parts[1] || '' : '');
                   setScraperStatus(`Using prediction data as fallback`);
-                  setScoreSource('prediction');
+                  setScoreSource('scraper'); // Changed from 'prediction' to 'scraper'
                 }
               }
             }
-          } catch (e) {
-            console.error('[ControlPanel] Error loading prediction fallback:', e);
+          } catch (error: any) {
+            console.error('[DEBUG] Prediction fallback error:', error);
           }
         }
       }
-    } catch (error) {
-      setScraperStatus('Error running scraper');
-      console.error('[ControlPanel] Scraper exception:', error);
+    } catch (error: any) {
+      console.error('[DEBUG] Scraper error caught:', error);
+      console.log('[DEBUG] Error details:', {
+        message: error?.message || 'Unknown error',
+        stack: error?.stack
+      });
+      setScraperStatus(`Error: ${error?.message || error}`);
     } finally {
+      console.log('[DEBUG] Scraper execution finished');
       setScraperRunning(false);
       setTimeout(() => setScraperStatus(''), 5000);
     }
-  }, []);
+  }, [matchId, fTeamA, fTeamB, fSport, scraperOrder, scraperMatchUrl, tournamentId]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Scheduler Handlers

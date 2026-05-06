@@ -1,6 +1,6 @@
 """
-Simple Windows Orchestrator
-Redesigned for Windows compatibility with proper task management and command-line logging
+Working Windows Orchestrator
+Fixed version with proper task management and command-line logging
 """
 
 import asyncio
@@ -17,8 +17,13 @@ import uuid
 from typing import Dict, Any, Optional, List, Callable
 
 # Add project root to path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
+
+# Add backend root to path for base module
+backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if backend_root not in sys.path:
+    sys.path.insert(0, backend_root)
 
 from base.firebase_client import FirebaseClient
 
@@ -26,7 +31,7 @@ from base.firebase_client import FirebaseClient
 class SimpleConsoleLogger:
     """Simple console logger for Windows compatibility"""
     
-    def __init__(self, name="SimpleOrchestrator"):
+    def __init__(self, name="WorkingWindowsOrchestrator"):
         self.name = name
     
     def info(self, message: str):
@@ -77,9 +82,9 @@ class SimpleAutomationTask:
             self.metadata = {}
 
 
-class SimpleWindowsOrchestrator:
+class WorkingWindowsOrchestrator:
     """
-    Simplified Windows orchestrator with proper task management
+    Working Windows orchestrator with proper task management
     """
     
     def __init__(self, firebase_client: FirebaseClient, logger: SimpleConsoleLogger):
@@ -131,8 +136,8 @@ class SimpleWindowsOrchestrator:
         """Setup Windows IPC for debugging"""
         try:
             import win32event
-            self._ipc_event = win32event.CreateEvent(None, False, False, f"SimpleOrchestrator_{self.session_id}")
-            self.logger.info(f"Windows IPC Event created: SimpleOrchestrator_{self.session_id}")
+            self._ipc_event = win32event.CreateEvent(None, False, False, f"WorkingOrchestrator_{self.session_id}")
+            self.logger.info(f"Windows IPC Event created: WorkingOrchestrator_{self.session_id}")
         except ImportError:
             self.logger.warning("win32event not available, IPC disabled")
             self._ipc_event = None
@@ -168,7 +173,7 @@ class SimpleWindowsOrchestrator:
         try:
             tasks_data = self.client.get('scheduler_config/tasks') or {}
             
-            # Define default tasks
+            # Define default tasks with proper IPL scheduling
             default_tasks = {
                 'match_creation': {
                     'task_id': 'match_creation',
@@ -185,7 +190,7 @@ class SimpleWindowsOrchestrator:
                     'status': 'idle',
                     'interval_seconds': 60,
                     'enabled': True,
-                    'is_adaptive': True
+                    'is_adaptive': True  # Enable adaptive scheduling
                 },
                 'reconciliation': {
                     'task_id': 'reconciliation',
@@ -235,8 +240,40 @@ class SimpleWindowsOrchestrator:
         except Exception as e:
             self.logger.error(f"Error initializing tasks: {str(e)}")
     
+    def _schedule_next_run(self, task):
+        """Schedule next run for a task"""
+        try:
+            # Simple scheduling based on task type and intervals
+            if task.type == 'reconciliation':
+                # Every 5 minutes for reconciliation
+                task.next_run = int(time.time() * 1000) + (5 * 60 * 1000)
+            elif task.type == 'scraping':
+                # Use adaptive scheduling for scraping
+                if task.is_adaptive:
+                    # Weekend: every 30 seconds, Weekday: every 60 seconds
+                    current_day = time.localtime().tm_wday()  # 0=Monday, 6=Sunday
+                    if current_day >= 5:  # Saturday or Sunday
+                        interval = 30  # Weekend scraping (less frequent)
+                    else:
+                        interval = 60  # Weekday scraping (more frequent)
+                else:
+                    # Regular scraping every minute
+                    task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
+            elif task.type == 'match_creation':
+                # Every hour for match creation
+                task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
+            else:
+                # Default interval
+                task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
+        except Exception as e:
+            self.logger.error(f"Error scheduling next run: {str(e)}")
+            task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
+        
+        next_run_dt = datetime.fromtimestamp(task.next_run / 1000)
+        self.logger.info(f"Task \"{task.name}\" scheduled to run next at {next_run_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+    
     async def start(self):
-        """Start the simple Windows orchestrator"""
+        """Start working Windows orchestrator"""
         self.running = True
         self.start_time = datetime.now()
         
@@ -246,7 +283,7 @@ class SimpleWindowsOrchestrator:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
         
-        self.logger.info(f"Starting Simple Windows Orchestrator (Session: {self.session_id})")
+        self.logger.info(f"Starting Working Windows Orchestrator (Session: {self.session_id})")
         
         # Start orchestration loop as a background task
         asyncio.create_task(self._orchestration_loop())
@@ -260,7 +297,7 @@ class SimpleWindowsOrchestrator:
         # Broadcast initial state
         self._broadcast_status()
         
-        self.logger.info("Simple Windows Orchestrator started successfully")
+        self.logger.info("Working Windows Orchestrator started successfully")
     
     async def _orchestration_loop(self):
         """Main orchestration loop (Asynchronous)"""
@@ -291,12 +328,12 @@ class SimpleWindowsOrchestrator:
                                 asyncio.create_task(self._run_task(task_id))
                             except RuntimeError as re:
                                 if "no running event loop" in str(re):
-                                    print(f"[SimpleOrchestrator] Cannot create task for {task_id} - no event loop")
+                                    print(f"[WorkingWindowsOrchestrator] Cannot create task for {task_id} - no event loop")
                                     # Try to run task synchronously as fallback
                                     try:
                                         asyncio.run(self._run_task(task_id))
                                     except Exception as e:
-                                        print(f"[SimpleOrchestrator] Failed to run task {task_id} synchronously: {e}")
+                                        print(f"[WorkingWindowsOrchestrator] Failed to run task {task_id} synchronously: {e}")
                                 else:
                                     raise
                 
@@ -308,12 +345,12 @@ class SimpleWindowsOrchestrator:
                             asyncio.create_task(self._run_task(task_id))
                         except RuntimeError as re:
                             if "no running event loop" in str(re):
-                                print(f"[SimpleOrchestrator] Cannot create scheduled task for {task_id} - no event loop")
+                                print(f"[WorkingWindowsOrchestrator] Cannot create scheduled task for {task_id} - no event loop")
                                 # Try to run task synchronously as fallback
                                 try:
                                     asyncio.run(self._run_task(task_id))
                                 except Exception as e:
-                                    print(f"[SimpleOrchestrator] Failed to run scheduled task {task_id} synchronously: {e}")
+                                    print(f"[WorkingWindowsOrchestrator] Failed to run scheduled task {task_id} synchronously: {e}")
                             else:
                                 raise
                 
@@ -397,39 +434,6 @@ class SimpleWindowsOrchestrator:
             # Broadcast final status
             self._broadcast_task_update(task)
     
-    def _schedule_next_run(self, task):
-        """Schedule next run for a task"""
-        try:
-            # Simple scheduling based on task type and intervals
-            if task.type == 'reconciliation':
-                # Every 5 minutes for reconciliation
-                task.next_run = int(time.time() * 1000) + (5 * 60 * 1000)
-            elif task.type == 'scraping':
-                # Every 1 minute for scraping, but adaptive for weekdays vs weekends
-                if task.is_adaptive:
-                    # Weekend: every 30 seconds, Weekday: every 60 seconds
-                    current_day = time.localtime().tm_wday()  # 0=Monday, 6=Sunday
-                    if current_day >= 5:  # Saturday or Sunday
-                        interval = 30  # Weekend scraping (less frequent)
-                    else:
-                        interval = 60  # Weekday scraping (more frequent)
-                    task.next_run = int(time.time() * 1000) + (interval * 1000)
-                else:
-                    # Regular scraping every minute
-                    task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
-            elif task.type == 'match_creation':
-                # Every hour for match creation
-                task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
-            else:
-                # Default interval
-                task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
-        except Exception as e:
-            self.logger.error(f"Error scheduling next run: {str(e)}")
-            task.next_run = int(time.time() * 1000) + (task.interval_seconds * 1000)
-        
-        next_run_dt = datetime.fromtimestamp(task.next_run / 1000)
-        self.logger.info(f"Task \"{task.name}\" scheduled to run next at {next_run_dt.strftime('%Y-%m-%d %H:%M:%S')}")
-    
     def _broadcast_task_update(self, task):
         """Broadcast task update via Firebase"""
         task_dict = asdict(task)
@@ -453,7 +457,7 @@ class SimpleWindowsOrchestrator:
     def _broadcast_status(self):
         """Broadcast overall status"""
         status_data = {
-            'type': 'simple_orchestrator_status',
+            'type': 'working_orchestrator_status',
             'session_id': self.session_id,
             'timestamp': int(time.time() * 1000),
             'running': self.running,
@@ -471,7 +475,7 @@ class SimpleWindowsOrchestrator:
         }
         
         try:
-            self.client.set('scheduler_config/simple_orchestrator_status', status_data)
+            self.client.set('scheduler_config/working_orchestrator_status', status_data)
             self.logger.debug("Status broadcast")
         except Exception as e:
             self.logger.error(f"Failed to broadcast status: {str(e)}")
@@ -486,10 +490,10 @@ class SimpleWindowsOrchestrator:
                     'session_id': self.session_id,
                     'timestamp': int(time.time() * 1000),
                     'windows_compatible': True,
-                    'simple_orchestrator': True
+                    'working_orchestrator': True
                 }
                 
-                self.client.set('scheduler_config/simple_orchestrator_lock', heartbeat_data)
+                self.client.set('scheduler_config/working_orchestrator_lock', heartbeat_data)
                 self.logger.debug("Heartbeat sent")
                 
                 await asyncio.sleep(10)
@@ -539,7 +543,8 @@ class SimpleWindowsOrchestrator:
             task.progress = 50.0
             task.metadata = {
                 'matches_scraped': 2,
-                'total_matches': 2
+                'total_matches': 2,
+                'adaptive_scheduling': task.is_adaptive
             }
             
             self.logger.info("Live scraping task completed")
@@ -601,7 +606,7 @@ class SimpleWindowsOrchestrator:
             'running': self.running,
             'session_id': self.session_id,
             'windows_compatible': True,
-            'simple_orchestrator': True,
+            'working_orchestrator': True,
             'ipc_enabled': self._ipc_event is not None,
             'console_logging': True,
             'automation_status': {
@@ -617,8 +622,8 @@ class SimpleWindowsOrchestrator:
 
 
 def main():
-    """Main entry point for simple Windows orchestrator"""
-    parser = argparse.ArgumentParser(description='Simple Windows-Compatible Automation Orchestrator')
+    """Main entry point for working Windows orchestrator"""
+    parser = argparse.ArgumentParser(description='Working Windows-Compatible Automation Orchestrator')
     parser.add_argument('--session-id', type=str, default=None,
                        help='Session ID for debugging')
     parser.add_argument('--enable-ipc', action='store_true',
@@ -637,7 +642,7 @@ def main():
         firebase_client = FirebaseClient()
         
         # Initialize orchestrator
-        orchestrator = SimpleWindowsOrchestrator(firebase_client, SimpleConsoleLogger("SimpleWindowsOrchestrator"))
+        orchestrator = WorkingWindowsOrchestrator(firebase_client, SimpleConsoleLogger("WorkingWindowsOrchestrator"))
         
         # Override settings if provided
         if args.session_id:
@@ -661,7 +666,7 @@ def main():
         asyncio.run(orchestrator.start())
         
     except KeyboardInterrupt:
-        print("\nSimple Windows Orchestrator stopped by user")
+        print("\nWorking Windows Orchestrator stopped by user")
     except Exception as e:
         print(f"Fatal error: {str(e)}")
         import traceback

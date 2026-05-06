@@ -64,6 +64,159 @@ class CricbuzzScraper(BaseCricketScraper):
         
         return self._extract_match_data(soup, match_url)
     
+    def _extract_both_team_scores(self, soup: BeautifulSoup, team_a_name: str, team_b_name: str) -> Optional[tuple]:
+        """
+        Extract scores for both teams from the page
+        For ongoing matches: batting team score + first innings score
+        
+        Returns:
+            Tuple of (team_a_score, team_b_score) where each is (runs, wickets, overs) or None if can't find both
+        """
+        try:
+            # Get all text with structure
+            page_text = soup.get_text(separator='\n', strip=True)
+            
+            # Find all score patterns in order of appearance
+            all_scores = re.findall(r'(\d+)[/-](\d+)\s*\((\d+(?:\.\d+)?)\)', page_text)
+            debug(f"[Cricbuzz] Total score patterns found: {len(all_scores)}")
+            
+            if len(all_scores) < 1:
+                debug(f"[Cricbuzz] Found no score patterns")
+                return None
+            
+            # Get unique scores
+            unique_scores = []
+            seen_scores = set()
+            
+            for score in all_scores:
+                score_tuple = (score[0], score[1], score[2])
+                if score_tuple not in seen_scores:
+                    seen_scores.add(score_tuple)
+                    unique_scores.append(score)
+                    debug(f"[Cricbuzz] Unique score #{len(unique_scores)}: {score[0]}/{score[1]} ({score[2]})")
+            
+            # If we have 2 unique scores, return them
+            if len(unique_scores) >= 2:
+                debug(f"[Cricbuzz] Found 2 different scores, using them")
+                return (unique_scores[0], unique_scores[1])
+            
+            # If we only have 1 unique score, try to find the first innings score
+            if len(unique_scores) == 1:
+                debug(f"[Cricbuzz] Only 1 unique score found, looking for first innings score...")
+                
+                # Look for first innings information
+                # Pattern: "Innings 1" or "First Innings" or team name followed by score
+                first_innings_match = re.search(
+                    r'(?:First\s+Innings|Innings\s+1|Innings\s+1st)[:\s]+(.+?)(?:runs?|balls?|wickets?)',
+                    page_text,
+                    re.IGNORECASE
+                )
+                
+                if first_innings_match:
+                    debug(f"[Cricbuzz] Found First Innings text")
+                    # Look for score pattern in this section
+                    first_inn_text = page_text[max(0, first_innings_match.start()-200):first_innings_match.end()+200]
+                    first_inn_scores = re.findall(r'(\d+)[/-](\d+)\s*\((\d+(?:\.\d+)?)\)', first_inn_text)
+                    if first_inn_scores:
+                        # Filter out the score we already have
+                        for score in first_inn_scores:
+                            if score != unique_scores[0]:
+                                debug(f"[Cricbuzz] Found first innings score: {score[0]}/{score[1]} ({score[2]})")
+                                return (unique_scores[0], score)
+                
+                # Try alternative: look for "all out" patterns which indicate first innings end
+                allout_match = re.search(r'(\d+)\s+all\s+out|all\s+out\s+(\d+)', page_text, re.IGNORECASE)
+                if allout_match:
+                    debug(f"[Cricbuzz] Found 'all out' pattern")
+                
+                # Look for section breaks or scorecard sections
+                for separator in ['scorecard', 'innings', 'final score', 'first inning', 'second inning']:
+                    if separator.lower() in page_text.lower():
+                        # Find context around this separator
+                        idx = page_text.lower().find(separator.lower())
+                        section = page_text[max(0, idx-300):idx+300]
+                        section_scores = re.findall(r'(\d+)[/-](\d+)\s*\((\d+(?:\.\d+)?)\)', section)
+                        
+                        for score in section_scores:
+                            if score != unique_scores[0]:
+                                debug(f"[Cricbuzz] Found score in '{separator}' section: {score[0]}/{score[1]} ({score[2]})")
+                                return (unique_scores[0], score)
+            
+            debug(f"[Cricbuzz] Could not find 2 different scores")
+            return None
+            
+        except Exception as e:
+            debug(f"[Cricbuzz] Error in _extract_both_team_scores: {e}")
+            import traceback
+            debug(traceback.format_exc())
+            return None
+    
+    def _extract_match_data(self, soup: BeautifulSoup, match_url: str) -> Optional[CricketScoreData]:
+
+        """
+        Try to extract two different scores from HTML structure
+        This is more reliable than global text regex as it looks at specific elements
+        
+        Returns:
+            List of two score tuples or None
+        """
+        try:
+            # Strategy: Look for scorecard containers and extract scores from specific areas
+            # Cricbuzz typically has main scorecard on the page
+            
+            scores_found = []
+            
+            # 1. Look for div elements that contain score patterns
+            # Try to find divs with specific score patterns
+            for elem in soup.find_all('div'):
+                text = elem.get_text(strip=True)
+                # Look for score pattern like "54/1 (3.3)" 
+                if re.search(r'\d+[/-]\d+\s*\(\d+(?:\.\d+)?\)', text):
+                    score = self.parse_score_pattern(text)
+                    if score:
+                        score_info = (str(score['runs']), str(score['wickets']), str(score['overs']))
+                        
+                        # Check if we already have this exact score
+                        already_added = any(
+                            s == score_info for s in scores_found
+                        )
+                        if not already_added:
+                            scores_found.append(score_info)
+                            debug(f"[Cricbuzz] Found score: {score_info[0]}/{score_info[1]} ({score_info[2]})")
+                            if len(scores_found) >= 2:
+                                break
+            
+            # 2. If we found 2 different scores, return them
+            if len(scores_found) >= 2:
+                debug(f"[Cricbuzz] Extracted 2 different scores from HTML structure")
+                return scores_found[:2]
+            
+            # 3. Fallback: Look in span elements
+            if len(scores_found) < 2:
+                for elem in soup.find_all('span'):
+                    text = elem.get_text(strip=True)
+                    if re.search(r'\d+[/-]\d+\s*\(\d+(?:\.\d+)?\)', text):
+                        score = self.parse_score_pattern(text)
+                        if score:
+                            score_info = (str(score['runs']), str(score['wickets']), str(score['overs']))
+                            already_added = any(s == score_info for s in scores_found)
+                            if not already_added:
+                                scores_found.append(score_info)
+                                debug(f"[Cricbuzz] Found score in span: {score_info[0]}/{score_info[1]} ({score_info[2]})")
+                                if len(scores_found) >= 2:
+                                    break
+            
+            if len(scores_found) >= 2:
+                debug(f"[Cricbuzz] Extracted 2 different scores from spans")
+                return scores_found[:2]
+            
+            debug(f"[Cricbuzz] Structure extraction found only {len(scores_found)} unique scores")
+            return None if len(scores_found) < 2 else scores_found
+            
+        except Exception as e:
+            debug(f"[Cricbuzz] Error extracting from structure: {e}")
+            return None
+    
     def _extract_match_data(self, soup: BeautifulSoup, match_url: str) -> Optional[CricketScoreData]:
         """Extract match data from page soup"""
         try:
@@ -96,18 +249,47 @@ class CricbuzzScraper(BaseCricketScraper):
             
             debug(f"[Cricbuzz] Teams identified: {team_a} vs {team_b}")
             
-            # Extract scores from page text using regex patterns
-            all_text = soup.get_text()
-            score_patterns = re.findall(r'(\d+)[/-](\d+)\s*\((\d+(?:\.\d+)?)\)', all_text)
-            debug(f"[Cricbuzz] Found score patterns: {score_patterns}")
+            # First, try to extract both team scores from the HTML structure
+            both_scores = self._extract_both_team_scores(soup, team_a, team_b)
             
-            if len(score_patterns) < 2:
-                warn(f"[Cricbuzz] Not enough score data found")
-                return None
-            
-            # Parse first two scores
-            team_a_runs, team_a_wickets, team_a_overs = score_patterns[0]
-            team_b_runs, team_b_wickets, team_b_overs = score_patterns[1]
+            if both_scores:
+                team_a_score, team_b_score = both_scores
+                team_a_runs, team_a_wickets, team_a_overs = team_a_score
+                team_b_runs, team_b_wickets, team_b_overs = team_b_score
+                debug(f"[Cricbuzz] Successfully extracted both team scores from structure")
+            else:
+                # Fallback: Extract scores from page text using regex patterns
+                all_text = soup.get_text()
+                score_patterns = re.findall(r'(\d+)[/-](\d+)\s*\((\d+(?:\.\d+)?)\)', all_text)
+                debug(f"[Cricbuzz] Found score patterns from text: {score_patterns}")
+                
+                if len(score_patterns) < 1:
+                    warn(f"[Cricbuzz] No score patterns found at all")
+                    return None
+                
+                # Get unique scores
+                unique_scores = []
+                seen_scores = set()
+                for score in score_patterns:
+                    score_tuple = (score[0], score[1], score[2])
+                    if score_tuple not in seen_scores:
+                        seen_scores.add(score_tuple)
+                        unique_scores.append(score)
+                
+                if len(unique_scores) < 1:
+                    warn(f"[Cricbuzz] No unique scores found")
+                    return None
+                elif len(unique_scores) == 1:
+                    # Only found one unique score - this is likely a live match where only batting team's score is shown
+                    warn(f"[Cricbuzz] Only 1 unique score found: {unique_scores[0][0]}/{unique_scores[0][1]} ({unique_scores[0][2]})")
+                    warn(f"[Cricbuzz] Using it for team A and setting team B to 0/0 (0) as fallback")
+                    team_a_runs, team_a_wickets, team_a_overs = unique_scores[0]
+                    # For team B, we don't have data, so set to 0
+                    team_b_runs, team_b_wickets, team_b_overs = ('0', '0', '0')
+                else:
+                    # Multiple unique scores found
+                    team_a_runs, team_a_wickets, team_a_overs = unique_scores[0]
+                    team_b_runs, team_b_wickets, team_b_overs = unique_scores[1]
             
             # Determine batting teams based on overs
             team_a_batting, team_b_batting = self.determine_batting_team(
@@ -120,7 +302,13 @@ class CricbuzzScraper(BaseCricketScraper):
                           soup.find('div', class_='cb-text-stumps'))
             status_text = status_elem.get_text(strip=True) if status_elem else ""
             
-            match_status = self.determine_match_status(status_text, both_have_scores=True)
+            # Determine match status: if any team has overs>0, it's live; otherwise check status text
+            if float(team_a_overs) > 0 or float(team_b_overs) > 0:
+                match_status = "live"  # If either team is batting, match is live
+                debug(f"[Cricbuzz] Determined match status as LIVE based on team overs")
+            else:
+                match_status = self.determine_match_status(status_text, both_have_scores=False)
+                debug(f"[Cricbuzz] Determined match status as {match_status} from status text")
             
             # Extract series and venue from page text (robust to layout changes)
             page_text = soup.get_text(separator=' ', strip=True)

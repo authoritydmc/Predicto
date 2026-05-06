@@ -400,6 +400,23 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
                   <span>{props.scraperRunning ? 'Running Scraper...' : 'Run Scraper Now'}</span>
                 </button>
                 
+                {/* Auto-scrape toggle */}
+                <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--muted)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={props.scoreSource === 'scraper'}
+                      onChange={(e) => {
+                        if (props.onScoreSourceChange) {
+                          props.onScoreSourceChange(e.target.checked ? 'scraper' : 'manual');
+                        }
+                      }}
+                      style={{ marginRight: '8px' }}
+                    />
+                    <span>Auto-scrape when match is selected</span>
+                  </label>
+                </div>
+                
                 {props.scraperStatus && (
                   <div style={{ 
                     marginTop: '8px',

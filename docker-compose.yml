@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Backend Automation Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: overlaychat-backend-automation
+    ports:
+      - "8080:8080"
+      - "8081:8081"  # Expose multiple ports if needed
+    environment:
+      - NODE_ENV=production
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - FIREBASE_SERVICE_ACCOUNT=/app/firebase.cert.json
+      - FIREBASE_DATABASE_URL=https://overlaychat-7f1e5-default-rtdb.asia-southeast1.firebasedatabase.app
+    volumes:
+      - ./backend/firebase.cert.json:/app/firebase.cert.json:ro
+      - ./backend/automation_jobs.db:/app/automation_jobs.db:rw
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      - firebase
+    networks:
+      - overlaychat-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Firebase Service (for development)
+  firebase:
+    image: firebase/emulators:latest
+    container_name: overlaychat-firebase-emulator
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./firebase.json:/app/firebase.json:ro
+    command: ["firebase", "emulators:start", "--only", "auth,database"]
+    networks:
+      - overlaychat-network
+    profiles:
+      - development
+
+  # Monitoring Service
+  monitoring:
+    image: prom/prometheus:latest
+    container_name: overlaychat-monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus.yml:ro
+      - ./monitoring-data:/prometheus
+    networks:
+      - overlaychat-network
+    profiles:
+      - monitoring
+
+networks:
+  overlaychat-network:
+    driver: bridge

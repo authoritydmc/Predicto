@@ -104,11 +104,14 @@ class ScraperManager:
                 
                 # Get score
                 info(f"[ScraperManager] [{source}] Starting fetch...")
+                debug(f"[ScraperManager] [{source}] Calling get_score with params: team_a={team_a}, team_b={team_b}, match_url={match_url}")
                 result = scraper.get_score(
                     team_a=team_a,
                     team_b=team_b,
                     match_url=match_url
                 )
+                
+                debug(f"[ScraperManager] [{source}] Raw result: {result}")
                 
                 if result:
                     # Add metadata

@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+venv/
+
+# Node
+node_modules/
+npm-debug.log*
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp
+
+# Firebase certificates (keep these out of container)
+firebase*.json
+!firebase*.json
+
+# Environment files (keep local overrides)
+.env.local
+.env.*.local

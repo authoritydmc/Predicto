@@ -76,6 +76,14 @@ def main():
     info("Live Score Scraper")
     info("=" * 50)
     
+    # Debug: Print all received arguments
+    info(f"[DEBUG CLI] Received args: {vars(args)}")
+    info(f"[DEBUG CLI] sport: {args.sport}")
+    info(f"[DEBUG CLI] team_a: {args.team_a}")
+    info(f"[DEBUG CLI] team_b: {args.team_b}")
+    info(f"[DEBUG CLI] match_url: {args.match_url}")
+    info(f"[DEBUG CLI] sources: {args.sources}")
+    
     # Create manager
     sources = args.sources.split(',') if args.sources else None
     manager = ScraperManager(scraper_order=sources)
@@ -90,10 +98,12 @@ def main():
     
     # Validate arguments
     if not args.match_url and (not args.team_a or not args.team_b):
+        error("[DEBUG CLI] Validation failed: no match_url and missing team names")
         error("Error: Either provide --match-url or both team names")
         return 1
     
     # Fetch score
+    info("[DEBUG CLI] Starting score fetch...")
     result = manager.get_score(
         sport=args.sport,
         team_a=args.team_a,
@@ -102,15 +112,18 @@ def main():
         match_id=args.match_id
     )
     
+    info(f"[DEBUG CLI] Scraper result: {result}")
+    
     # Output result
     if result:
+        info("[DEBUG CLI] Success - outputting result")
         if args.output == 'pretty':
             print(json.dumps(result, indent=2))
         else:
             print(json.dumps(result))
         return 0
     else:
-        error("Failed to fetch score from all sources")
+        error("[DEBUG CLI] Failed to fetch score from all sources")
         error_output = {"error": "Failed to fetch score from all sources", "sport": args.sport}
         print(json.dumps(error_output))
         return 1
