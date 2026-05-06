@@ -69,7 +69,6 @@ export default function CricketPrediction({
   predictionsPaused,
   pauseReason,
   disableReason,
-  targetScore,
   allowReprediction,
   hasPredicted,
   previousPrediction,

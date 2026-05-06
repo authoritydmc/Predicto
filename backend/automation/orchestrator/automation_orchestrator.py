@@ -681,7 +681,7 @@ class AutomationOrchestrator:
         
         self.logger.info('orchestrator', f'Live scraping completed: {processed_count}/{total_matches} matches updated')
     
-    def _handle_match_reconciliation(self, task: AutomationTask):
+    async def _handle_match_reconciliation(self, task: AutomationTask):
         """Handle match reconciliation task"""
         self.logger.info('orchestrator', 'Starting match reconciliation task')
         
@@ -698,7 +698,10 @@ class AutomationOrchestrator:
         
         for i, match in enumerate(matches_to_process):
             try:
-                # Process scores and leaderboard for the match
+                # Check if match needs early prediction migration
+                await self._migrate_early_predictions_if_needed(match)
+                
+                # Process scores and leaderboard for match
                 result = self.scoring_engine.process_match_scores(match)
                 
                 if result['success']:
@@ -715,6 +718,81 @@ class AutomationOrchestrator:
         task.metadata['total_matches'] = total_matches
         
         self.logger.info('orchestrator', f'Match reconciliation completed: {processed_count}/{total_matches} matches processed')
+    
+    async def _migrate_early_predictions_if_needed(self, match):
+        """Migrate early predictions to live predictions when match goes live"""
+        try:
+            # Get match metadata to check status
+            match_meta = self.client.get(f"prod/tournaments/cricket/{match.get('tournamentId', '')}/matches/{match.get('id', '')}/meta")
+            if not match_meta:
+                self.logger.warning('orchestrator', f'No meta found for match {match.get("id")}')
+                return
+            
+            # Check if match just went live (status changed from scheduled to live)
+            current_status = match_meta.get('status', '')
+            batting_first = match_meta.get('battingFirst')
+            
+            if current_status == 'live' and batting_first:
+                self.logger.info('orchestrator', f'Match {match.get("id")} went live, checking for early predictions to migrate')
+                
+                # Get all predictions for this match
+                predictions_path = f"prod/tournaments/cricket/{match.get('tournamentId', '')}/matches/{match.get('id', '')}/predictions"
+                all_predictions = self.client.get(predictions_path) or {}
+                
+                migrated_count = 0
+                for username, prediction_data in all_predictions.items():
+                    if isinstance(prediction_data, dict) and 'early_predict' in prediction_data:
+                        early_pred = prediction_data['early_predict']
+                        
+                        # Check if early prediction needs migration
+                        if early_pred.get('first') and not early_pred.get('migrated', False):
+                            self.logger.info('orchestrator', f'Migrating early prediction for user: {username}')
+                             
+                            # Extract correct runs based on actual batting team
+                            first_innings = early_pred['first'].get('first_innings', {})
+                            actual_runs = None
+                             
+                            if batting_first == 'teamA':
+                                actual_runs = first_innings.get('teamA_batting_first')
+                            elif batting_first == 'teamB':
+                                actual_runs = first_innings.get('teamB_batting_first')
+                             
+                            if actual_runs:
+                                # Create live prediction structure
+                                live_prediction = {
+                                    'predictionId': early_pred['first'].get('predictionId', int(time.time() * 1000)),
+                                    'winnerTeam': early_pred['first'].get('winnerTeam'),
+                                    'runs': actual_runs,
+                                    'battingFirst': batting_first,
+                                    'migratedFrom': 'early_prediction',
+                                    'createdAt': early_pred['first'].get('createdAt'),
+                                    'updatedAt': int(time.time() * 1000)
+                                }
+                                 
+                                # Update prediction with migrated live data
+                                update_path = f"{predictions_path}/{username}"
+                                update_data = {
+                                    'first_inn': live_prediction,
+                                    'early_predict.migrated': True,
+                                    'early_predict.migratedAt': int(time.time() * 1000),
+                                    'early_predict.migratedTo': 'first_inn',
+                                    'updatedAt': int(time.time() * 1000)
+                                }
+                                 
+                                self.client.update(update_path, update_data)
+                                migrated_count += 1
+                                 
+                                self.logger.info('orchestrator', f'Successfully migrated early prediction for {username}: {actual_runs} runs')
+                            else:
+                                self.logger.warning('orchestrator', f'Could not extract runs for early prediction migration: {username}')
+                
+                if migrated_count > 0:
+                    self.logger.info('orchestrator', f'Migrated {migrated_count} early predictions for match {match.get("id")}')
+                else:
+                    self.logger.info('orchestrator', f'No early predictions needed migration for match {match.get("id")}')
+                    
+        except Exception as e:
+            self.logger.error('orchestrator', f'Error migrating early predictions for match {match.get("id")}: {str(e)}')
     
     def _schedule_next_run(self, task: AutomationTask):
         """Schedule next run for a task"""
