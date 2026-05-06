@@ -1,0 +1,121 @@
+name: Automation Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'backend/automation/**'
+      - 'backend/orchestrator/**'
+      - 'backend/scripts/**'
+
+  workflow_dispatch:
+    inputs:
+      script_key:
+        description: 'Script key to execute'
+        required: true
+      manual_args:
+        description: 'Additional arguments for the script'
+        required: false
+      target_matches:
+        description: 'Target match IDs (for scoring/reconciliation)'
+        required: false
+      force:
+        description: 'Force execution even if recently run'
+        required: false
+      environment:
+        description: 'Environment mode (local/prod)'
+        required: false
+        default: 'prod'
+
+jobs:
+  run-scraping:
+    name: Run Live Scraping
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Run Live Scraping
+        run: |
+          python backend/automation/scripts/master_runner.py \
+            --script scrapping \
+            --env ${{ inputs.environment }}
+            
+  run-scoring:
+    name: Run Score Calculation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Run Score Calculation
+        run: |
+          python backend/automation/scripts/master_runner.py \
+            --script scoring \
+            --env ${{ inputs.environment }}
+
+  run-reconciliation:
+    name: Run Early Prediction Migration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Run Early Prediction Migration
+        run: |
+          python backend/automation/scripts/master_runner.py \
+            --script reconciliation \
+            --env ${{ inputs.environment }}
+
+  run-match-creation:
+    name: Run Match Creation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Run Match Creation
+        run: |
+          python backend/automation/scripts/master_runner.py \
+            --script match_creation \
+            --env ${{ inputs.environment }}
+
+  run-cleanup:
+    name: Run Database Cleanup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Run Database Cleanup
+        run: |
+          python backend/automation/scripts/master_runner.py \
+            --script cleanup \
+            --env ${{ inputs.environment }}
