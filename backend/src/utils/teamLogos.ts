@@ -30,7 +30,26 @@ export const getTeamLogo = (teamName: string): string | null => {
   return TEAM_LOGO_MAP[normalizedName] || null;
 };
 
+export const TEAM_COLORS: Record<string, { primary: string, secondary: string }> = {
+  'csk': { primary: '#FFCB05', secondary: '#004BA0' },
+  'mi': { primary: '#004BA0', secondary: '#D1AB3E' },
+  'rcb': { primary: '#EC1C24', secondary: '#2B2A29' },
+  'kkr': { primary: '#3A225D', secondary: '#B3A123' },
+  'dc': { primary: '#0078BC', secondary: '#EF1B23' },
+  'pbks': { primary: '#ED1B24', secondary: '#D71920' },
+  'rr': { primary: '#E91E63', secondary: '#CBA052' }, // Fixed: RR pink color
+  'srh': { primary: '#F26522', secondary: '#ED1A3B' },
+  'lsg': { primary: '#0057E7', secondary: '#D1AB3E' },
+  'gt': { primary: '#0B4973', secondary: '#CBA052' },
+};
+
 export const getTeamLogoUrl = (teamName: string, basePath: string = './assets/team-logos'): string | null => {
   const logoFile = getTeamLogo(teamName);
   return logoFile ? `${basePath}/${logoFile}` : null;
+};
+
+export const getTeamColor = (teamName: string): { primary: string, secondary: string } => {
+  if (!teamName) return { primary: '#6366f1', secondary: '#8b5cf6' };
+  const normalizedName = teamName.toLowerCase().trim();
+  return TEAM_COLORS[normalizedName] || { primary: '#6366f1', secondary: '#8b5cf6' };
 };

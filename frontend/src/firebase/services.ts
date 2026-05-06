@@ -166,12 +166,18 @@ export const savePrediction = async (sport: string, id: string, clientId: string
 
     // Handle different prediction types
     if (payload.predictionType === 'early_first_innings') {
-      // Store in early_predict/first
+      // Validate winnerTeam
+      if (!payload.winnerTeam || typeof payload.winnerTeam !== 'string') {
+        console.warn('[Firebase] Invalid winnerTeam for early prediction:', payload.winnerTeam);
+        throw new Error('Winner team is required for early prediction');
+      }
+      
+      // Store in early_predict/first with complete first_innings data
       updateData.early_predict = {
         first: {
           ...basePrediction,
           winnerTeam: payload.winnerTeam,
-          runs: payload.runs
+          first_innings: payload.first_innings
         }
       };
     } else if (payload.predictionType === 'early_second_innings') {
@@ -355,6 +361,67 @@ export const reconcilePrediction = async (sport: string, id: string, username: s
     }
   } catch (error) {
     console.error('[Firebase] Error reconciling prediction:', error);
+    throw error;
+  }
+};
+
+export const migrateEarlyPredictionToLive = async (sport: string, id: string, matchId: string, username: string, battingFirst: 'teamA' | 'teamB') => {
+  try {
+    console.log('[Firebase] Migrating early prediction to live:', { sport, id, matchId, username, battingFirst });
+    
+    const pRef = matchRef(sport, id, matchId, "predictions", username);
+    const snap = await get(pRef);
+    const userData = snap.val();
+    
+    if (!userData || !userData.early_predict?.first) {
+      console.log('[Firebase] No early prediction found for migration');
+      return;
+    }
+    
+    const earlyPrediction = userData.early_predict.first;
+    const firstInningsData = earlyPrediction.first_innings;
+    
+    if (!firstInningsData) {
+      console.log('[Firebase] No first_innings data found in early prediction');
+      return;
+    }
+    
+    // Determine which score to use based on who is actually batting first
+    const actualRuns = battingFirst === 'teamA' 
+      ? firstInningsData.teamA_batting_first 
+      : firstInningsData.teamB_batting_first;
+    
+    if (!actualRuns || typeof actualRuns !== 'number' || actualRuns <= 0) {
+      console.warn('[Firebase] Invalid runs value for migration:', actualRuns);
+      return;
+    }
+    
+    // Create live first innings prediction
+    const livePrediction = {
+      ...earlyPrediction,
+      predictionId: Date.now(), // New ID for live prediction
+      battingFirst: battingFirst,
+      runs: actualRuns,
+      migratedFrom: 'early_prediction'
+    };
+    
+    // Update the prediction structure
+    const updateData = {
+      first_inn: livePrediction,
+      early_predict: {
+        ...userData.early_predict,
+        migrated: true,
+        migratedAt: serverTimestamp(),
+        migratedTo: 'first_inn'
+      },
+      updatedAt: serverTimestamp()
+    };
+    
+    await update(pRef, updateData);
+    console.log('[Firebase] Early prediction migrated successfully to live prediction');
+    
+  } catch (error) {
+    console.error('[Firebase] Error migrating early prediction to live:', error);
     throw error;
   }
 };

@@ -2026,7 +2026,8 @@ const ControlPanel: React.FC = () => {
 const handleStartOrchestrator = useCallback(async () => {
   logAction('[Control Panel] INFO', 'Starting orchestrator manually');
   try {
-    const result = await window.electronAPI.invoke('automation:start');
+    // @ts-ignore
+    const result = await window.overlayDesktop.startOrchestrator();
     if (result.success) {
       logAction('[Control Panel] SUCCESS', 'Orchestrator started successfully');
     } else {

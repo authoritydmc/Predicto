@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef, matchPredictionsRef } from '../../firebase/services';
+import { savePrediction, saveUserGlobalProfile, userRef, matchMetaRef, matchLiveScoreRef, matchPredictionsRef, migrateEarlyPredictionToLive } from '../../firebase/services';
 import { onValue, get } from 'firebase/database';
 import CricketPrediction from './CricketPrediction';
 import FootballPrediction from './FootballPrediction';
@@ -163,10 +163,24 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
       
       // Update match status in real-time
       if (data?.status !== undefined) {
+        const previousStatus = matchStatus;
         setMatchStatus(data.status);
         console.log('[PredictionPanel] Synced matchStatus:', data.status);
+        
         // Lock predictions if match is completed
         setIsMatchCompleted(data.status === 'done' || data.status === 'completed');
+        
+        // Migrate early predictions when match goes live
+        if (previousStatus === 'scheduled' && data.status === 'live' && name) {
+          const migratePrediction = async () => {
+            try {
+              await migrateEarlyPredictionToLive(sport, id, matchId!, name, battingFirst as 'teamA' | 'teamB');
+            } catch (error) {
+              console.error('[PredictionPanel] Error migrating early prediction:', error);
+            }
+          };
+          migratePrediction();
+        }
       }
     }, (error) => {
       console.error('[PredictionPanel] Error listening to match meta:', error);
@@ -288,7 +302,7 @@ export default function PredictionPanel({ sport, id, matchId, clientId }: Predic
           // Early first innings prediction
           predictionData.predictionType = 'early_first_innings';
           predictionData.winnerTeam = formData.winnerTeam;
-          predictionData.runs = formData.runs;
+          predictionData.first_innings = formData.first_innings;
         } else if (matchStatus === 'live' && battingFirst) {
           // Live first innings prediction
           predictionData.predictionType = 'live_first_innings';

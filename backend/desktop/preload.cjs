@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld("overlayDesktop", {
   updateSchedulerTask: (taskId, config) => ipcRenderer.invoke("scheduler:update-task", taskId, config),
   getSchedulerStatus: () => ipcRenderer.invoke("scheduler:get-status"),
   getAutomationStatus: () => ipcRenderer.invoke("automation:get-status"),
+  startOrchestrator: () => ipcRenderer.invoke("automation:start"),
   triggerAutomationTask: (taskId) => ipcRenderer.invoke("automation:trigger-task", taskId),
   updateAutomationConfig: (component, updates) => ipcRenderer.invoke("automation:update-config", component, updates),
   testAutomationScraper: (scraperName, testMatch) => ipcRenderer.invoke("automation:test-scraper", scraperName, testMatch),

@@ -469,7 +469,7 @@ class AutomationOrchestrator:
                     self.logger.warning('orchestrator', f'✗ Invalid match filtered: {match.team_a} vs {match.team_b}')
                 
                 # Update progress
-                progress = 25.0 + (25.0 * (i + 1) / len(upcoming_matches)
+                progress = 25.0 + ((25.0 * (i + 1)) / len(upcoming_matches))
                 task.progress = min(50.0, progress)
                 self._broadcast_task_update(task)
             
@@ -519,7 +519,7 @@ class AutomationOrchestrator:
                     self.logger.error('orchestrator', f'✗ Failed to create match {match.team_a} vs {match.team_b}: {str(e)}')
                 
                 # Update progress
-                progress = 50.0 + (40.0 * (i + 1) / len(valid_matches)
+                progress = 50.0 + ((40.0 * (i + 1)) / len(valid_matches))
                 task.progress = min(90.0, progress)
                 self._broadcast_task_update(task)
             
@@ -1002,3 +1002,4 @@ class AutomationOrchestrator:
             'timestamp': int(time.time() * 1000)
         }
         self.logger.broadcast('automation', json.dumps(message))
+        return message

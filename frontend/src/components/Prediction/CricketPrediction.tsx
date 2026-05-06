@@ -16,6 +16,7 @@ interface CricketPredictionProps {
   predictionsPaused: boolean;
   pauseReason: string;
   disableReason: string;
+  targetScore: number | null;
   allowReprediction: boolean;
   hasPredicted: boolean;
   previousPrediction: any;

@@ -31,7 +31,7 @@ export const TEAM_COLORS: Record<string, { primary: string, secondary: string }>
   'kkr': { primary: '#3A225D', secondary: '#B3A123' },
   'dc': { primary: '#0078BC', secondary: '#EF1B23' },
   'pbks': { primary: '#ED1B24', secondary: '#D71920' },
-  'rr': { primary: '#254AA5', secondary: '#CBA052' },
+  'rr': { primary: '#E91E63', secondary: '#CBA052' }, // Fixed: RR pink color
   'srh': { primary: '#F26522', secondary: '#ED1A3B' },
   'lsg': { primary: '#0057E7', secondary: '#D1AB3E' },
   'gt': { primary: '#0B4973', secondary: '#CBA052' },

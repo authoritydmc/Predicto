@@ -223,11 +223,12 @@ class EnhancedWebSocketLogger:
         elif message_type == 'get_status':
             # Send status response
             try:
+                import time as _time
                 status_data = self.get_status()
                 self._send_message({
                     'type': 'logger_status',
                     'data': status_data,
-                    'timestamp': int(time.time() * 1000)
+                    'timestamp': int(_time.time() * 1000)
                 })
             except Exception as e:
                 # Ensure time is available even in error cases
@@ -301,7 +302,7 @@ class EnhancedWebSocketLogger:
             component=component,
             message=message,
             data=data,
-            thread_id=str(threading.current_thread().ident),
+            thread_id=str(threading.current_thread().ident) if threading.current_thread() else 'unknown',
             correlation_id=correlation_id
         )
         

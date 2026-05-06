@@ -172,8 +172,43 @@ class ResultProcessor:
                     prediction_to_process = prediction['early_predict']['second']
                     print(f"[ResultProcessor] Using nested early_predict.second prediction data: {prediction_to_process}")
                 elif 'first' in prediction['early_predict']:
-                    prediction_to_process = prediction['early_predict']['first']
-                    print(f"[ResultProcessor] Using nested early_predict.first prediction data: {prediction_to_process}")
+                    early_pred = prediction['early_predict']['first']
+                    print(f"[ResultProcessor] Found early prediction: {early_pred}")
+                    
+                    # Check if early prediction needs migration
+                    if 'first_innings' in early_pred and not prediction.get('early_predict', {}).get('migrated', False):
+                        # Migrate early prediction to live prediction format
+                        batting_first = meta.get('battingFirst')
+                        if batting_first:
+                            # Extract correct runs based on who actually batted first
+                            actual_runs = None
+                            if batting_first == 'teamA':
+                                actual_runs = early_pred['first_innings'].get('teamA_batting_first')
+                            elif batting_first == 'teamB':
+                                actual_runs = early_pred['first_innings'].get('teamB_batting_first')
+                            
+                            if actual_runs:
+                                # Create migrated prediction structure
+                                prediction_to_process = {
+                                    'predictionId': early_pred.get('predictionId'),
+                                    'winnerTeam': early_pred.get('winnerTeam'),
+                                    'runs': actual_runs,
+                                    'battingFirst': batting_first,
+                                    'migratedFrom': 'early_prediction'
+                                }
+                                print(f"[ResultProcessor] Migrated early prediction to live format: {prediction_to_process}")
+                                
+                                # Mark early prediction as migrated
+                                self._mark_early_prediction_migrated(sport, tournament_id, match_id, username)
+                            else:
+                                print(f"[ResultProcessor] Warning: Could not extract runs for batting team: {batting_first}")
+                                prediction_to_process = early_pred
+                        else:
+                            print(f"[ResultProcessor] Warning: battingFirst not found in meta, using early prediction as-is")
+                            prediction_to_process = early_pred
+                    else:
+                        prediction_to_process = early_pred
+                        print(f"[ResultProcessor] Using nested early_predict.first prediction data: {prediction_to_process}")
         
         # Calculate 1st innings points if processing 1st innings or both
         p1_result = None
@@ -379,3 +414,21 @@ class ResultProcessor:
             })
         
         return False
+    
+    def _mark_early_prediction_migrated(self, sport: str, tournament_id: str, match_id: str, username: str):
+        """Mark early prediction as migrated to prevent duplicate processing"""
+        path = f"{self.db_root}/tournaments/{sport}/{tournament_id}/matches/{match_id}/predictions/{username}"
+        
+        # Update early_predict structure to mark as migrated
+        migration_data = {
+            'early_predict.migrated': True,
+            'early_predict.migratedAt': self.client.get_timestamp(),
+            'early_predict.migratedTo': 'first_inn',
+            'updatedAt': self.client.get_timestamp()
+        }
+        
+        try:
+            self.client.update(path, migration_data)
+            print(f"[ResultProcessor] Marked early prediction as migrated for {username}")
+        except Exception as e:
+            print(f"[ResultProcessor] Error marking early prediction migrated: {e}")

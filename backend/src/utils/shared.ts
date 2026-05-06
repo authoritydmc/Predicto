@@ -50,13 +50,13 @@ export const escapeHtml = (v = '') =>
      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 export const TEAM_COLORS: Record<string, { primary: string, alt: string }> = {
+    'csk': { primary: '#FFCB05', alt: '#004BA0' },
     'mi': { primary: '#004BA0', alt: '#D1AB3E' },
     'rcb': { primary: '#EC1C24', alt: '#2B2A29' },
-    'csk': { primary: '#FFFF00', alt: '#0081E9' },
-    'dc': { primary: '#0078BC', alt: '#EF1B23' },
     'kkr': { primary: '#3A225D', alt: '#B3A123' },
+    'dc': { primary: '#0078BC', alt: '#EF1B23' },
     'pbks': { primary: '#ED1B24', alt: '#D71920' },
-    'rr': { primary: '#254AA5', alt: '#CBA052' },
+    'rr': { primary: '#E91E63', alt: '#CBA052' }, // Fixed: RR pink color
     'srh': { primary: '#F26522', alt: '#ED1A3B' },
     'lsg': { primary: '#0057E7', alt: '#D1AB3E' },
     'gt': { primary: '#0B4973', alt: '#CBA052' }
