@@ -16,11 +16,11 @@ from datetime import datetime
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 from base.firebase_client import FirebaseClient
 from scheduler.websocket_logger import WebSocketLogger
-from orchestrator.automation_orchestrator import AutomationOrchestrator
 
 
 class AutomationRunner:
@@ -261,14 +261,14 @@ class AutomationRunner:
 def main():
     """Main CLI interface for master automation runner"""
     parser = argparse.ArgumentParser(description='Master Automation Script Runner')
-    parser.add_argument('--script', type=str, required=True, 
+    parser.add_argument('--script', type=str, 
                        help='Script key to run (scraping, scoring, reconciliation, match_creation, cleanup)')
     parser.add_argument('--args', nargs='*', default=[],
                        help='Additional arguments to pass to the script')
     parser.add_argument('--matches', nargs='*', default=[],
                        help='Target specific match IDs (for scoring/reconciliation)')
     parser.add_argument('--force', action='store_true',
-                       help='Force execution even if recently run')
+                       help='Force execution even if already run recently')
     parser.add_argument('--list-scripts', action='store_true',
                        help='List all available automation scripts')
     parser.add_argument('--live-matches', action='store_true',
@@ -291,8 +291,22 @@ def main():
     # Initialize runner
     runner = AutomationRunner(firebase_client, logger)
     
+    if args.list_scripts:
+        # List available scripts
+        scripts = runner.get_available_scripts()
+        print("\n=== Available Automation Scripts ===")
+        for key, info in scripts.items():
+            print(f"\n{key}:")
+            print(f"  Name: {info['name']}")
+            print(f"  Description: {info['description']}")
+            print(f"  Script: {info['script']}")
+            if info.get('args'):
+                print(f"  Default Args: {info['args']}")
+            print()
+        sys.exit(0)
+
     try:
-        if args.list_scripts:
+        if args.live_matches:
             # List available scripts
             scripts = runner.get_available_scripts()
             print("\n=== Available Automation Scripts ===")
@@ -318,10 +332,11 @@ def main():
             print(f"\n=== Execution History (Last {args.history}) ===")
             for i, record in enumerate(reversed(history)):
                 status = "✅ SUCCESS" if record['success'] else "❌ FAILED"
-                print(f"{i+1: {status} {record['script_name']} ({record['duration']:.1f}s)")
+                print(f"{i+1}: {status} {record['script_name']} ({record['duration']:.1f}s)")
                 print(f"    Command: {record['command']}")
                 if record.get('target_matches'):
-                    print(f"    Targets: {', '.join(record['target_matches'])}")
+                    targets_str = ', '.join(record['target_matches'])
+                    print(f"    Targets: {targets_str}")
                 if record.get('error'):
                     print(f"    Error: {record['error']}")
                 print()

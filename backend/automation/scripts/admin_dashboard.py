@@ -214,7 +214,19 @@ class AdminDashboard:
             self.client.set('automation_events/manual_triggers', execution_data)
             
             # Import and run master runner
-            from master_runner import AutomationRunner
+            import importlib.util
+            import sys
+            
+            # Add current directory to path for imports
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            if current_dir not in sys.path:
+                sys.path.insert(0, current_dir)
+            
+            try:
+                from master_runner import AutomationRunner
+            except ImportError as e:
+                print(f"Error importing master_runner: {e}")
+                return {'success': False, 'error': f'Import error: {str(e)}'}
             runner = AutomationRunner(self.client, self.logger)
             
             # Execute script
