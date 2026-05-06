@@ -201,10 +201,12 @@ class AutomationOrchestrator:
         
         # Initialize notification system
         try:
+            self.logger.info('orchestrator', 'Initializing notification system...')
             self.notification_integration = await initialize_notifications(self.client, self.logger)
             self.logger.info('orchestrator', 'Notification system initialized')
         except Exception as e:
             self.logger.error('orchestrator', f'Failed to initialize notifications: {str(e)}')
+            self.notification_integration = None
         
         # Start component managers
         self.match_manager.start()
@@ -221,13 +223,24 @@ class AutomationOrchestrator:
             })
         
         # Start main orchestration loop as a background task
-        asyncio.create_task(self._orchestration_loop())
+        try:
+            self.logger.info('orchestrator', 'Creating orchestration loop background task')
+            asyncio.create_task(self._orchestration_loop())
+            self.logger.info('orchestrator', 'Orchestration loop background task created')
+        except Exception as e:
+            self.logger.error('orchestrator', f'Failed to create orchestration loop task: {e}')
         
         # Start heartbeat loop for distributed locking
-        asyncio.create_task(self._heartbeat_loop())
+        try:
+            asyncio.create_task(self._heartbeat_loop())
+        except Exception as e:
+            self.logger.error('orchestrator', f'Failed to create heartbeat loop task: {e}')
         
         # Start cleanup loop
-        asyncio.create_task(self._cleanup_loop())
+        try:
+            asyncio.create_task(self._cleanup_loop())
+        except Exception as e:
+            self.logger.error('orchestrator', f'Failed to create cleanup loop task: {e}')
         
         # Broadcast initial state
         self._broadcast_tasks_full()
@@ -280,6 +293,8 @@ class AutomationOrchestrator:
     async def _orchestration_loop(self):
         """Main orchestration loop (Asynchronous)"""
         self.start_time = datetime.now()
+        self.logger.info('orchestrator', 'Orchestration loop started')
+        
         while self.running:
             try:
                 current_time = int(time.time() * 1000)
@@ -1037,10 +1052,15 @@ class AutomationOrchestrator:
         return {'success': True, 'task_id': task_id, 'enabled': task.enabled}
     def _broadcast_task_update(self, task: AutomationTask):
         """Broadcast single task update via WebSocket"""
+        task_dict = asdict(task)
+        # Convert AutomationStatus enum to string for JSON serialization
+        if isinstance(task_dict['status'], AutomationStatus):
+            task_dict['status'] = task_dict['status'].value
+            
         message = {
             'type': 'task_update',
             'data': {
-                'task': asdict(task)
+                'task': task_dict
             },
             'timestamp': int(time.time() * 1000)
         }

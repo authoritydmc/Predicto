@@ -113,15 +113,13 @@ class EnhancedAutomationSystem:
             import traceback as _tb
             import time as _time
             _tb.print_exc()
-            # Handle the case where there's no event loop
+            # Always use fallback logging to avoid event loop issues
+            print(f"[EnhancedAutomation] Error handling message {message_type}: {str(e)}")
+            # Try to log via WebSocket if event loop is available
             try:
                 self.logger.error('enhanced_automation', f'Error handling message {message_type}: {str(e)}')
-            except RuntimeError as re:
-                if "no running event loop" in str(re):
-                    # Fallback logging when no event loop is available
-                    print(f"[EnhancedAutomation] Error handling message {message_type} (no event loop): {str(e)}")
-                else:
-                    raise
+            except RuntimeError:
+                pass  # Already logged above, ignore event loop errors
     
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
@@ -253,19 +251,27 @@ def main():
     system = EnhancedAutomationSystem()
 
     if args.trigger_task:
+        async def run_single_task():
+            try:
+                if args.trigger_task not in system.orchestrator.tasks:
+                    print(json.dumps({'success': False, 'error': 'Task not found'}))
+                    sys.exit(1)
+
+                await system.orchestrator._run_task(args.trigger_task)
+                task = system.orchestrator.tasks.get(args.trigger_task)
+                if task and getattr(task.status, 'value', task.status) == 'error':
+                    print(json.dumps({'success': False, 'task_id': args.trigger_task, 'status': 'error'}))
+                    sys.exit(1)
+
+                print(json.dumps({'success': True, 'task_id': args.trigger_task}))
+                sys.exit(0)
+            except Exception as e:
+                print(json.dumps({'success': False, 'error': str(e)}))
+                sys.exit(1)
+        
         try:
-            if args.trigger_task not in system.orchestrator.tasks:
-                print(json.dumps({'success': False, 'error': 'Task not found'}))
-                sys.exit(1)
-
-            system.orchestrator._run_task(args.trigger_task)
-            task = system.orchestrator.tasks.get(args.trigger_task)
-            if task and getattr(task.status, 'value', task.status) == 'error':
-                print(json.dumps({'success': False, 'task_id': args.trigger_task, 'status': 'error'}))
-                sys.exit(1)
-
-            print(json.dumps({'success': True, 'task_id': args.trigger_task}))
-            sys.exit(0)
+            import asyncio
+            asyncio.run(run_single_task())
         except Exception as e:
             print(json.dumps({'success': False, 'error': str(e)}))
             sys.exit(1)
