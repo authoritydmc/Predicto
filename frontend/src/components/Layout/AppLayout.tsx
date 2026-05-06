@@ -6,6 +6,7 @@ import AppHeader from './AppHeader';
 import FavoriteTeamModal from '../TeamSelection/FavoriteTeamModal';
 import UserAuth from '../Auth/UserAuth';
 import { AppContext } from '../../context/AppContext';
+import { FooterVersion } from '../ui/VersionInfo';
 
 export default function AppLayout() {
   const [username, setUsername] = useState<string | null>(null);
@@ -244,6 +245,9 @@ export default function AppLayout() {
             </div>
           </div>
         )}
+        
+        {/* Version info in footer */}
+        <FooterVersion />
       </div>
     </AppContext.Provider>
   );
