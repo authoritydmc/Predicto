@@ -2,8 +2,14 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import ControlPanel from './windows/ControlPanel';
+import OverlayWindow from './windows/OverlayWindow';
+import TickerWindow from './windows/TickerWindow';
+import ReactionWindow from './windows/ReactionWindow';
+import DebugWindow from './DebugWindow';
+
 import './styles/global.css';
 import './styles/control-panel.css';
+import './styles/overlay-ticker.css';
 import initLogger from './utils/logger';
 
 // Performance optimizations
@@ -32,6 +38,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<ControlPanel />} />
         <Route path="/control" element={<ControlPanel />} />
+        <Route path="/overlay" element={<OverlayWindow />} />
+        <Route path="/ticker" element={<TickerWindow />} />
+        <Route path="/reaction" element={<ReactionWindow />} />
+        <Route path="/debug" element={<DebugWindow />} />
       </Routes>
     </HashRouter>
   </React.StrictMode>
