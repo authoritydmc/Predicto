@@ -19,8 +19,8 @@ interface MatchControlPanelProps {
   onUpdateScraperUrl: (url: string) => void;
   
   // Score State
-  scoreSource: 'scraper' | 'manual';
-  onScoreSourceChange: (source: 'scraper' | 'manual') => void;
+  scoreSource: 'scraper' | 'manual' | 'auto';
+  onScoreSourceChange: (source: 'scraper' | 'manual' | 'auto') => void;
   
   // Extra Match Details
   fVenue: string;
@@ -72,7 +72,7 @@ interface MatchControlPanelProps {
   onUpdateLiveScore: () => void;
 }
 
-type DataSourceMode = 'scraper' | 'manual';
+type DataSourceMode = 'scraper' | 'manual' | 'auto';
 type ActiveTab = 'data' | 'predictions' | 'match-status';
 
 export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
@@ -106,100 +106,60 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
     : { runs: props.scoreTeamARuns, wickets: props.scoreTeamAWickets, overs: props.scoreTeamAOvers };
 
   return (
-    <div className="match-control-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div className="match-control-panel bg-gradient-to-br from-slate-900/95 via-slate-800/50 to-slate-900/95 p-6 rounded-2xl backdrop-blur-xl border border-slate-700/50 shadow-2xl shadow-slate-900/50" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       
       {/* Primary Data Source Selection */}
-      <div className="data-source-selector" style={{
-        padding: '16px',
-        background: 'rgba(99, 102, 241, 0.08)',
-        borderRadius: '12px',
-        border: '1px solid rgba(99, 102, 241, 0.2)',
-      }}>
-        <div style={{ 
-          fontSize: '12px', 
-          fontWeight: '600', 
-          color: 'var(--muted)', 
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-          marginBottom: '12px'
-        }}>
+      <div className="data-source-selector bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-indigo-600/10 p-5 rounded-xl border border-indigo-500/30 backdrop-blur-md shadow-lg shadow-indigo-500/20">
+        <div className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-3">
+          <div className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full animate-pulse"></div>
           Data Source Mode
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="flex gap-3">
           <button
             type="button"
             onClick={() => handleModeSwitch('scraper')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              borderRadius: '10px',
-              border: currentMode === 'scraper' ? '2px solid #667eea' : '1px solid rgba(255,255,255,0.1)',
-              background: currentMode === 'scraper' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(255,255,255,0.05)',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-            }}
+            className={`flex-1 px-5 py-4 rounded-xl border-2 transition-all duration-300 flex items-center justify-center gap-3 font-bold cursor-pointer transform hover:scale-105 hover:shadow-lg ${
+              currentMode === 'scraper' 
+                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/30' 
+                : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20 hover:border-white/30'
+            }`}
           >
-            <span style={{ fontSize: '16px' }}>🤖</span>
-            <span>Scraper (Auto)</span>
+            <span className="text-xl">🤖</span>
+            <span className="text-base">Scraper (Auto)</span>
             {currentMode === 'scraper' && (
-              <span style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#34c759',
-                marginLeft: '4px'
-              }} />
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></span>
             )}
           </button>
           <button
             type="button"
             onClick={() => handleModeSwitch('manual')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              borderRadius: '10px',
-              border: currentMode === 'manual' ? '2px solid #ff9f0a' : '1px solid rgba(255,255,255,0.1)',
-              background: currentMode === 'manual' ? 'rgba(255, 159, 10, 0.2)' : 'rgba(255,255,255,0.05)',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-            }}
+            className={`flex-1 px-5 py-4 rounded-xl border-2 transition-all duration-300 flex items-center justify-center gap-3 font-bold cursor-pointer transform hover:scale-105 hover:shadow-lg ${
+              currentMode === 'manual' 
+                ? 'bg-gradient-to-r from-amber-500 to-orange-600 border-amber-400 text-white shadow-xl shadow-amber-500/30' 
+                : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20 hover:border-white/30'
+            }`}
           >
-            <span style={{ fontSize: '16px' }}>✏️</span>
-            <span>Manual</span>
+            <span className="text-xl">✏️</span>
+            <span className="text-base">Manual</span>
             {currentMode === 'manual' && (
-              <span style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#ff9f0a',
-                marginLeft: '4px'
-              }} />
+              <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse ml-1"></span>
             )}
           </button>
         </div>
-        <p style={{
-          margin: '12px 0 0 0',
-          fontSize: '11px',
-          color: 'var(--muted)',
-          lineHeight: '1.5'
-        }}>
-          {isScraperMode 
-            ? '🤖 Scraper mode automatically fetches match data (score, status, venue) from external sources.'
-            : '✏️ Manual mode. You control all match details and scores.'}
+        <p className="mt-4 text-sm text-gray-300 leading-relaxed bg-white/5 dark:bg-gray-800/20 p-4 rounded-lg border border-gray-200/20 dark:border-gray-700/20 backdrop-blur-sm">
+          <span className="flex items-center gap-3 mb-2">
+            <span className="text-xl">{isScraperMode ? '🤖' : '✏️'}</span>
+            <span className="font-semibold text-base">
+              {isScraperMode 
+                ? 'Scraper mode automatically fetches match data'
+                : 'Manual mode. You control all match details and scores.'}
+            </span>
+          </span>
+          <span className="text-gray-400 dark:text-gray-400 text-sm">
+            {isScraperMode 
+              ? '(score, status, venue) from external sources.'
+              : ''}
+          </span>
         </p>
       </div>
 
@@ -266,85 +226,48 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Venue</label>
+                    <label className="form-label">Venue</label>
                     <input
                       type="text"
+                      className="form-input"
                       value={props.fVenue}
                       onChange={(e) => props.setFVenue(e.target.value)}
                       placeholder="e.g. Lords, London"
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'rgba(255,255,255,0.05)',
-                        color: '#fff',
-                        fontSize: '12px',
-                      }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Series/Tournament</label>
+                    <label className="form-label">Series/Tournament</label>
                     <input
                       type="text"
+                      className="form-input"
                       value={props.fSeries}
                       onChange={(e) => props.setFSeries(e.target.value)}
                       placeholder="e.g. IPL 2026"
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'rgba(255,255,255,0.05)',
-                        color: '#fff',
-                        fontSize: '12px',
-                      }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Match Summary / Status (e.g. DC needs 5 runs)</label>
+                  <label className="form-label">Match Summary / Status (e.g. DC needs 5 runs)</label>
                   <input
                     type="text"
+                    className="form-input"
                     value={props.fMatchSummary}
                     onChange={(e) => props.setFMatchSummary(e.target.value)}
                     placeholder="e.g. CSK won by 8 wickets"
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#fff',
-                      fontSize: '12px',
-                    }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ 
-                    fontSize: '11px', 
-                    color: 'var(--muted)', 
-                    display: 'block',
-                    marginBottom: '4px'
-                  }}>
+                  <label className="form-label">
                     Match URL (Optional)
                   </label>
                   <input
                     type="text"
+                    className="form-input"
                     value={props.scraperMatchUrl}
                     onChange={(e) => props.onUpdateScraperUrl(e.target.value)}
                     placeholder="https://www.cricbuzz.com/live-cricket-scores/..."
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#fff',
-                      fontSize: '13px',
-                    }}
                   />
                   <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: 'var(--muted)' }}>
                     Leave empty for auto-search, or paste direct Cricbuzz/ESPNcricinfo URL

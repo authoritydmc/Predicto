@@ -75,6 +75,58 @@ function registerIpcHandlers(config, windowManager, scheduler, eventHandlers) {
     return { success: true };
   });
   
+  // Handle ticker control
+  ipcMain.handle('ticker:show', (event) => {
+    windowManager.updateSettings({ tickerVisible: true });
+    return { success: true };
+  });
+  
+  ipcMain.handle('ticker:hide', (event) => {
+    windowManager.updateSettings({ tickerVisible: false });
+    return { success: true };
+  });
+  
+  ipcMain.handle('ticker:reload', (event) => {
+    const tickerWindow = windowManager.getTickerWindow();
+    if (tickerWindow && !tickerWindow.isDestroyed()) {
+      tickerWindow.reload();
+    }
+    return { success: true };
+  });
+  
+  ipcMain.handle('ticker:reset-bounds', (event) => {
+    windowManager.updateSettings({ 
+      tickerBounds: { width: 300, height: 150, x: 50, y: 50 }
+    });
+    return { success: true };
+  });
+  
+  // Handle reaction control
+  ipcMain.handle('reaction:show', (event) => {
+    windowManager.updateSettings({ reactionVisible: true });
+    return { success: true };
+  });
+  
+  ipcMain.handle('reaction:hide', (event) => {
+    windowManager.updateSettings({ reactionVisible: false });
+    return { success: true };
+  });
+  
+  ipcMain.handle('reaction:reload', (event) => {
+    const reactionWindow = windowManager.getReactionWindow();
+    if (reactionWindow && !reactionWindow.isDestroyed()) {
+      reactionWindow.reload();
+    }
+    return { success: true };
+  });
+  
+  ipcMain.handle('reaction:reset-bounds', (event) => {
+    windowManager.updateSettings({ 
+      reactionBounds: { width: 200, height: 200, x: 50, y: 50 }
+    });
+    return { success: true };
+  });
+  
   // Handle external links
   ipcMain.handle('external:open', (event, url) => {
     const { shell } = require('electron');

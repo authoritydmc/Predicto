@@ -38,6 +38,25 @@ import {
 // ── LocalStorage Helpers ────────────────────────────────────────────────────────
 const STORAGE_KEY = 'controlpanel_ui_state';
 const WINDOW_VISIBILITY_KEY = 'window_visibility_defaults';
+const THEME_KEY = 'predicto_theme';
+
+// Theme helpers
+const loadTheme = (): 'dark' | 'light' => {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    return saved === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+};
+
+const saveTheme = (theme: 'dark' | 'light') => {
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch (err) {
+    console.error('Failed to save theme:', err);
+  }
+};
 
 const loadUIState = () => {
   try {
@@ -226,6 +245,9 @@ const ControlPanel: React.FC = () => {
   // ── Window Visibility State
   const [windowVisibility, setWindowVisibility] = useState(loadWindowVisibility());
 
+  // ── Theme State
+  const [theme, setTheme] = useState<'dark' | 'light'>(loadTheme());
+
   // Send window visibility to main process on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
@@ -252,6 +274,12 @@ const ControlPanel: React.FC = () => {
     }
   }, [fSport]);
 
+  // Apply theme to document and save when changes
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    saveTheme(theme);
+  }, [theme]);
+
   // Handle window visibility changes
   const handleWindowVisibilityChange = (key: keyof typeof windowVisibility, value: boolean) => {
     const newVisibility = { ...windowVisibility, [key]: value };
@@ -261,6 +289,12 @@ const ControlPanel: React.FC = () => {
     if (typeof window !== 'undefined' && (window as any).overlayDesktop) {
       (window as any).overlayDesktop.setWindowVisibilityDefaults(newVisibility);
     }
+  };
+
+  // Handle theme toggle
+  const handleThemeToggle = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
   };
 
   // ── Match Form State
@@ -317,6 +351,34 @@ const ControlPanel: React.FC = () => {
         lastTournamentId: tournamentId
       });
       return newState;
+    });
+  };
+
+  const expandAllSections = () => {
+    const allExpanded = Object.keys(collapsedSections).reduce((acc, key) => {
+      acc[key as keyof typeof collapsedSections] = false;
+      return acc;
+    }, {} as typeof collapsedSections);
+    setCollapsedSections(allExpanded);
+    saveUIState({ 
+      collapsedSections: allExpanded, 
+      tournamentTab,
+      lastSport: fSport,
+      lastTournamentId: tournamentId
+    });
+  };
+
+  const collapseAllSections = () => {
+    const allCollapsed = Object.keys(collapsedSections).reduce((acc, key) => {
+      acc[key as keyof typeof collapsedSections] = true;
+      return acc;
+    }, {} as typeof collapsedSections);
+    setCollapsedSections(allCollapsed);
+    saveUIState({ 
+      collapsedSections: allCollapsed, 
+      tournamentTab,
+      lastSport: fSport,
+      lastTournamentId: tournamentId
     });
   };
 
@@ -2684,7 +2746,7 @@ const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
             </span>
           </div>
 
-          {/* Right: Match + Status */}
+          {/* Right: Match + Status + Theme Toggle */}
           <div className="cp-header-right" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -2704,6 +2766,50 @@ const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
             <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
               {matchId || 'No match'}
             </span>
+            
+            {/* Theme Toggle */}
+            <button 
+              className="theme-toggle-btn"
+              onClick={handleThemeToggle}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.1)',
+                cursor: 'pointer',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <span 
+                style={{
+                  display: 'inline-block',
+                  fontSize: '16px',
+                  transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transform: theme === 'light' ? 'rotate(0deg) translateY(0)' : 'rotate(180deg) translateY(0)',
+                  opacity: theme === 'light' ? 0 : 1
+                }}
+              >
+                🌙
+              </span>
+              <span 
+                style={{
+                  position: 'absolute',
+                  fontSize: '16px',
+                  transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transform: theme === 'light' ? 'rotate(0deg) translateY(0)' : 'rotate(180deg) translateY(0)',
+                  opacity: theme === 'light' ? 1 : 0
+                }}
+              >
+                ☀️
+              </span>
+            </button>
             <button 
               className="btn btn-secondary btn-sm" 
               onClick={copyAudienceUrl}
@@ -2715,6 +2821,23 @@ const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
         </div>
       </header>
 
+      {/* ── Expand/Collapse All Controls ── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16, padding: '0 4px' }}>
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={expandAllSections}
+          style={{ padding: '6px 12px', fontSize: 11 }}
+        >
+          Expand All
+        </button>
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={collapseAllSections}
+          style={{ padding: '6px 12px', fontSize: 11 }}
+        >
+          Collapse All
+        </button>
+      </div>
 
       <div className="cp-content-grid">
 
@@ -3558,8 +3681,15 @@ const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
               </span>
               <span className={`status-toggle-label ${windowVisibility.reactionVisible ? 'active' : ''}`}>Reaction</span>
             </div>
-          </div>
-          <span className="status-divider">|</span>
+            <button 
+              className="debug-btn"
+              onClick={() => (window as any).overlayDesktop.showDebug()}
+              title="Open Debug Window"
+            >
+              Debug
+            </button>
+           </div>
+           <span className="status-divider">|</span>
           <div className="status-pill">
             <span className={`status-dot ${predPaused ? 'warning' : 'active'}`}></span>
             <span className="status-text">{predPaused ? 'Paused' : 'Active'}</span>

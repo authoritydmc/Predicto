@@ -335,6 +335,12 @@ function createWindowManager(config, eventHandlers) {
     return debugWindow;
   }
   
+  // Getter methods for windows
+  function getOverlayWindow() { return overlayWindow; }
+  function getTickerWindow() { return tickerWindow; }
+  function getReactionWindow() { return reactionWindow; }
+  function getDebugWindow() { return debugWindow; }
+  
   // Return public API
   return {
     createWindow,
@@ -343,6 +349,10 @@ function createWindowManager(config, eventHandlers) {
     ensureTickerWindow,
     ensureReactionWindow,
     ensureDebugWindow,
+    getOverlayWindow,
+    getTickerWindow,
+    getReactionWindow,
+    getDebugWindow,
     updateWindowTitles,
     getSettings,
     updateSettings,
