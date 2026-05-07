@@ -8,6 +8,8 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address" ^| fin
 )
 set LOCAL_IP=%LOCAL_IP: =%
 
+goto :menu
+
 :SHOW_PORT_STATUS
 echo.
 echo  ==========================================
@@ -25,6 +27,7 @@ echo  [Host App] Electron: Ready to start
 
 echo.
 echo  ==========================================
+goto :eof
 
 :CHECK_PORT_CONFLICT
 set APP_NAME=%1
@@ -37,12 +40,10 @@ if %errorlevel% equ 0 (
     echo  Port %PORT_NUMBER% appears to be in use.
     echo  Starting %APP_NAME% anyway (ports 8765/3456 are rarely conflicted)...
     echo.
-    goto :eof
 ) else (
     echo.
     echo  Port %PORT_NUMBER% is available. Starting %APP_NAME%...
     echo.
-    goto :eof
 )
 goto :eof
 
@@ -128,8 +129,17 @@ REM Set hardcoded ports (less commonly used)
 set BACKEND_PORT=8765
 set FRONTEND_PORT=3456
 
-REM Show port status
-call :SHOW_PORT_STATUS
+REM Show port status inline
+echo.
+echo  ==========================================
+echo    Port Status Monitor
+echo  ==========================================
+echo.
+echo  [Backend] Port 8765: Ready to use
+echo  [Frontend] Port 3456: Ready to use
+echo  [Host App] Electron: Ready to start
+echo.
+echo  ==========================================
 
 echo  Local IP: %LOCAL_IP%
 echo.
