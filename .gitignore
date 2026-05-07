@@ -46,6 +46,7 @@ yarn-error.log*
 # Build outputs
 frontend/dist/
 frontend/.turbo/
+frontend/.vite/
 host-app/out/
 host-app/release/
 host-app/dist/
@@ -76,8 +77,12 @@ automation_jobs.db
 *~
 .DS_Store
 Thumbs.db
+
+# Claude local config (not needed for opencode)
 .claude/
-.agents/
+
+# AI Agent - keep skills, ignore local state
+# .agents/ is intentionally NOT ignored - skills are needed for opencode agent
 
 # Temporary files
 tmp/
@@ -91,8 +96,7 @@ scratch/
 coverage/
 .pytest_cache/
 htmlcov/
-.pytest_cache/
-*.coverage
+.coverage
 .coverage.*
 coverage.*
 
@@ -104,13 +108,6 @@ coverage.*
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Vite
-frontend/.vite/
-
-# Electron
-host-app/node_modules/
-host-app/.electron-builder/
 
 # Keep these directories (add ! before path to unignore)
 !backend/automation/config/
