@@ -37,11 +37,11 @@ function createWindowManager(config, eventHandlers) {
     
     const win = new BrowserWindow(windowOptions);
     
-    // Load appropriate URL based on environment
-    if (isDev) {
+    // Load appropriate URL based on environment and availability
+    if (isDev && VITE_DEV_SERVER_URL) {
       win.loadURL(VITE_DEV_SERVER_URL);
     } else {
-      win.loadFile(`${__dirname}/../dist/index.html`);
+      win.loadFile(`${__dirname}/../frontend/dist/index.html`);
     }
     
     // Open DevTools in development mode
