@@ -1,7 +1,11 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+console.log('[Preload] Preload script loading...');
+
 // Expose APP_MODE to renderer process
 const APP_MODE = process.env.APP_MODE || (process.argv.find(arg => arg.startsWith('--mode='))?.split('=')[1]?.toLowerCase()) || "prod";
+
+console.log('[Preload] APP_MODE:', APP_MODE);
 
 contextBridge.exposeInMainWorld("overlayDesktop", {
   getSettings: () => ipcRenderer.invoke("settings:get"),

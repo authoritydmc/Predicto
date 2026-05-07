@@ -71,27 +71,20 @@ function createWindowManager(config, eventHandlers) {
     
     // Load React app - use Vite dev server in dev mode, file in prod
     const isDev = options.isDev;
+    console.log(`[WindowManager] isDev: ${isDev}, options:`, options);
     if (isDev) {
-      // Try to read the Vite port from a file written by concurrently
-      const fs = require('fs');
-      const portFile = `${__dirname}/../.vite-port`;
-      let devPort = '3456';
+      const port = 5174; // Use the same port as vite.config.ts
+      const devUrl = `http://localhost:${port}`;
+      console.log(`[WindowManager] Loading from Vite dev server: ${devUrl}`);
       
-      try {
-        if (fs.existsSync(portFile)) {
-          devPort = fs.readFileSync(portFile, 'utf8').trim();
-        }
-      } catch (e) {
-        console.log('Using default port 3456');
-      }
-      
-      const devUrl = `http://localhost:${devPort}`;
-      console.log(`Loading from Vite dev server: ${devUrl}`);
-      win.loadURL(devUrl).then(() => {
-        console.log('React app loaded from dev server');
-      }).catch(err => {
-        console.error('Failed to load from dev server:', err);
-      });
+      // Wait a bit for Vite to be ready
+      setTimeout(() => {
+        win.loadURL(devUrl).then(() => {
+          console.log('[WindowManager] React app loaded from dev server');
+        }).catch(err => {
+          console.error('[WindowManager] Failed to load from dev server:', err);
+        });
+      }, 2000);
     } else {
       // Load built files
       const indexPath = `${__dirname}/../index.html`;
@@ -132,7 +125,8 @@ function createWindowManager(config, eventHandlers) {
         width: 1000,
         height: 700,
         minWidth: 800,
-        minHeight: 600
+        minHeight: 600,
+        isDev: isDev
       });
       
       // Show the window when ready

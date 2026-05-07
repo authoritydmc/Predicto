@@ -699,8 +699,16 @@ const ControlPanel: React.FC = () => {
     initLogger('ControlPanel');
 
     const init = async () => {
+      console.log('[ControlPanel] Initializing...', { overlayDesktop: window.overlayDesktop });
+      
+      if (!window.overlayDesktop) {
+        console.error('[ControlPanel] overlayDesktop API not available!');
+        return;
+      }
+      
       // @ts-ignore
       const s = await window.overlayDesktop.getSettings();
+      console.log('[ControlPanel] Settings loaded:', s);
       setSettings(s);
       setOpacity(s.opacity ?? 1);
       setReactionOpacity(s.reactionOpacity ?? 1);
@@ -718,20 +726,25 @@ const ControlPanel: React.FC = () => {
     init();
 
     // @ts-ignore
-    window.overlayDesktop.onSettingsChanged((s: any) => {
-      setSettings(s);
-      setOpacity(s.opacity ?? 1);
-      const sport = s.sport || 'cricket';
-      setFSport(sport);
-      if (s.matchId && s.tournamentId) {
-        setMatchId(s.matchId);
-        setTournamentId(s.tournamentId);
-        subscribeToMeta(sport, s.tournamentId, s.matchId);
-      } else if (s.tournamentId) {
-        setTournamentId(s.tournamentId);
-        subscribeToMeta(sport, s.tournamentId);
-      }
-    });
+    if (window.overlayDesktop && window.overlayDesktop.onSettingsChanged) {
+      window.overlayDesktop.onSettingsChanged((s: any) => {
+        console.log('[ControlPanel] Settings changed:', s);
+        setSettings(s);
+        setOpacity(s.opacity ?? 1);
+        const sport = s.sport || 'cricket';
+        setFSport(sport);
+        if (s.matchId && s.tournamentId) {
+          setMatchId(s.matchId);
+          setTournamentId(s.tournamentId);
+          subscribeToMeta(sport, s.tournamentId, s.matchId);
+        } else if (s.tournamentId) {
+          setTournamentId(s.tournamentId);
+          subscribeToMeta(sport, s.tournamentId);
+        }
+      });
+    } else {
+      console.error('[ControlPanel] onSettingsChanged not available');
+    }
 
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
