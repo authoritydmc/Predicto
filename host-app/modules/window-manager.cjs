@@ -27,12 +27,25 @@ function createWindowManager(config, eventHandlers) {
       width: 800,
       height: 600,
       show: false,
+      frame: true,
+      transparent: false,
+      backgroundColor: '#000000',
+      vibrancy: false,
+      hasShadow: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         enableRemoteModule: false,
         webSecurity: true,
-        preload: `${__dirname}/../preload.cjs`
+        preload: `${__dirname}/../preload.cjs`,
+        // Performance optimizations
+        backgroundThrottling: false,
+        offscreen: false,
+        experimentalFeatures: {
+          canvas: true,
+          webgl: true,
+          webgpu: true
+        }
       },
       ...options
     };

@@ -7,10 +7,12 @@
 
 const { app, globalShortcut } = require("electron");
 
-// Handle GPU cache issues with command line switches
-app.commandLine.appendSwitch('disable-gpu-cache');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-gpu');
+// Enable hardware acceleration for smooth performance
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-gpu-compositing');
+app.commandLine.appendSwitch('enable-transparent-visuals');
+app.commandLine.appendSwitch('force-cpu-draw');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
 // ── Import Modules ────────────────────────────────────────────────────────────
 const config = require("./modules/config.cjs");
