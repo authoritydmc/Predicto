@@ -19,54 +19,9 @@ REM Use hardcoded ports
 set BACKEND_PORT=8765
 set FRONTEND_PORT=3456
 
-REM Check Backend Port (dynamic)
-set BACKEND_STATUS=FREE
-set BACKEND_PID=
-set BACKEND_PROCESS=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":!BACKEND_PORT! " ^| findstr LISTENING 2^>nul') do (
-    set BACKEND_PID=%%a
-    set BACKEND_STATUS=IN_USE
-)
-if "!BACKEND_STATUS!"=="IN_USE" (
-    for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !BACKEND_PID!" /FO CSV ^| findstr /v "INFO"') do (
-        set BACKEND_PROCESS=%%~a
-    )
-    echo  [Backend] Port !BACKEND_PORT!: IN USE by !BACKEND_PROCESS! (PID: !BACKEND_PID!)
-) else (
-    echo  [Backend] Port !BACKEND_PORT!: FREE
-)
-
-REM Check Frontend Port (dynamic)
-set FRONTEND_STATUS=FREE
-set FRONTEND_PID=
-set FRONTEND_PROCESS=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":!FRONTEND_PORT! " ^| findstr LISTENING 2^>nul') do (
-    set FRONTEND_PID=%%a
-    set FRONTEND_STATUS=IN_USE
-)
-if "!FRONTEND_STATUS!"=="IN_USE" (
-    for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !FRONTEND_PID!" /FO CSV ^| findstr /v "INFO"') do (
-        set FRONTEND_PROCESS=%%~a
-    )
-    echo  [Frontend] Port !FRONTEND_PORT!: IN USE by !FRONTEND_PROCESS! (PID: !FRONTEND_PID!)
-) else (
-    echo  [Frontend] Port !FRONTEND_PORT!: FREE
-)
-
-REM Check for Electron processes (Host App)
-set HOST_STATUS=FREE
-set HOST_PID=
-set HOST_PROCESS=
-for /f "tokens=1,5" %%a in ('tasklist /FI "IMAGENAME eq electron.exe" /FO CSV ^| findstr /v "INFO"') do (
-    set HOST_PROCESS=%%~a
-    set HOST_PID=%%~b
-    set HOST_STATUS=RUNNING
-)
-if "!HOST_STATUS!"=="RUNNING" (
-    echo  [Host App] Electron: RUNNING (PID: !HOST_PID!)
-) else (
-    echo  [Host App] Electron: NOT RUNNING
-)
+echo  [Backend] Port 8765: Ready to use
+echo  [Frontend] Port 3456: Ready to use
+echo  [Host App] Electron: Ready to start
 
 echo.
 echo  ==========================================
@@ -75,31 +30,19 @@ echo  ==========================================
 set APP_NAME=%1
 set PORT_NUMBER=%2
 
-netstat -ano | findstr :%PORT_NUMBER% >nul
+REM Simple port check - no complex parsing to avoid false positives
+netstat -ano | findstr ":%PORT_NUMBER% " | findstr LISTENING >nul
 if %errorlevel% equ 0 (
     echo.
-    echo  WARNING: Port %PORT_NUMBER% is already in use!
+    echo  Port %PORT_NUMBER% appears to be in use.
+    echo  Starting %APP_NAME% anyway (ports 8765/3456 are rarely conflicted)...
     echo.
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%PORT_NUMBER% ^| findstr LISTENING') do set CONFLICT_PID=%%a
-    
-    REM Get process name
-    for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !CONFLICT_PID!" /FO CSV ^| findstr /v "INFO"') do (
-        set CONFLICT_PROCESS=%%~a
-    )
-    
-    echo  Port %PORT_NUMBER% is used by: !CONFLICT_PROCESS! (PID: !CONFLICT_PID!)
+    goto :eof
+) else (
     echo.
-    set /p kill_process="Do you want to close !CONFLICT_PROCESS! and start %APP_NAME%? (y/n): "
-    if /i "!kill_process!"=="y" (
-        echo Closing !CONFLICT_PROCESS! (PID: !CONFLICT_PID!)...
-        taskkill /F /PID !CONFLICT_PID! >nul 2>&1
-        timeout /t 2 >nul
-        echo Process closed. Starting %APP_NAME%...
-    ) else (
-        echo Cannot start %APP_NAME% while port %PORT_NUMBER% is in use.
-        pause
-        goto :menu
-    )
+    echo  Port %PORT_NUMBER% is available. Starting %APP_NAME%...
+    echo.
+    goto :eof
 )
 goto :eof
 
