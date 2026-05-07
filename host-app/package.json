@@ -4,7 +4,7 @@
   "description": "Predicto Host App - Admin/Host interface for prediction management",
   "main": "main.cjs",
   "scripts": {
-    "start": "concurrently \"npm --prefix ../frontend run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "start": "concurrently \"npm --prefix ../frontend run dev\" \"wait-on http://localhost:3456 && node start-dev.cjs\"",
     "start:prod": "NODE_ENV=production electron .",
     "build-win": "electron-builder --win --x64",
     "dist-win": "electron-builder --win --x64 --publish never",

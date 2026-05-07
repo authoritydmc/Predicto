@@ -95,7 +95,7 @@ class PredictoLauncher:
     
     def pause(self):
         """Wait for user input"""
-        input(f"\n{self.colorize('▶ Press Enter to continue...', Colors.CYAN)}")
+        input("\n> Press Enter to continue...")
     
     def show_loading(self, message: str, duration: float = 1.0):
         """Show loading animation"""
@@ -657,7 +657,7 @@ MANAGEMENT:
         
         while True:
             try:
-                choice = input(f"{self.colorize('Select option: ', Colors.WHITE)}").upper().strip()
+                choice = input("Select option: ").upper().strip()
                 
                 if choice == 'P':
                     self.show_port_status()
@@ -738,11 +738,13 @@ MANAGEMENT:
                     self.pause()
                     
             except KeyboardInterrupt:
-                print(f"\n{self.colorize(f'{Icons.EXIT} Goodbye!', Colors.RED)}")
+                print("\n[X] Goodbye!")
+                break
+            except EOFError:
                 break
             except Exception as e:
-                print(f"{self.colorize(f'{Icons.ERROR} Error: {e}', Colors.RED)}")
-                self.pause()
+                print(f"[X] Error: {e}")
+                break
 
 def main():
     """Main entry point"""
