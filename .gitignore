@@ -47,6 +47,7 @@ yarn-error.log*
 frontend/dist/
 frontend/.turbo/
 frontend/.vite/
+frontend/public/version.json
 host-app/out/
 host-app/release/
 host-app/dist/

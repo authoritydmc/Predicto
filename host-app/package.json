@@ -1,0 +1,44 @@
+{
+  "name": "overlaychat-host",
+  "version": "1.0.0",
+  "description": "OverlayChat Host App - Admin/Host interface for automation management",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --x64",
+    "dist-win": "electron-builder --win --x64 --publish never",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "electron": "^28.0.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.overlaychat.host",
+    "productName": "OverlayChat Host",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "OverlayChat Host"
+    }
+  }
+}
