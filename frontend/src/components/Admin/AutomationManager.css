@@ -1,0 +1,120 @@
+.automation-manager {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.automation-manager h2 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.jobs-section {
+  margin-bottom: 30px;
+}
+
+.jobs-section button {
+  margin-right: 10px;
+  margin-bottom: 15px;
+  padding: 8px 16px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.jobs-section button:hover {
+  background: #0056b3;
+}
+
+.jobs-section button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.jobs-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.jobs-table th,
+.jobs-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.jobs-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+
+.jobs-table tr.enabled {
+  background: #f0fff4;
+}
+
+.jobs-table tr.disabled {
+  background: #fff5f5;
+}
+
+.desc {
+  font-size: 12px;
+  color: #666;
+  margin: 4px 0 0 0;
+}
+
+code {
+  background: #f4f4f4;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.btn-enabled {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-disabled {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.logs-section {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.logs-section h3 {
+  color: #fff;
+  margin-top: 0;
+}
+
+.logs-output {
+  background: #000;
+  color: #0f0;
+  padding: 15px;
+  border-radius: 4px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.log-line {
+  margin: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

@@ -1,0 +1,125 @@
+name: Docker Build and Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        run: |
+          cd backend
+          docker build -t overlaychat-backend:test .
+      
+      - name: Run container with mock Firebase
+        run: |
+          cd backend
+          # Create a mock Firebase service account for testing
+          echo '{"type":"service_account","project_id":"test","private_key":"mock","client_email":"test@test.com"}' > mock-firebase-key.json
+          
+          docker run -d \
+            --name overlaychat-test \
+            -p 4173:4173 \
+            -e FIREBASE_SERVICE_ACCOUNT="$(cat mock-firebase-key.json)" \
+            -e APP_MODE=test \
+            overlaychat-backend:test
+      
+      - name: Wait for container to start
+        run: sleep 10
+      
+      - name: Test API endpoint
+        run: |
+          # Test if API responds
+          curl -f http://localhost:4173/api/automation/jobs || (echo "API failed to start" && docker logs overlaychat-test && exit 1)
+      
+      - name: Run automation tests inside container
+        run: |
+          docker exec overlaychat-test python test_with_mocks.py
+      
+      - name: Test automation scripts
+        run: |
+          # Test that the single entry point works
+          docker exec overlaychat-test python -m automation.main --help || true
+          
+          # Test each automation module can be imported
+          docker exec overlaychat-test python -c "
+          from automation.matches.live_matches import get_live_matches
+          from automation.matches.status_manager import MatchStatusManager
+          from automation.scoring.calculator import ScoreCalculator
+          from automation.scoring.leaderboard import LeaderboardManager
+          from automation.cron.manager import CronManager
+          print('All modules imported successfully')
+          "
+      
+      - name: Check logs
+        if: always()
+        run: |
+          docker logs overlaychat-test
+          docker exec overlaychat-test cat logs/automation.log || echo "No logs yet"
+      
+      - name: Stop and cleanup
+        if: always()
+        run: |
+          docker stop overlaychat-test || true
+          docker rm overlaychat-test || true
+          docker rmi overlaychat-backend:test || true
+  
+  test-exe-build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Build automation.exe
+        run: |
+          cd backend
+          pyinstaller --onefile --name automation `
+            --add-data "automation;automation" `
+            --add-data "scraper;scraper" `
+            --hidden-import firebase_admin `
+            --hidden-import croniter `
+            --hidden-import bs4 `
+            automation/main.py
+          ls dist/
+      
+      - name: Build server.exe
+        run: |
+          cd backend
+          pyinstaller --onefile --name server `
+            --add-data "automation;automation" `
+            --add-data "scraper;scraper" `
+            --hidden-import firebase_admin `
+            --hidden-import uvicorn `
+            server.py
+          ls dist/
+      
+      - name: Test EXE files
+        run: |
+          cd backend
+          ./dist/automation.exe --help || echo "EXE built but --help not supported"
+          # Verify files exist
+          if (Test-Path "dist\automation.exe") { Write-Output "automation.exe built successfully" } else { exit 1 }
+          if (Test-Path "dist\server.exe") { Write-Output "server.exe built successfully" } else { exit 1 }

@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 cls
 
 REM Get local IP address
@@ -8,73 +8,197 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address" ^| fin
 )
 set LOCAL_IP=%LOCAL_IP: =%
 
+:menu
+cls
 echo ==========================================
-echo    Predictor Manager Management Console
+echo    OverlayChat Management Console
 echo ==========================================
 echo.
 echo Local Network IP: %LOCAL_IP%
 echo.
-echo  [0]  Start FULL STACK (LOCAL)
-echo  [P]  Start FULL STACK (PROD) - !DANGER!
+echo ----- Frontend (Audience) -----
+echo [1]  Start Frontend (Local Dev)
+echo [2]  Build Frontend for Production
+echo [3]  Deploy Frontend to Firebase
 echo.
-echo  [1]  Broadcaster App Only (Local)
-echo  [2]  Audience App Only (Local)
+echo ----- Backend (FastAPI + Automation) -----
+echo [4]  Start Backend Server (Local)
+echo [5]  Start Automation Scheduler
+echo [6]  Run Automation Script
+echo [7]  View Automation Logs
+echo [8]  Test Automation
+echo [9]  Build Docker Image
+echo [A]  Run Docker Container
 echo.
-echo  [3]  Deploy Frontend to Firebase
-echo  [4]  Setup Python Virtual Environment
-echo  [5]  Maintenance (Clean node_modules)
-echo  [6]  Exit
+echo ----- Host App (Electron - Admin) -----
+echo [B]  Start Host App (Dev Mode)
+echo [C]  Build Host App (EXE)
+echo [D]  Package Host App with Electron
+echo.
+echo ----- Management -----
+echo [E]  Setup Python Virtual Environment
+echo [F]  Maintenance (Clean node_modules)
+echo [G]  Exit
 echo.
 set /p opt="Select an option: "
 
-if "%opt%"=="0" (
-    echo Launching FULL STACK in LOCAL mode...
-    start cmd /k "echo Broadcaster (Local) && cd backend && npm start -- --mode=local"
-    start cmd /k "echo Audience (Local) && cd frontend && echo Frontend will be available at: && echo   - Local: http://localhost:5173 && echo   - Network: http://%LOCAL_IP%:5173 && npm run dev -- --host 0.0.0.0"
-    goto :eof
-)
-
-if "%opt%"=="p" goto PROD_CONFIRM
-if "%opt%"=="P" goto PROD_CONFIRM
-
+REM Frontend options
 if "%opt%"=="1" (
-    echo Launching Broadcaster in LOCAL mode...
-    cd backend
-    npm start -- --mode=local
-    pause
-    goto :eof
-)
-
-if "%opt%"=="2" (
-    echo Launching Audience...
+    echo Starting Frontend Dev Server...
+    cd frontend
     echo Frontend will be available at:
     echo   - Local: http://localhost:5173
     echo   - Network: http://%LOCAL_IP%:5173
-    echo.
-    cd frontend
     npm run dev -- --host 0.0.0.0
     pause
-    goto :eof
+    goto :menu
+)
+
+if "%opt%"=="2" (
+    echo Building Frontend for Production...
+    cd frontend
+    call npm run build
+    echo.
+    echo Build complete! Output in frontend/dist/
+    pause
+    goto :menu
 )
 
 if "%opt%"=="3" (
-    echo Building and Deploying to Firebase...
+    echo Building and Deploying Frontend to Firebase...
+    cd frontend
+    call npm run build
+    cd ..
     cd backend
-    npm run deploy
+    call npm run deploy
     pause
-    goto :eof
+    goto :menu
 )
 
+REM Backend options
 if "%opt%"=="4" (
+    echo Starting Backend Server (FastAPI)...
+    cd backend
+    if exist venv (
+        call venv\Scripts\activate
+    )
+    python server.py
+    pause
+    goto :menu
+)
+
+if "%opt%"=="5" (
+    echo Starting Automation Scheduler...
+    cd backend
+    if exist venv (
+        call venv\Scripts\activate
+    )
+    start cmd /k "echo Automation Scheduler && python -m automation.main scheduler start"
+    goto :menu
+)
+
+if "%opt%"=="6" goto AUTOMATION_MENU
+
+if "%opt%"=="7" (
+    echo Viewing Automation Logs...
+    cd backend
+    if exist "logs\automation.log" (
+        type "logs\automation.log" | more
+    ) else (
+        echo No logs found. Run automation scripts first.
+    )
+    pause
+    goto :menu
+)
+
+if "%opt%"=="8" (
+    echo Running Automation Tests...
+    cd backend
+    if exist venv (
+        call venv\Scripts\activate
+    )
+    python test_with_mocks.py
+    pause
+    goto :menu
+)
+
+if "%opt%"=="9" (
+    echo Building Docker Image...
+    cd backend
+    docker build -t overlaychat-backend .
+    echo.
+    echo Docker image built: overlaychat-backend
+    pause
+    goto :menu
+)
+
+if "%opt%"=="A" (
+    echo Running Docker Container...
+    cd backend
+    docker run -d --name overlaychat-backend -p 4173:4173 overlaychat-backend
+    echo.
+    echo Container started! API available at http://localhost:4173
+    echo To view logs: docker logs -f overlaychat-backend
+    pause
+    goto :menu
+)
+
+REM Host App (Electron) options
+if "%opt%"=="B" (
+    echo Starting Host App in Dev Mode...
+    cd host-app
+    if not exist node_modules (
+        echo Installing dependencies...
+        call npm install
+    )
+    echo Host App will start with DevTools...
+    call npm start
+    pause
+    goto :menu
+)
+
+if "%opt%"=="C" (
+    echo Building Host App EXE...
+    cd host-app
+    if not exist node_modules (
+        echo Installing dependencies...
+        call npm install
+    )
+    echo Building with electron-builder...
+    call npm run build-win
+    echo.
+    echo Build complete! Check host-app/dist/ folder
+    pause
+    goto :menu
+)
+
+if "%opt%"=="D" (
+    echo Packaging Host App with Electron...
+    cd host-app
+    if not exist node_modules (
+        echo Installing dependencies...
+        call npm install
+    )
+    echo Packaging for Windows...
+    call npm run dist-win
+    echo.
+    echo Package complete! Check host-app/dist/ folder
+    pause
+    goto :menu
+)
+
+REM Management options
+if "%opt%"=="E" (
     echo Setting up Python Virtual Environment...
+    cd backend
     echo.
     if exist venv (
         echo Virtual environment already exists at venv\
         set /p recreate="Do you want to recreate it? (y/n): "
-        if /i not "%recreate%"=="y" (
+        if /i not "!recreate!"=="y" (
             echo Setup cancelled.
             pause
-            goto :eof
+            goto :menu
         )
         rmdir /s /q venv
     )
@@ -84,17 +208,17 @@ if "%opt%"=="4" (
         echo ERROR: Failed to create virtual environment.
         echo Make sure Python 3.10+ is installed and in PATH.
         pause
-        goto :eof
+        goto :menu
     )
     echo Virtual environment created successfully.
     echo.
     echo Installing Python dependencies...
     call venv\Scripts\activate
-    pip install -r backend\requirements.txt
+    pip install -r requirements.txt
     if errorlevel 1 (
         echo ERROR: Failed to install dependencies.
         pause
-        goto :eof
+        goto :menu
     )
     echo.
     echo Python setup completed successfully!
@@ -103,35 +227,100 @@ if "%opt%"=="4" (
     echo   venv\Scripts\activate
     echo.
     pause
-    goto :eof
+    goto :menu
 )
 
-if "%opt%"=="5" (
+if "%opt%"=="F" (
     echo Attempting to clean root artifacts...
     taskkill /F /IM electron.exe /T 2>nul
     rmdir /s /q backend\node_modules 2>nul
     rmdir /s /q frontend\node_modules 2>nul
+    rmdir /s /q host-app\node_modules 2>nul
     echo Cleanup attempt finished.
     pause
-    goto :eof
+    goto :menu
 )
 
-if "%opt%"=="6" exit
-goto :eof
+if "%opt%"=="G" exit
+goto :menu
 
-:PROD_CONFIRM
+:AUTOMATION_MENU
+cls
+echo ==========================================
+echo    Automation Scripts
+echo ==========================================
 echo.
-echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-echo  WARNING: YOU ARE ABOUT TO CONNECT TO PRODUCTION DATABASE
-echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo [1] Get Live Matches
+echo [2] Run Scraper
+echo [3] Process Match Status
+echo [4] Auto-Schedule Matches
+echo [5] Calculate Scores
+echo [6] Update Leaderboard
+echo [7] Run Reconciliation
+echo [8] Back to Main Menu
 echo.
-set /p confirm="Type 'YES' to proceed into PROD mode: "
-if /i "%confirm%"=="YES" (
-    echo Launching FULL STACK in PROD mode...
-    start cmd /k "echo Broadcaster (PROD) && cd backend && npm start -- --mode=prod"
-    start cmd /k "echo Audience (PROD) && cd frontend && echo Frontend will be available at: && echo   - Local: http://localhost:5173 && echo   - Network: http://%LOCAL_IP%:5173 && npm run dev:prod -- --host 0.0.0.0"
-) else (
-    echo Launch cancelled.
+set /p script_opt="Select script to run: "
+
+if "%script_opt%"=="1" (
+    cd backend
+    if exist venv call venv\Scripts\activate
+    python -m automation.main live-matches --sport cricket
+    pause
+    goto :AUTOMATION_MENU
 )
-pause
-goto :eof
+
+if "%script_opt%"=="2" (
+    cd backend
+    if exist venv call venv\Scripts\activate
+    python -m automation.main run-scraper
+    pause
+    goto :AUTOMATION_MENU
+)
+
+if "%script_opt%"=="3" (
+    cd backend
+    if exist venv call venv\Scripts\activate
+    python -m automation.main match-status --sport cricket
+    pause
+    goto :AUTOMATION_MENU
+)
+
+if "%script_opt%"=="4" (
+    cd backend
+    if exist venv call venv\Scripts\activate
+    python -m automation.main auto-schedule --sport cricket --days 3
+    pause
+    goto :AUTOMATION_MENU
+)
+
+if "%script_opt%"=="5" (
+    echo Enter match details:
+    set /p tournament_id="Tournament ID: "
+    set /p match_id="Match ID: "
+    cd backend
+    if exist venv call venv\Scripts\activate
+    python -m automation.main calculate-scores --sport cricket --tournament-id !tournament_id! --match-id !match_id!
+    pause
+    goto :AUTOMATION_MENU
+)
+
+if "%script_opt%"=="6" (
+    echo Enter tournament details:
+    set /p tournament_id="Tournament ID: "
+    cd backend
+    if exist venv call venv\Scripts\activate
+    python -m automation.main update-leaderboard --sport cricket --tournament-id !tournament_id!
+    pause
+    goto :AUTOMATION_MENU
+)
+
+if "%script_opt%"=="7" (
+    cd backend
+    if exist venv call venv\Scripts\activate
+    python -m automation.main run --script reconciliation
+    pause
+    goto :AUTOMATION_MENU
+)
+
+if "%script_opt%"=="8" goto :menu
+goto :AUTOMATION_MENU
