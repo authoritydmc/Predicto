@@ -10,6 +10,7 @@ function createWindowManager(config, eventHandlers) {
   let overlayWindow = null;
   let tickerWindow = null;
   let reactionWindow = null;
+  let debugWindow = null;
   
   // Store application settings
   let settings = {
@@ -286,6 +287,38 @@ function createWindowManager(config, eventHandlers) {
     globalShortcut.unregisterAll();
   }
   
+  // Ensure debug window exists
+  function ensureDebugWindow() {
+    if (!debugWindow || debugWindow.isDestroyed()) {
+      console.log('[WindowManager] Creating debug window...');
+      debugWindow = createWindow({
+        title: 'Predicto Debug',
+        width: 800,
+        height: 600,
+        isDev: isDev
+      });
+      
+      // Show window when ready
+      debugWindow.once('ready-to-show', () => {
+        console.log('[WindowManager] Debug window ready to show');
+        debugWindow.show();
+      });
+      
+      // Load debug route after window is ready
+      debugWindow.webContents.once('did-finish-load', () => {
+        console.log('[WindowManager] Debug window finished loading, navigating to debug route');
+        // Navigate to debug route
+        debugWindow.webContents.executeJavaScript(`
+          window.location.hash = '#/debug';
+        `);
+      });
+    } else {
+      console.log('[WindowManager] Debug window already exists');
+    }
+    
+    return debugWindow;
+  }
+  
   // Return public API
   return {
     createWindow,
@@ -293,6 +326,7 @@ function createWindowManager(config, eventHandlers) {
     ensureOverlayWindow,
     ensureTickerWindow,
     ensureReactionWindow,
+    ensureDebugWindow,
     updateWindowTitles,
     getSettings,
     updateSettings,

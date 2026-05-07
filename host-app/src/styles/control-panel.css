@@ -482,9 +482,10 @@ input[type=range]::-webkit-slider-thumb {
 .cp-results-content {
   width: 100%; max-width: 700px; max-height: 90vh;
   display: flex; flex-direction: column; gap: 24px;
-  transform: translateY(20px);
+  transform: translateY(0);
   animation: cp-slide-up .4s cubic-bezier(.2,.8,.2,1) forwards;
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
 /* ─── Results Tables & Dashboards ────────────────────────────────────────────── */
@@ -785,7 +786,7 @@ input[type=range]::-webkit-slider-thumb {
   display: grid; 
   grid-template-columns: 280px 1fr; 
   flex: 1; 
-  overflow: hidden; 
+  overflow: visible; 
   gap: 1px; 
   background: var(--panel-border); 
   border-radius: 12px; 
@@ -892,7 +893,7 @@ input[type=range]::-webkit-slider-thumb {
   justify-content: center;
   gap: 8px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .cp-tab::before {
