@@ -81,7 +81,7 @@ registerAutomationHandlers(ipcMain);
 // Load automation-ipc module for additional handlers
 require('./modules/automation-ipc.cjs');
 registerNotificationHandlers();
-registerScraperHandlers();
+registerScraperHandlers(ipcMain);
 registerSetupGuideHandlers();
 registerResolutionHandlers(config, { getOrchestratorStatus });
 

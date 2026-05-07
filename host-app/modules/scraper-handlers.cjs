@@ -1,39 +1,43 @@
 // Scraper Handlers Module for Predicto Host App
 // This module handles web scraping-related functionality
 
+const { ipcMain } = require('electron');
+
 function registerScraperHandlers() {
   console.log('[Scraper] Registering scraper handlers');
   
-  // In a real implementation, this would set up IPC handlers for scraping features
-  // For now, we'll just log that we're registering the handlers
-  
-  // Example of what this might do in a real implementation:
-  /*
-  const { ipcMain } = require('electron');
-  
-  // Handle scraping start/stop
-  ipcMain.handle('scraper-start', (event, config) => {
-    // Start scraping with given config
-    return { success: true };
+  // Handle scraper run
+  ipcMain.handle('scraper:run', async (event, sport, matchId, teamA, teamB, scraperOrder, matchUrl) => {
+    console.log('[Scraper] Running scraper for:', { sport, matchId, teamA, teamB, scraperOrder, matchUrl });
+    
+    try {
+      // Try to run scraper via backend automation
+      const automationHandlers = require('./automation-handlers.cjs');
+      if (automationHandlers.runScraperJob) {
+        const result = await automationHandlers.runScraperJob({ sport, matchId, teamA, teamB, scraperOrder, matchUrl });
+        return result;
+      }
+      
+      // Fallback: return mock response
+      return { 
+        success: false, 
+        error: 'Scraper not configured. Use Manual mode.',
+        runs: 0,
+        wickets: 0,
+        overs: '0.0'
+      };
+    } catch (error) {
+      console.error('[Scraper] Error:', error.message);
+      return { success: false, error: error.message };
+    }
   });
   
-  ipcMain.handle('scraper-stop', (event) => {
-    // Stop scraping
-    return { success: true };
+  // Handle scraping status
+  ipcMain.handle('scraper:status', (event) => {
+    return { running: false, lastRun: null };
   });
   
-  // Handle scraping status queries
-  ipcMain.handle('scraper-status', (event) => {
-    // Return current scraping status
-    return { running: false, pagesScraped: 0, lastRun: null };
-  });
-  
-  // Handle specific scraping tasks
-  ipcMain.handle('scraper-run-job', (event, jobConfig) => {
-    // Run a specific scraping job
-    return { success: true, data: [] };
-  });
-  */
+  console.log('[Scraper] Handlers registered');
 }
 
 module.exports = {
