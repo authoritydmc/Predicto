@@ -5,7 +5,10 @@
  * all modular components of the desktop application.
  */
 
-const { app, globalShortcut } = require("electron");
+const { app, globalShortcut, BrowserWindow, Menu } = require("electron");
+
+// Hide menu bar
+Menu.setApplicationMenu(null);
 
 // Enable hardware acceleration for smooth performance
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -84,6 +87,7 @@ registerResolutionHandlers(config, { getOrchestratorStatus });
 
 // ── Application Event Handlers ───────────────────────────────────────────────
 app.whenReady().then(() => {
+  console.log('[Main] app.whenReady() called - creating initial windows');
   windowManager.ensureControlWindow();
   const settings = windowManager.getSettings();
   if (settings.overlayVisible) windowManager.ensureOverlayWindow();
@@ -97,7 +101,15 @@ app.on("window-all-closed", () => {
 });
 
 app.on("activate", () => {
-  windowManager.ensureControlWindow();
+  const windowCount = BrowserWindow.getAllWindows().length;
+  console.log(`[Main] activate event fired - current window count: ${windowCount}`);
+  // Only create control window if no windows exist (macOS behavior)
+  if (windowCount === 0) {
+    console.log('[Main] No windows exist, creating control window');
+    windowManager.ensureControlWindow();
+  } else {
+    console.log('[Main] Windows already exist, skipping control window creation');
+  }
 });
 
 app.on("will-quit", () => {

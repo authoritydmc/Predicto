@@ -23,6 +23,7 @@ function createWindowManager(config, eventHandlers) {
   // Create a new BrowserWindow
   function createWindow(options = {}) {
     const { BrowserWindow } = require('electron');
+    const { route = '/' } = options; // Extract route from options
     
     const windowOptions = {
       width: options.width || 1200,
@@ -73,36 +74,33 @@ function createWindowManager(config, eventHandlers) {
     });
     
     // Load React app - use Vite dev server in dev mode, file in prod
-    const isDev = options.isDev;
-    console.log(`[WindowManager] isDev: ${isDev}, options:`, options);
+    console.log(`[WindowManager] isDev: ${isDev}, route: ${route}, options:`, options);
     if (isDev) {
       const port = 5174; // Use the same port as vite.config.ts
-      const devUrl = `http://localhost:${port}`;
+      const devUrl = `http://localhost:${port}/#${route}`;
       console.log(`[WindowManager] Loading from Vite dev server: ${devUrl}`);
       
       // Wait a bit for Vite to be ready
       setTimeout(() => {
         win.loadURL(devUrl).then(() => {
-          console.log('[WindowManager] React app loaded from dev server');
+          console.log(`[WindowManager] React app loaded from dev server for route: ${route}`);
         }).catch(err => {
           console.error('[WindowManager] Failed to load from dev server:', err);
         });
       }, 2000);
     } else {
-      // Load built files
-      const indexPath = `${__dirname}/../index.html`;
+      // Load built files with hash route
+      const indexPath = `${__dirname}/../index.html#${route}`;
       console.log(`Loading React app: ${indexPath}`);
-      win.loadFile(indexPath).then(() => {
-        console.log('React app loaded successfully');
+      win.loadFile(indexPath, { hash: route }).then(() => {
+        console.log(`React app loaded successfully for route: ${route}`);
       }).catch(err => {
         console.error('Failed to load React app:', err);
       });
     }
     
-    // Open DevTools in development mode
-    if (isDev && options.showDevTools !== false) {
-      win.webContents.openDevTools();
-    }
+    // DevTools can be opened manually by user in development mode
+    // Removed automatic opening to allow manual control
     
     // Handle window closing
     win.on('close', (event) => {
@@ -122,21 +120,33 @@ function createWindowManager(config, eventHandlers) {
   
   // Ensure control window exists
   function ensureControlWindow() {
-    if (!controlWindow || controlWindow.isDestroyed()) {
-      controlWindow = createWindow({
-        title: `Predicto Control v${APP_VERSION}`,
-        width: 1200,
-        height: 900,
-        minWidth: 1000,
-        minHeight: 700,
-        isDev: isDev
-      });
-      
-      // Show the window when ready
-      controlWindow.once('ready-to-show', () => {
-        controlWindow.show();
-      });
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [WindowManager] ensureControlWindow called`);
+    
+    // Check if window already exists and is not destroyed
+    if (controlWindow && !controlWindow.isDestroyed()) {
+      console.log(`[${timestamp}] [WindowManager] Control window already exists, ID: ${controlWindow.id}, returning existing instance`);
+      return controlWindow;
     }
+    
+    console.log(`[${timestamp}] [WindowManager] Creating new control window`);
+    controlWindow = createWindow({
+      title: `Predicto Control v${APP_VERSION}`,
+      width: 650,
+      height: 900,
+      minWidth: 650,
+      minHeight: 500,
+      isDev: isDev,
+      route: '/'
+    });
+    
+    // Show the window when ready
+    controlWindow.once('ready-to-show', () => {
+      console.log(`[${timestamp}] [WindowManager] Control window ready to show, ID: ${controlWindow.id}`);
+      controlWindow.show();
+      // Try to maximize to fill screen
+      controlWindow.maximize();
+    });
     
     return controlWindow;
   }
@@ -151,7 +161,8 @@ function createWindowManager(config, eventHandlers) {
         frame: false, // No window frame
         transparent: true, // Transparent background
         alwaysOnTop: true, // Always on top of other windows
-        skipTaskbar: true // Don't show in taskbar
+        skipTaskbar: true, // Don't show in taskbar
+        route: '/overlay'
       });
       
       // Show the window when ready
@@ -173,7 +184,8 @@ function createWindowManager(config, eventHandlers) {
         frame: false, // No window frame
         transparent: true, // Transparent background
         alwaysOnTop: true, // Always on top of other windows
-        skipTaskbar: true // Don't show in taskbar
+        skipTaskbar: true, // Don't show in taskbar
+        route: '/ticker'
       });
       
       // Show the window when ready
@@ -195,7 +207,8 @@ function createWindowManager(config, eventHandlers) {
         frame: false, // No window frame
         transparent: true, // Transparent background
         alwaysOnTop: true, // Always on top of other windows
-        skipTaskbar: true // Don't show in taskbar
+        skipTaskbar: true, // Don't show in taskbar
+        route: '/reaction'
       });
       
       // Show the window when ready
@@ -297,7 +310,8 @@ function createWindowManager(config, eventHandlers) {
         title: 'Predicto Debug',
         width: 1200,
         height: 800,
-        isDev: isDev
+        isDev: isDev,
+        route: '/debug'
       });
       
       // Show window when ready

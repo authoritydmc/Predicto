@@ -6,9 +6,9 @@
 html, body {
   height: 100%;
   font-family: 'Inter', 'SF Pro Text', 'Segoe UI Variable Text', system-ui, sans-serif;
-  background: transparent;
+  background: #05070a;
   color: #ffffff;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 :root {
@@ -26,4 +26,8 @@ html, body {
   --status-danger: #ff453a;
 }
 
-#root { height: 100%; }
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}

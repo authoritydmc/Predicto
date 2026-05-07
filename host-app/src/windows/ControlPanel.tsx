@@ -56,6 +56,34 @@ const saveUIState = (state: any) => {
   }
 };
 
+// Load saved preferences
+const loadPreferences = (): { lastTournamentId: string; lastMatchId: string; lastSport: string } => {
+  try {
+    const saved = localStorage.getItem('predicto_preferences');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        lastTournamentId: parsed.lastTournamentId || '',
+        lastMatchId: parsed.lastMatchId || '',
+        lastSport: parsed.lastSport || 'cricket'
+      };
+    }
+    return { lastTournamentId: '', lastMatchId: '', lastSport: 'cricket' };
+  } catch {
+    return { lastTournamentId: '', lastMatchId: '', lastSport: 'cricket' };
+  }
+};
+
+const savePreferences = (prefs: { lastTournamentId?: string; lastMatchId?: string; lastSport?: string }) => {
+  try {
+    const current = loadPreferences();
+    const updated = { ...current, ...prefs };
+    localStorage.setItem('predicto_preferences', JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to save preferences:', err);
+  }
+};
+
 const loadWindowVisibility = () => {
   try {
     const saved = localStorage.getItem(WINDOW_VISIBILITY_KEY);
@@ -180,16 +208,20 @@ const RankPill = ({ rank }: { rank: number }) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ControlPanel: React.FC = () => {
-  // Load saved UI state from localStorage
+  // Load saved UI state and preferences from localStorage
   const savedUIState = loadUIState();
+  const savedPrefs = loadPreferences();
 
   // ── Settings & Meta State
   const [settings, setSettings] = useState<any>(null);
   const [meta, setMeta] = useState<any>({});
   const [roomId, setRoomId] = useState('ipl');
-  const [tournamentId, setTournamentId] = useState(savedUIState?.lastTournamentId || '');
-  const [matchId, setMatchId] = useState('');
+  const [tournamentId, setTournamentId] = useState(savedPrefs.lastTournamentId || savedUIState?.lastTournamentId || '');
+  const [matchId, setMatchId] = useState(savedPrefs.lastMatchId || '');
   const [viewMode, setViewMode] = useState<'tournament' | 'match'>('match');
+  
+  // ── Sport must be declared early - before any useEffect that uses it
+  const [fSport, setFSport] = useState(savedPrefs.lastSport || savedUIState?.lastSport || 'cricket');
   
   // ── Window Visibility State
   const [windowVisibility, setWindowVisibility] = useState(loadWindowVisibility());
@@ -201,6 +233,25 @@ const ControlPanel: React.FC = () => {
     }
   }, []);
 
+  // Save preferences when they change
+  useEffect(() => {
+    if (tournamentId) {
+      savePreferences({ lastTournamentId: tournamentId });
+    }
+  }, [tournamentId]);
+
+  useEffect(() => {
+    if (matchId) {
+      savePreferences({ lastMatchId: matchId });
+    }
+  }, [matchId]);
+
+  useEffect(() => {
+    if (fSport) {
+      savePreferences({ lastSport: fSport });
+    }
+  }, [fSport]);
+
   // Handle window visibility changes
   const handleWindowVisibilityChange = (key: keyof typeof windowVisibility, value: boolean) => {
     const newVisibility = { ...windowVisibility, [key]: value };
@@ -211,6 +262,9 @@ const ControlPanel: React.FC = () => {
       (window as any).overlayDesktop.setWindowVisibilityDefaults(newVisibility);
     }
   };
+
+  // ── Match Form State
+  const [fMatchCode, setFMatchCode] = useState('');
 
   // ── Tournament Form State
   const [fTournamentCode, setFTournamentCode] = useState('');
@@ -266,9 +320,7 @@ const ControlPanel: React.FC = () => {
     });
   };
 
-  // ── Match Form State
-  const [fMatchCode, setFMatchCode] = useState('');
-  const [fSport, setFSport] = useState(savedUIState?.lastSport || '');
+  // ── Match Form State (remaining)
   const [fMatchTitle, setFMatchTitle] = useState('');
   const [fTeamA, setFTeamA] = useState('');
   const [fTeamB, setFTeamB] = useState('');
@@ -701,8 +753,17 @@ const ControlPanel: React.FC = () => {
     const init = async () => {
       console.log('[ControlPanel] Initializing...', { overlayDesktop: window.overlayDesktop });
       
+      // Load preferences first
+      const prefs = loadPreferences();
+      
       if (!window.overlayDesktop) {
         console.error('[ControlPanel] overlayDesktop API not available!');
+        // Use local preferences even without electron
+        if (prefs.lastSport) setFSport(prefs.lastSport);
+        if (prefs.lastTournamentId) {
+          setTournamentId(prefs.lastTournamentId);
+          subscribeToMeta(prefs.lastSport || 'cricket', prefs.lastTournamentId, prefs.lastMatchId);
+        }
         return;
       }
       
@@ -712,15 +773,22 @@ const ControlPanel: React.FC = () => {
       setSettings(s);
       setOpacity(s.opacity ?? 1);
       setReactionOpacity(s.reactionOpacity ?? 1);
-      const sport = s.sport || 'cricket';
+      
+      // Use settings from electron, or fallback to local preferences
+      const sport = s.sport || prefs.lastSport || 'cricket';
       setFSport(sport);
-      if (s.matchId && s.tournamentId) {
-        setMatchId(s.matchId);
-        setTournamentId(s.tournamentId);
-        subscribeToMeta(sport, s.tournamentId, s.matchId);
-      } else if (s.tournamentId) {
-        setTournamentId(s.tournamentId);
-        subscribeToMeta(sport, s.tournamentId);
+      
+      const savedTournamentId = s.tournamentId || prefs.lastTournamentId;
+      const savedMatchId = s.matchId || prefs.lastMatchId;
+      
+      if (savedTournamentId) {
+        setTournamentId(savedTournamentId);
+        if (savedMatchId) {
+          setMatchId(savedMatchId);
+          subscribeToMeta(sport, savedTournamentId, savedMatchId);
+        } else {
+          subscribeToMeta(sport, savedTournamentId);
+        }
       }
     };
     init();
@@ -2549,13 +2617,6 @@ const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
 
   return (
     <div className={getPanelClassName()}>
-      <div className="ambient ambient-left"></div>
-      <div className="ambient ambient-right"></div>
-      
-      {/* ── Panel Toggle Handle ── */}
-      <div className="cp-toggle-handle" onClick={togglePanelState}>
-        {panelState === 'visible' ? '◀' : panelState === 'minimized' ? '▶' : '◀'}
-      </div>
       
       {/* ── Action Feedback Component ── */}
       <ActionFeedback
@@ -2572,88 +2633,85 @@ const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
         entries={actionHistory}
       />
       
-      {/* ── Header ── */}
+      {/* ── Compact Header ── */}
       <header className="cp-header">
-        <div className="cp-header-main">
-          <div className="cp-header-content">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span className="cp-badge">Executive</span>
-              <span className="cp-badge" style={{ 
-                background: 'rgba(99, 102, 241, 0.2)',
-                color: '#818cf8',
-                border: '1px solid rgba(99, 102, 241, 0.3)'
-              }}>
-                {fSport ? fSport.toUpperCase() : 'NO SPORT'}
-              </span>
-              <div className="firebase-mode-toggle">
-                <button 
-                  className={`mode-btn ${firebaseMode === 'local' ? 'active' : ''}`}
-                  onClick={() => handleFirebaseModeSwitch('local')}
-                >
-                  <div className="mode-btn-content">
-                    <span className="mode-name">Local</span>
-                    <span className="mode-code">dev</span>
-                  </div>
-                  <span className="mode-indicator"></span>
-                </button>
-                <button 
-                  className={`mode-btn ${firebaseMode === 'prod' ? 'active' : ''}`}
-                  onClick={() => handleFirebaseModeSwitch('prod')}
-                >
-                  <div className="mode-btn-content">
-                    <span className="mode-name">Production</span>
-                    <span className="mode-code">prod</span>
-                  </div>
-                  <span className="mode-indicator"></span>
-                </button>
-              </div>
+        <div className="cp-header-row">
+          
+          {/* Left: Logo + Mode */}
+          <div className="cp-header-left">
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8, 
+              padding: '8px 16px',
+              background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+              borderRadius: 8
+            }}>
+              <span style={{ fontSize: 18 }}>📊</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.5px' }}>PREDICTO</span>
             </div>
-            <h1>Control Panel</h1>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <p style={{ margin: 0 }}>
-                {fMatchTitle ? (
-                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fMatchTitle}</span>
-                ) : (
-                  <span style={{ color: 'var(--muted)' }}>No match selected</span>
-                )}
-              </p>
-              {matchId && (
-                <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)' }}>
-                  Match ID: <span style={{ fontFamily: 'monospace', color: 'var(--accent-blue)' }}>{matchId}</span>
-                  {fTeamA && fTeamB && (
-                    <span> • {fTeamA} vs {fTeamB}</span>
-                  )}
-                </p>
-              )}
+            
+            <div className="mode-switch">
+              <button 
+                className={`mode-btn ${firebaseMode === 'local' ? 'active' : ''}`}
+                onClick={() => handleFirebaseModeSwitch('local')}
+                style={{ padding: '5px 10px', minWidth: 50, fontSize: 10, background: firebaseMode === 'local' ? 'rgba(59,130,246,0.3)' : 'transparent' }}
+              >
+                <span>DEV</span>
+              </button>
+              <button 
+                className={`mode-btn ${firebaseMode === 'prod' ? 'active' : ''}`}
+                onClick={() => handleFirebaseModeSwitch('prod')}
+                style={{ padding: '5px 10px', minWidth: 50, fontSize: 10, background: firebaseMode === 'prod' ? 'rgba(16,185,129,0.3)' : 'transparent' }}
+              >
+                <span>PROD</span>
+              </button>
             </div>
           </div>
-          <div className="cp-header-controls" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button
-              onClick={() => {
-                // @ts-ignore
-                window.overlayDesktop.showDebug();
-              }}
-              className="cp-action-btn cp-small"
-              style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', borderColor: 'rgba(99, 102, 241, 0.2)' }}
-            >
-              Debug
-            </button>
-            <button className="cp-action-btn cp-pill" onClick={openHistory}>
-              <span>📚</span> History
-            </button>
-          </div>
-        </div>
 
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>MATCH CODE</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-blue)', letterSpacing: '0.01em', fontFamily: 'monospace' }}>
-              {matchId || 'No match selected'}
+          {/* Middle: Sport Badge */}
+          <div className="cp-header-middle">
+            <span style={{ 
+              fontSize: 10, 
+              padding: '4px 10px', 
+              background: 'rgba(255,255,255,0.05)', 
+              borderRadius: 4, 
+              color: 'rgba(255,255,255,0.7)', 
+              fontWeight: 600,
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              {fSport?.toUpperCase() || 'CRICKET'}
             </span>
           </div>
-          <button className="cp-primary-btn cp-small" onClick={copyAudienceUrl}>
-            Share Link
-          </button>
+
+          {/* Right: Match + Status */}
+          <div className="cp-header-right" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
+                {fTeamA || 'Team A'} <span style={{ color: 'var(--text-dim)' }}>vs</span> {fTeamB || 'Team B'}
+              </span>
+              <span style={{ 
+                fontSize: 9, 
+                padding: '2px 6px', 
+                borderRadius: 4, 
+                background: fMatchStatus === 'live' ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
+                color: fMatchStatus === 'live' ? '#ef4444' : '#10b981',
+                fontWeight: 600
+              }}>
+                {fMatchStatus?.toUpperCase() || 'SCHEDULED'}
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+              {matchId || 'No match'}
+            </span>
+            <button 
+              className="btn btn-secondary btn-sm" 
+              onClick={copyAudienceUrl}
+              style={{ padding: '4px 8px', fontSize: 9 }}
+            >
+              Share
+            </button>
+          </div>
         </div>
       </header>
 
@@ -3464,6 +3522,50 @@ const handleUpdateSchedulerTask = async (taskId: string, config: any) => {
           </div>
         </div>
       )}
+
+      {/* ── Window Status Bar ── */}
+      <div className="cp-status-bar">
+        <div className="status-content">
+          <span className="status-label">Windows</span>
+          <div className="status-toggles">
+            <div className="status-toggle" onClick={() => {
+              const newVal = !windowVisibility.overlayVisible;
+              handleWindowVisibilityChange('overlayVisible', newVal);
+              newVal ? (window as any).overlayDesktop.showOverlay() : (window as any).overlayDesktop.hideOverlay();
+            }}>
+              <span className={`status-toggle-track ${windowVisibility.overlayVisible ? 'on' : 'off'}`}>
+                <span className="status-toggle-thumb"></span>
+              </span>
+              <span className={`status-toggle-label ${windowVisibility.overlayVisible ? 'active' : ''}`}>Overlay</span>
+            </div>
+            <div className="status-toggle" onClick={() => {
+              const newVal = !windowVisibility.tickerVisible;
+              handleWindowVisibilityChange('tickerVisible', newVal);
+              newVal ? (window as any).overlayDesktop.showTicker() : (window as any).overlayDesktop.hideTicker();
+            }}>
+              <span className={`status-toggle-track ${windowVisibility.tickerVisible ? 'on' : 'off'}`}>
+                <span className="status-toggle-thumb"></span>
+              </span>
+              <span className={`status-toggle-label ${windowVisibility.tickerVisible ? 'active' : ''}`}>Ticker</span>
+            </div>
+            <div className="status-toggle" onClick={() => {
+              const newVal = !windowVisibility.reactionVisible;
+              handleWindowVisibilityChange('reactionVisible', newVal);
+              newVal ? (window as any).overlayDesktop.showReaction() : (window as any).overlayDesktop.hideReaction();
+            }}>
+              <span className={`status-toggle-track ${windowVisibility.reactionVisible ? 'on' : 'off'}`}>
+                <span className="status-toggle-thumb"></span>
+              </span>
+              <span className={`status-toggle-label ${windowVisibility.reactionVisible ? 'active' : ''}`}>Reaction</span>
+            </div>
+          </div>
+          <span className="status-divider">|</span>
+          <div className="status-pill">
+            <span className={`status-dot ${predPaused ? 'warning' : 'active'}`}></span>
+            <span className="status-text">{predPaused ? 'Paused' : 'Active'}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
