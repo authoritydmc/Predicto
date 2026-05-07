@@ -15,11 +15,15 @@ echo    Port Status Monitor
 echo  ==========================================
 echo.
 
-REM Check Backend Port (4173)
+REM Use hardcoded ports
+set BACKEND_PORT=8765
+set FRONTEND_PORT=3456
+
+REM Check Backend Port (dynamic)
 set BACKEND_STATUS=FREE
 set BACKEND_PID=
 set BACKEND_PROCESS=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :4173 ^| findstr LISTENING 2^>nul') do (
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :!BACKEND_PORT! ^| findstr LISTENING 2^>nul') do (
     set BACKEND_PID=%%a
     set BACKEND_STATUS=IN_USE
 )
@@ -27,16 +31,16 @@ if "!BACKEND_STATUS!"=="IN_USE" (
     for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !BACKEND_PID!" /FO CSV ^| findstr /v "INFO"') do (
         set BACKEND_PROCESS=%%~a
     )
-    echo  [Backend] Port 4173: IN USE by !BACKEND_PROCESS! (PID: !BACKEND_PID!)
+    echo  [Backend] Port !BACKEND_PORT!: IN USE by !BACKEND_PROCESS! (PID: !BACKEND_PID!)
 ) else (
-    echo  [Backend] Port 4173: FREE
+    echo  [Backend] Port !BACKEND_PORT!: FREE
 )
 
-REM Check Frontend Port (5173)
+REM Check Frontend Port (dynamic)
 set FRONTEND_STATUS=FREE
 set FRONTEND_PID=
 set FRONTEND_PROCESS=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5173 ^| findstr LISTENING 2^>nul') do (
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :!FRONTEND_PORT! ^| findstr LISTENING 2^>nul') do (
     set FRONTEND_PID=%%a
     set FRONTEND_STATUS=IN_USE
 )
@@ -44,9 +48,9 @@ if "!FRONTEND_STATUS!"=="IN_USE" (
     for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !FRONTEND_PID!" /FO CSV ^| findstr /v "INFO"') do (
         set FRONTEND_PROCESS=%%~a
     )
-    echo  [Frontend] Port 5173: IN USE by !FRONTEND_PROCESS! (PID: !FRONTEND_PID!)
+    echo  [Frontend] Port !FRONTEND_PORT!: IN USE by !FRONTEND_PROCESS! (PID: !FRONTEND_PID!)
 ) else (
-    echo  [Frontend] Port 5173: FREE
+    echo  [Frontend] Port !FRONTEND_PORT!: FREE
 )
 
 REM Check for Electron processes (Host App)
@@ -129,6 +133,47 @@ if %errorlevel% equ 0 (
 )
 goto :eof
 
+:FIND_AVAILABLE_PORT
+set PORT_RANGE_START=%1
+set PORT_RANGE_END=%2
+set RESULT_VAR=%3
+
+:FIND_PORT_LOOP
+set /a RANDOM_PORT=%PORT_RANGE_START% + (%RANDOM% %% (%PORT_RANGE_END% - %PORT_RANGE_START% + 1))
+
+REM Check if port is available
+netstat -ano | findstr :%RANDOM_PORT% >nul
+if %errorlevel% neq 0 (
+    REM Port is available
+    set %RESULT_VAR%=%RANDOM_PORT%
+    goto :eof
+) else (
+    REM Port is in use, try another
+    goto :FIND_PORT_LOOP
+)
+
+:GET_DYNAMIC_PORTS
+REM Find available ports for backend and frontend
+call :FIND_AVAILABLE_PORT 8000 9000 BACKEND_PORT
+call :FIND_AVAILABLE_PORT 3000 4000 FRONTEND_PORT
+
+REM Save ports to temp file for other processes to read
+echo BACKEND_PORT=%BACKEND_PORT% > temp_ports.txt
+echo FRONTEND_PORT=%FRONTEND_PORT% >> temp_ports.txt
+
+goto :eof
+
+:READ_PORTS_FROM_FILE
+if exist temp_ports.txt (
+    for /f "tokens=2 delims==" %%a in ('findstr "BACKEND_PORT" temp_ports.txt') do set BACKEND_PORT=%%a
+    for /f "tokens=2 delims==" %%a in ('findstr "FRONTEND_PORT" temp_ports.txt') do set FRONTEND_PORT=%%a
+) else (
+    REM Fallback to default ports
+    set BACKEND_PORT=4173
+    set FRONTEND_PORT=5173
+)
+goto :eof
+
 :menu
 cls
 echo.
@@ -137,10 +182,16 @@ echo    Predicto Dev Console
 echo  ==========================================
 echo.
 
+REM Set hardcoded ports (less commonly used)
+set BACKEND_PORT=8765
+set FRONTEND_PORT=3456
+
 REM Show port status
 call :SHOW_PORT_STATUS
 
 echo  Local IP: %LOCAL_IP%
+echo.
+echo  Fixed Ports: Backend=%BACKEND_PORT%, Frontend=%FRONTEND_PORT%
 echo.
 echo  [A] Start ALL (Backend + Host App + Frontend)
 echo  [P] Show Port Status
@@ -183,24 +234,30 @@ if /i "%opt%"=="A" (
     echo Starting ALL services...
     echo.
     
-    REM Check for port conflicts before starting backend
-    call :CHECK_PORT_CONFLICT "Backend Server" "4173"
+    REM Use hardcoded ports
+    set BACKEND_PORT=8765
+    set FRONTEND_PORT=3456
+    echo Using fixed ports: Backend=%BACKEND_PORT%, Frontend=%FRONTEND_PORT%
+    echo.
     
-    REM Start Backend
-    start "Backend" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python server.py"
+    REM Check for port conflicts before starting backend
+    call :CHECK_PORT_CONFLICT "Backend Server" "%BACKEND_PORT%"
+    
+    REM Start Backend with fixed port
+    start "Backend" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && set BACKEND_PORT=%BACKEND_PORT% && python server.py"
     timeout /t 3 >nul
     
     REM Start Host App
     start "Host App" cmd /k "cd host-app && if not exist node_modules npm install && npm start"
     timeout /t 3 >nul
     
-    REM Start Frontend
-    start "Frontend" cmd /k "cd frontend && echo Frontend: http://localhost:5173 && npm run dev -- --host 0.0.0.0"
+    REM Start Frontend with fixed port
+    start "Frontend" cmd /k "cd frontend && echo Frontend: http://localhost:%FRONTEND_PORT% && npm run dev -- --port %FRONTEND_PORT% --host 0.0.0.0"
     
     echo.
     echo All services started in separate windows!
-    echo  - Backend: http://localhost:4173
-    echo  - Frontend: http://localhost:5173
+    echo  - Backend: http://localhost:%BACKEND_PORT%
+    echo  - Frontend: http://localhost:%FRONTEND_PORT%
     echo  - Host App: Electron window
     pause
     goto :menu
@@ -211,14 +268,17 @@ if "%opt%"=="1" (
     cls
     echo Starting Frontend Dev Server...
     
+    REM Use hardcoded port
+    set FRONTEND_PORT=3456
+    
     REM Check for port conflicts before starting frontend
-    call :CHECK_PORT_CONFLICT "Frontend Dev Server" "5173"
+    call :CHECK_PORT_CONFLICT "Frontend Dev Server" "%FRONTEND_PORT%"
     
     cd frontend
     echo Available at:
-    echo  - Local: http://localhost:5173
-    echo  - Network: http://%LOCAL_IP%:5173
-    npm run dev -- --host 0.0.0.0
+    echo  - Local: http://localhost:%FRONTEND_PORT%
+    echo  - Network: http://%LOCAL_IP%:%FRONTEND_PORT%
+    npm run dev -- --port %FRONTEND_PORT% --host 0.0.0.0
     pause
     goto :menu
 )
@@ -250,11 +310,15 @@ if "%opt%"=="4" (
     cls
     echo Starting Backend Server...
     
+    REM Use hardcoded port
+    set BACKEND_PORT=8765
+    
     REM Check for port conflicts before starting backend
-    call :CHECK_PORT_CONFLICT "Backend Server" "4173"
+    call :CHECK_PORT_CONFLICT "Backend Server" "%BACKEND_PORT%"
     
     cd backend
     if exist venv (call venv\Scripts\activate)
+    set BACKEND_PORT=%BACKEND_PORT%
     python server.py
     pause
     goto :menu

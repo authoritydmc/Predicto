@@ -175,4 +175,9 @@ async def get_logs(lines: int = 100):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=4173)
+    
+    # Get port from environment variable or use default
+    port = int(os.getenv("BACKEND_PORT", "8765"))
+    
+    print(f"Starting Predicto Backend Server on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
