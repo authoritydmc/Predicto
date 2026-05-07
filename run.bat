@@ -341,11 +341,8 @@ if "%opt%"=="9" (
     echo Starting Host App in Dev Mode...
     echo.
     
-    REM Check for existing Electron processes
-    call :CHECK_ELECTRON_CONFLICT "Predicto Host App"
-    
     REM Start Host App in new console window
-    start "Predicto Host App" cmd /k "cd host-app && if not exist node_modules (echo Installing dependencies... && npm install) && npm start"
+    start "Predicto Host App" cmd /k "cd /d host-app && if not exist node_modules npm install && npm start"
     
     echo.
     echo Host App started in new console window!
