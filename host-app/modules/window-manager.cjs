@@ -2,7 +2,7 @@
 // This module manages the creation and control of Electron windows
 
 function createWindowManager(config, eventHandlers) {
-  const { APP_MODE, isDev, VITE_DEV_SERVER_URL, APP_VERSION } = config;
+  const { APP_MODE, isDev, APP_VERSION } = config;
   const { broadcastToClients } = eventHandlers || {};
   
   // Store window references
@@ -56,22 +56,18 @@ function createWindowManager(config, eventHandlers) {
       console.log('DOM is ready - content should be visible');
     });
     
-    // Load appropriate URL based on environment and availability
-    if (isDev && VITE_DEV_SERVER_URL) {
-      win.loadURL(VITE_DEV_SERVER_URL);
-    } else {
-      const filePath = `${__dirname}/../../frontend/dist/index.html`;
-      console.log(`Loading file: ${filePath}`);
-      win.loadFile(filePath).then(() => {
-        console.log('File load promise resolved');
-      }).catch(err => {
-        console.error('Failed to load file:', err);
-        // Fallback to try loading from current directory
-        win.loadFile('frontend/dist/index.html').catch(err2 => {
-          console.error('Fallback also failed:', err2);
-        });
+    // Load local admin interface
+    const adminPath = `${__dirname}/../admin.html`;
+    console.log(`Loading admin interface: ${adminPath}`);
+    win.loadFile(adminPath).then(() => {
+      console.log('Admin interface loaded successfully');
+    }).catch(err => {
+      console.error('Failed to load admin interface:', err);
+      // Fallback to try loading from current directory
+      win.loadFile('admin.html').catch(err2 => {
+        console.error('Fallback also failed:', err2);
       });
-    }
+    });
     
     // Open DevTools in development mode
     if (isDev && options.showDevTools !== false) {

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predicto Host Admin</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #ffffff;
+        }
+        .header {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #005a9e;
+        }
+        .status {
+            background: #333;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Predicto Host Admin</h1>
+            <p>Control Panel for Prediction Management System</p>
+        </div>
+
+        <div class="grid">
+            <div class="section">
+                <h2>🎯 Match Control</h2>
+                <div class="status" id="match-status">Status: Ready</div>
+                <button class="btn" onclick="startMatch()">Start Match</button>
+                <button class="btn" onclick="pauseMatch()">Pause</button>
+                <button class="btn" onclick="endMatch()">End Match</button>
+            </div>
+
+            <div class="section">
+                <h2>🪟 Window Management</h2>
+                <button class="btn" onclick="toggleOverlay()">Toggle Overlay</button>
+                <button class="btn" onclick="toggleTicker()">Toggle Ticker</button>
+                <button class="btn" onclick="toggleReaction()">Toggle Reaction</button>
+            </div>
+
+            <div class="section">
+                <h2>🤖 Automation</h2>
+                <div class="status" id="automation-status">Status: Stopped</div>
+                <button class="btn" onclick="startAutomation()">Start Automation</button>
+                <button class="btn" onclick="stopAutomation()">Stop Automation</button>
+            </div>
+
+            <div class="section">
+                <h2>📊 System Status</h2>
+                <div class="status" id="system-status">Checking...</div>
+                <button class="btn" onclick="refreshStatus()">Refresh Status</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📝 Logs</h2>
+            <div id="logs" style="background: #000; padding: 10px; border-radius: 4px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+                Admin interface loaded successfully...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${timestamp}] ${message}\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function startMatch() {
+            log('Starting match...');
+            // IPC call to start match
+        }
+
+        function pauseMatch() {
+            log('Pausing match...');
+            // IPC call to pause match
+        }
+
+        function endMatch() {
+            log('Ending match...');
+            // IPC call to end match
+        }
+
+        function toggleOverlay() {
+            log('Toggling overlay window...');
+            // IPC call to toggle overlay
+        }
+
+        function toggleTicker() {
+            log('Toggling ticker window...');
+            // IPC call to toggle ticker
+        }
+
+        function toggleReaction() {
+            log('Toggling reaction window...');
+            // IPC call to toggle reaction
+        }
+
+        function startAutomation() {
+            log('Starting automation...');
+            document.getElementById('automation-status').textContent = 'Status: Running';
+        }
+
+        function stopAutomation() {
+            log('Stopping automation...');
+            document.getElementById('automation-status').textContent = 'Status: Stopped';
+        }
+
+        function refreshStatus() {
+            log('Refreshing system status...');
+            document.getElementById('system-status').textContent = 'Status: All systems operational';
+        }
+
+        // Initialize
+        log('Predicto Host Admin Interface initialized');
+        refreshStatus();
+    </script>
+</body>
+</html>
