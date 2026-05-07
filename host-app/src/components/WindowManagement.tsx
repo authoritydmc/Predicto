@@ -79,11 +79,11 @@ export const WindowManagement: React.FC<WindowManagementProps> = ({
   return (
     <div className="cp-glass-card cp-stack">
       {/* Window Visibility */}
-      <div className="cp-section-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 16 }}>👁️</span>
+      <div className="cp-section-header">
+        <span className="text-lg">👁️</span>
         <span>Window Visibility</span>
       </div>
-      <div className="cp-toggle-row" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="cp-toggle-row">
         <Toggle
           checked={windowVisibility.overlayVisible}
           onChange={v => {
@@ -93,6 +93,7 @@ export const WindowManagement: React.FC<WindowManagementProps> = ({
           label="Overlay Window"
           icon="🖼️"
         />
+  
         <Toggle
           checked={windowVisibility.tickerVisible}
           onChange={v => {
@@ -116,48 +117,39 @@ export const WindowManagement: React.FC<WindowManagementProps> = ({
       <div className="cp-divider" />
 
       {/* Overlay Window Controls */}
-      <div className="cp-section-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 16 }}>🖼️</span>
+      <div className="cp-section-header">
+        <span className="text-lg">🖼️</span>
         <span>Overlay Window</span>
       </div>
-      <div className="cp-control-row" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
-        <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Master Opacity</label>
-        <div className="cp-slider-group" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="cp-control-row">
+        <label className="form-label">Master Opacity</label>
+        <div className="cp-slider-group">
           <input type="range" min="0.2" max="1" step="0.05" value={opacity}
             onChange={e => onOpacityChange(parseFloat(e.target.value))} 
-            style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, appearance: 'none' }}
+            className="cp-slider"
           />
-          <span className="cp-value-tag" style={{ 
-            background: 'linear-gradient(135deg, #3b82f6, #6366f1)', 
-            color: '#fff', 
-            padding: '4px 10px', 
-            borderRadius: '6px', 
-            fontWeight: 700,
-            fontSize: 12,
-            minWidth: 50,
-            textAlign: 'center'
-          }}>{Math.round(opacity * 100)}%</span>
+          <span className="cp-value-tag">{Math.round(opacity * 100)}%</span>
         </div>
       </div>
-      <div className="cp-action-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 12 }}>
-        <button className="cp-glass-btn cp-small" onClick={onShowOverlay} style={{ padding: '8px 12px', borderRadius: '8px' }}>Show</button>
-        <button className="cp-glass-btn cp-small" onClick={onHideOverlay} style={{ padding: '8px 12px', borderRadius: '8px' }}>Hide</button>
-        <button className="cp-glass-btn cp-small" onClick={onReloadOverlay} style={{ padding: '8px 12px', borderRadius: '8px' }}>Reload</button>
-        <button className="cp-glass-btn cp-small" onClick={onResetBounds} style={{ padding: '8px 12px', borderRadius: '8px' }}>Reset</button>
+      <div className="cp-action-grid">
+        <button className="cp-glass-btn cp-small" onClick={onShowOverlay}>Show</button>
+        <button className="cp-glass-btn cp-small" onClick={onHideOverlay}>Hide</button>
+        <button className="cp-glass-btn cp-small" onClick={onReloadOverlay}>Reload</button>
+        <button className="cp-glass-btn cp-small" onClick={onResetBounds}>Reset</button>
       </div>
       
       <div className="cp-divider" />
       
       {/* Ticker Window Controls */}
-      <div className="cp-section-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 16 }}>📊</span>
+      <div className="cp-section-header">
+        <span className="text-lg">📊</span>
         <span>Ticker Window</span>
       </div>
-      <div className="cp-action-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        <button className="cp-glass-btn cp-small" onClick={onShowTicker} style={{ padding: '8px 12px', borderRadius: '8px' }}>Show</button>
-        <button className="cp-glass-btn cp-small" onClick={onHideTicker} style={{ padding: '8px 12px', borderRadius: '8px' }}>Hide</button>
-        <button className="cp-glass-btn cp-small" onClick={onReloadTicker} style={{ padding: '8px 12px', borderRadius: '8px' }}>Reload</button>
-        <button className="cp-glass-btn cp-small" onClick={onResetTickerBounds} style={{ padding: '8px 12px', borderRadius: '8px' }}>Reset</button>
+      <div className="cp-action-grid">
+        <button className="cp-glass-btn cp-small" onClick={onShowTicker}>Show</button>
+        <button className="cp-glass-btn cp-small" onClick={onHideTicker}>Hide</button>
+        <button className="cp-glass-btn cp-small" onClick={onReloadTicker}>Reload</button>
+        <button className="cp-glass-btn cp-small" onClick={onResetTickerBounds}>Reset</button>
       </div>
 
       <div className="cp-divider" />
@@ -167,30 +159,21 @@ export const WindowManagement: React.FC<WindowManagementProps> = ({
         <span style={{ fontSize: 16 }}>💬</span>
         <span>Reaction Window</span>
       </div>
-      <div className="cp-control-row" style={{ padding: '12px', background: 'rgba(168, 85, 247, 0.05)', borderRadius: '10px', border: '1px solid rgba(168, 85, 247, 0.1)' }}>
-        <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Reaction Opacity</label>
-        <div className="cp-slider-group" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="cp-control-row">
+        <label className="form-label">Reaction Opacity</label>
+        <div className="cp-slider-group">
           <input type="range" min="0" max="1" step="0.05" value={reactionOpacity}
             onChange={e => onReactionOpacityChange(parseFloat(e.target.value))} 
-            style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, appearance: 'none' }}
+            className="cp-slider"
           />
-          <span className="cp-value-tag" style={{ 
-            background: 'linear-gradient(135deg, #a855f7, #6366f1)', 
-            color: '#fff', 
-            padding: '4px 10px', 
-            borderRadius: '6px', 
-            fontWeight: 700,
-            fontSize: 12,
-            minWidth: 50,
-            textAlign: 'center'
-          }}>{Math.round(reactionOpacity * 100)}%</span>
+          <span className="cp-value-tag">{Math.round(reactionOpacity * 100)}%</span>
         </div>
       </div>
-      <div className="cp-action-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 12 }}>
-        <button className="cp-glass-btn cp-small" onClick={onShowReaction} style={{ padding: '8px 12px', borderRadius: '8px' }}>Show</button>
-        <button className="cp-glass-btn cp-small" onClick={onHideReaction} style={{ padding: '8px 12px', borderRadius: '8px' }}>Hide</button>
-        <button className="cp-glass-btn cp-small" onClick={onReloadReaction} style={{ padding: '8px 12px', borderRadius: '8px' }}>Reload</button>
-        <button className="cp-glass-btn cp-small" onClick={onResetReactionBounds} style={{ padding: '8px 12px', borderRadius: '8px' }}>Reset</button>
+      <div className="cp-action-grid">
+        <button className="cp-glass-btn cp-small" onClick={onShowReaction}>Show</button>
+        <button className="cp-glass-btn cp-small" onClick={onHideReaction}>Hide</button>
+        <button className="cp-glass-btn cp-small" onClick={onReloadReaction}>Reload</button>
+        <button className="cp-glass-btn cp-small" onClick={onResetReactionBounds}>Reset</button>
       </div>
 
       <div className="cp-divider" />
@@ -200,42 +183,17 @@ export const WindowManagement: React.FC<WindowManagementProps> = ({
         <span style={{ fontSize: 16 }}>🎛️</span>
         <span>Display Options</span>
       </div>
-      <div className="cp-control-row" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button className="cp-secondary-btn cp-wide-btn" onClick={onTogglePredPause} style={{ 
-          padding: '10px 16px', 
-          borderRadius: '8px',
-          background: predPaused ? 'rgba(52, 199, 89, 0.15)' : 'rgba(255, 159, 10, 0.15)',
-          border: predPaused ? '1px solid rgba(52, 199, 89, 0.3)' : '1px solid rgba(255, 159, 10, 0.3)',
-          color: predPaused ? '#34c759' : '#ff9f0a',
-          fontWeight: 600
-        }}>
+      <div className="cp-control-row">
+        <button className="cp-secondary-btn cp-wide-btn" onClick={onTogglePredPause}>
           {predPaused ? '▶️ Resume Predictions' : '⏸️ Pause Predictions'}
         </button>
-        <button className="cp-secondary-btn cp-wide-btn" onClick={onToggleSortMode} style={{ 
-          padding: '10px 16px', 
-          borderRadius: '8px',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          fontWeight: 600
-        }}>
+        <button className="cp-secondary-btn cp-wide-btn" onClick={onToggleSortMode}>
           📊 {sortMode === 'newest' ? 'Sort by Score' : 'Sort by Newest'}
         </button>
-        <button className="cp-secondary-btn cp-wide-btn" onClick={onToggleHideChat} style={{ 
-          padding: '10px 16px', 
-          borderRadius: '8px',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          fontWeight: 600
-        }}>
+        <button className="cp-secondary-btn cp-wide-btn" onClick={onToggleHideChat}>
           💬 {chatHidden ? 'Show Live Chat' : 'Hide Live Chat'}
         </button>
-        <button className="cp-secondary-btn cp-wide-btn" onClick={onToggleHideJoin} style={{ 
-          padding: '10px 16px', 
-          borderRadius: '8px',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          fontWeight: 600
-        }}>
+        <button className="cp-secondary-btn cp-wide-btn" onClick={onToggleHideJoin}>
           👥 {joinHidden ? 'Show Join Section' : 'Hide Join Section'}
         </button>
       </div>
@@ -243,8 +201,8 @@ export const WindowManagement: React.FC<WindowManagementProps> = ({
       <div className="cp-divider" />
 
       {/* Clear Data */}
-      <div className="cp-section-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 16 }}>🗑️</span>
+      <div className="cp-section-header">
+        <span className="text-lg">🗑️</span>
         <span>Clear Data</span>
       </div>
       <div className="cp-action-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>

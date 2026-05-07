@@ -80,23 +80,23 @@ const OverlayWindow: React.FC = () => {
              <span>{meta.matchTitle || 'Live Predictions'}</span>
            </div>
            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-             {getTeamLogoUrl(teamA, './assets/team-logos') && (
-               <img 
-                 src={getTeamLogoUrl(teamA, './assets/team-logos')!} 
-                 alt={teamA}
-                 style={{ width: 24, height: 24, objectFit: 'contain' }}
-               />
-             )}
+{getTeamLogoUrl(teamA, './assets/team-logos') && (
+                <img 
+                  src={getTeamLogoUrl(teamA, './assets/team-logos')!} 
+                  alt={teamA}
+                  style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 4 }}
+                />
+              )}
              <span className="team-badge" style={{ background: 'rgba(255,255,255,0.2)' }}>
                {meta.secondInnings ? '2nd Innings' : '1st Innings'}
              </span>
-             {getTeamLogoUrl(teamB, './assets/team-logos') && (
-               <img 
-                 src={getTeamLogoUrl(teamB, './assets/team-logos')!} 
-                 alt={teamB}
-                 style={{ width: 24, height: 24, objectFit: 'contain' }}
-               />
-             )}
+{getTeamLogoUrl(teamB, './assets/team-logos') && (
+                <img 
+                  src={getTeamLogoUrl(teamB, './assets/team-logos')!} 
+                  alt={teamB}
+                  style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 4 }}
+                />
+              )}
            </div>
         </div>
 

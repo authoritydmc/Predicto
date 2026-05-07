@@ -329,32 +329,6 @@ export default function CricketPrediction({
         </div>
       )}
 
-      {/* Predictions Paused Message */}
-      {!isMatchCompleted && predictionsEnabled && predictionsPaused && (
-        <div style={{
-          padding: '16px',
-          background: 'rgba(255, 159, 10, 0.1)',
-          borderRadius: '8px',
-          marginBottom: '16px',
-          border: '1px solid rgba(255, 159, 10, 0.3)',
-          textAlign: 'center'
-        }}>
-          <p style={{ margin: 0, fontSize: '14px', color: '#ff9f0a', fontWeight: 600 }}>
-            ⏸️ Predictions are temporarily paused.
-          </p>
-          {pauseReason && (
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-              {pauseReason}
-            </p>
-          )}
-          {disableReason && (
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-              {disableReason}
-            </p>
-          )}
-        </div>
-      )}
-
       {!isMatchCompleted && predictionsEnabled && !predictionsPaused && matchStatus === 'live' && currentInnings === 1 && (
         <div className="cricket-prediction-form">
           <div style={{

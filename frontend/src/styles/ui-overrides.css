@@ -86,13 +86,13 @@
   grid-template-columns: 1fr !important;
 }
 
-/* Team Logo Styling - 1.5x larger, uniform, and centered */
+/* Team Logo Styling - smaller, uniform, and centered */
 .team-logo-inline {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
   vertical-align: middle;
-  margin-right: 8px;
+  margin-right: 6px;
   flex-shrink: 0;
 }
 

@@ -251,116 +251,75 @@ export const MatchManagement: React.FC<MatchManagementProps> = ({
           {/* Match Details Tab */}
           {activeMatchTab === 'details' && (
             <div className="cp-tab-content active">
-              <div className="bg-gradient-to-br from-slate-800/50 via-slate-700/30 to-slate-800/50 backdrop-blur-xl border border-slate-600/30 rounded-2xl p-8 mb-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full animate-pulse"></div>
-                  <h3 className="text-lg font-bold text-white">Match Details</h3>
+              <div className="form-section">
+                <div className="section-header">
+                  <h3 className="section-title">Match Details</h3>
                 </div>
                 
-                <form onSubmit={onCreateMatch} className="space-y-6">
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <label className="block text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
-                        <span className="text-blue-400">📋</span>
-                        Match Code
-                      </label>
-                      <div className="relative">
+                <form onSubmit={onCreateMatch} className="form-stack">
+                  <div className="form-row">
+                    <div className="form-field">
+                      <label className="field-label">Match Code</label>
+                      <input 
+                        className="form-input"
+                        value={fMatchCode} 
+                        onChange={e => setFMatchCode(e.target.value)} 
+                        maxLength={40} 
+                        placeholder="e.g. csk-vs-mi" 
+                        required 
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label className="field-label">Match Title</label>
+                      <input 
+                        className="form-input"
+                        value={fMatchTitle} 
+                        onChange={e => setFMatchTitle(e.target.value)} 
+                        placeholder="e.g. CSK vs MI" 
+                        required 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-field">
+                      <label className="field-label field-label-home">Home Team</label>
+                      <div className="input-with-logo">
                         <input 
-                          className="w-full px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-sm font-medium"
-                          value={fMatchCode} 
-                          onChange={e => setFMatchCode(e.target.value)} 
-                          maxLength={40} 
-                          placeholder="e.g. csk-vs-mi" 
+                          className="form-input"
+                          value={fTeamA} 
+                          onChange={e => setFTeamA(e.target.value)} 
+                          maxLength={30} 
+                          placeholder="Team A" 
                           required 
                         />
-                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-600/20 opacity-0 pointer-events-none"></div>
+                        {getTeamLogoUrl(fTeamA, './assets/team-logos') && (
+                          <img src={getTeamLogoUrl(fTeamA, './assets/team-logos')!} alt={fTeamA} className="team-logo-preview" />
+                        )}
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <label className="block text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
-                        <span className="text-purple-400">🏆</span>
-                        Match Title
-                      </label>
-                      <div className="relative">
+                    <div className="form-field">
+                      <label className="field-label field-label-away">Away Team</label>
+                      <div className="input-with-logo">
                         <input 
-                          className="w-full px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 text-sm font-medium"
-                          value={fMatchTitle} 
-                          onChange={e => setFMatchTitle(e.target.value)} 
-                          placeholder="e.g. CSK vs MI - Match 1" 
+                          className="form-input"
+                          value={fTeamB} 
+                          onChange={e => setFTeamB(e.target.value)} 
+                          maxLength={30} 
+                          placeholder="Team B" 
                           required 
                         />
-                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-600/20 opacity-0 pointer-events-none"></div>
+                        {getTeamLogoUrl(fTeamB, './assets/team-logos') && (
+                          <img src={getTeamLogoUrl(fTeamB, './assets/team-logos')!} alt={fTeamB} className="team-logo-preview" />
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <label className="block text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
-                        <span className="text-green-400">🏠</span>
-                        Home Team
-                      </label>
-                      <div className="relative">
-                        <div className="flex gap-3">
-                          <input 
-                            className="flex-1 px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300 text-sm font-medium"
-                            value={fTeamA} 
-                            onChange={e => setFTeamA(e.target.value)} 
-                            maxLength={30} 
-                            placeholder="Team A" 
-                            required 
-                          />
-                          {getTeamLogoUrl(fTeamA, './assets/team-logos') && (
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                              <img 
-                                src={getTeamLogoUrl(fTeamA, './assets/team-logos')!} 
-                                alt={fTeamA} 
-                                className="w-10 h-10 rounded-lg bg-white/20 p-1 border border-white/30 object-contain transition-all duration-200 hover:scale-105 hover:shadow-lg" 
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <label className="block text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
-                        <span className="text-red-400">✈️</span>
-                        Away Team
-                      </label>
-                      <div className="relative">
-                        <div className="flex gap-3">
-                          <input 
-                            className="flex-1 px-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300 text-sm font-medium"
-                            value={fTeamB} 
-                            onChange={e => setFTeamB(e.target.value)} 
-                            maxLength={30} 
-                            placeholder="Team B" 
-                            required 
-                          />
-                          {getTeamLogoUrl(fTeamB, './assets/team-logos') && (
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                              <img 
-                                src={getTeamLogoUrl(fTeamB, './assets/team-logos')!} 
-                                alt={fTeamB} 
-                                className="w-10 h-10 rounded-lg bg-white/20 p-1 border border-white/30 object-contain transition-all duration-200 hover:scale-105 hover:shadow-lg" 
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </form>
-
-                <button 
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-4 px-6 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
-                  type="submit"
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="text-lg">{fMatchId ? '✏️' : '➕'}</span>
+                  <button type="submit" className="form-btn">
                     {fMatchId ? 'Update Match' : 'Create Match'}
-                  </span>
-                </button>
+                  </button>
+                </form>
               </div>
             </div>
           )}

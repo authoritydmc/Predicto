@@ -108,59 +108,29 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
   return (
     <div className="match-control-panel bg-gradient-to-br from-slate-900/95 via-slate-800/50 to-slate-900/95 p-6 rounded-2xl backdrop-blur-xl border border-slate-700/50 shadow-2xl shadow-slate-900/50" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       
-      {/* Primary Data Source Selection */}
-      <div className="data-source-selector bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-indigo-600/10 p-5 rounded-xl border border-indigo-500/30 backdrop-blur-md shadow-lg shadow-indigo-500/20">
-        <div className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-3">
-          <div className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full animate-pulse"></div>
-          Data Source Mode
+      {/* Data Source Selection */}
+      <div className="data-source-section">
+        <div className="data-source-header">
+          <span className="section-label">Data Source</span>
         </div>
-        <div className="flex gap-3">
+        <div className="data-source-buttons">
           <button
             type="button"
             onClick={() => handleModeSwitch('scraper')}
-            className={`flex-1 px-5 py-4 rounded-xl border-2 transition-all duration-300 flex items-center justify-center gap-3 font-bold cursor-pointer transform hover:scale-105 hover:shadow-lg ${
-              currentMode === 'scraper' 
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/30' 
-                : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20 hover:border-white/30'
-            }`}
+            className={`data-source-btn ${currentMode === 'scraper' ? 'active scraper' : ''}`}
           >
-            <span className="text-xl">🤖</span>
-            <span className="text-base">Scraper (Auto)</span>
-            {currentMode === 'scraper' && (
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></span>
-            )}
+            <span className="btn-icon">🤖</span>
+            <span className="btn-text">Scraper</span>
           </button>
           <button
             type="button"
             onClick={() => handleModeSwitch('manual')}
-            className={`flex-1 px-5 py-4 rounded-xl border-2 transition-all duration-300 flex items-center justify-center gap-3 font-bold cursor-pointer transform hover:scale-105 hover:shadow-lg ${
-              currentMode === 'manual' 
-                ? 'bg-gradient-to-r from-amber-500 to-orange-600 border-amber-400 text-white shadow-xl shadow-amber-500/30' 
-                : 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20 hover:border-white/30'
-            }`}
+            className={`data-source-btn ${currentMode === 'manual' ? 'active manual' : ''}`}
           >
-            <span className="text-xl">✏️</span>
-            <span className="text-base">Manual</span>
-            {currentMode === 'manual' && (
-              <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse ml-1"></span>
-            )}
+            <span className="btn-icon">✏️</span>
+            <span className="btn-text">Manual</span>
           </button>
         </div>
-        <p className="mt-4 text-sm text-gray-300 leading-relaxed bg-white/5 dark:bg-gray-800/20 p-4 rounded-lg border border-gray-200/20 dark:border-gray-700/20 backdrop-blur-sm">
-          <span className="flex items-center gap-3 mb-2">
-            <span className="text-xl">{isScraperMode ? '🤖' : '✏️'}</span>
-            <span className="font-semibold text-base">
-              {isScraperMode 
-                ? 'Scraper mode automatically fetches match data'
-                : 'Manual mode. You control all match details and scores.'}
-            </span>
-          </span>
-          <span className="text-gray-400 dark:text-gray-400 text-sm">
-            {isScraperMode 
-              ? '(score, status, venue) from external sources.'
-              : ''}
-          </span>
-        </p>
       </div>
 
       {/* Sub-tabs for organization */}
@@ -227,12 +197,20 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label className="form-label">Venue</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={props.fVenue}
-                      onChange={(e) => props.setFVenue(e.target.value)}
-                      placeholder="e.g. Lords, London"
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={props.fVenue} 
+                      onChange={(e) => props.setFVenue(e.target.value)} 
+                      placeholder="e.g. Lords, London" 
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.05)',
+                        color: '#fff',
+                        fontSize: '13px',
+                      }}
                     />
                   </div>
                   <div>
@@ -285,18 +263,10 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
                   </label>
                   <input
                     type="text"
+                    className="form-input"
                     value={props.scraperOrder}
                     onChange={(e) => props.onUpdateScraperOrder(e.target.value)}
                     placeholder="cricbuzz,google,cricapi"
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#fff',
-                      fontSize: '13px',
-                    }}
                   />
                 </div>
                 
@@ -304,20 +274,7 @@ export const MatchControlPanel: React.FC<MatchControlPanelProps> = (props) => {
                   type="button"
                   onClick={props.onRunScraper}
                   disabled={props.scraperRunning}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: props.scraperRunning ? 'rgba(255,255,255,0.1)' : '#34c759',
-                    color: '#fff',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: props.scraperRunning ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}
+                  className="cp-primary-btn cp-wide-btn"
                 >
                   <span>{props.scraperRunning ? '⏳' : '🔄'}</span>
                   <span>{props.scraperRunning ? 'Running Scraper...' : 'Run Scraper Now'}</span>

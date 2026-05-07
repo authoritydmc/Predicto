@@ -10,14 +10,14 @@
   --system-gray: #8E8E93;
   --system-gray2: #48484A;
 
-  --panel: rgba(5, 7, 10, 0.85);
-  --panel-alt: rgba(255, 255, 255, 0.03);
-  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel: rgba(12, 15, 22, 0.75);
+  --panel-alt: rgba(255, 255, 255, 0.05);
+  --panel-border: rgba(255, 255, 255, 0.08);
   --text: #ffffff;
   --muted: rgba(255, 255, 255, 0.6);
   --accent: var(--system-blue);
   --shadow-apple: 0 12px 40px rgba(0, 0, 0, 0.6);
-  --glass-blur: saturate(180%) blur(24px);
+  --glass-blur: saturate(200%) blur(28px);
 
   --team-a: #007AFF;
   --team-a-alt: #D1AB3E;
