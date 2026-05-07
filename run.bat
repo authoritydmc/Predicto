@@ -23,7 +23,7 @@ REM Check Backend Port (dynamic)
 set BACKEND_STATUS=FREE
 set BACKEND_PID=
 set BACKEND_PROCESS=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :!BACKEND_PORT! ^| findstr LISTENING 2^>nul') do (
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":!BACKEND_PORT! " ^| findstr LISTENING 2^>nul') do (
     set BACKEND_PID=%%a
     set BACKEND_STATUS=IN_USE
 )
@@ -40,7 +40,7 @@ REM Check Frontend Port (dynamic)
 set FRONTEND_STATUS=FREE
 set FRONTEND_PID=
 set FRONTEND_PROCESS=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :!FRONTEND_PORT! ^| findstr LISTENING 2^>nul') do (
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":!FRONTEND_PORT! " ^| findstr LISTENING 2^>nul') do (
     set FRONTEND_PID=%%a
     set FRONTEND_STATUS=IN_USE
 )
@@ -70,7 +70,6 @@ if "!HOST_STATUS!"=="RUNNING" (
 
 echo.
 echo  ==========================================
-goto :eof
 
 :CHECK_PORT_CONFLICT
 set APP_NAME=%1
