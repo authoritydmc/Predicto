@@ -41,7 +41,7 @@ function createWindowManager(config, eventHandlers) {
     if (isDev && VITE_DEV_SERVER_URL) {
       win.loadURL(VITE_DEV_SERVER_URL);
     } else {
-      win.loadFile(`${__dirname}/../frontend/dist/index.html`);
+      win.loadFile(`${__dirname}/../../frontend/dist/index.html`);
     }
     
     // Open DevTools in development mode

@@ -7,7 +7,7 @@ const isDev = APP_MODE === 'development';
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || null;
 
 // Path to built frontend
-const BUILT_FRONTEND_PATH = `${__dirname}/../frontend/dist/index.html`;
+const BUILT_FRONTEND_PATH = `${__dirname}/../../frontend/dist/index.html`;
 
 const APP_VERSION = '1.0.0';
 
