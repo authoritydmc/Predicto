@@ -1,10 +1,10 @@
 // Auto-generated version file - DO NOT EDIT
 export const VERSION_INFO = {
-  "version": "2026.05.06-199a224",
-  "buildDate": "6/5/2026",
-  "buildTime": "11:10:09 am",
-  "timestamp": "2026-05-06T05:40:09.892Z",
-  "gitCommit": "199a224",
+  "version": "2026.05.08-1cab995",
+  "buildDate": "8/5/2026",
+  "buildTime": "12:41:32 am",
+  "timestamp": "2026-05-07T19:11:32.982Z",
+  "gitCommit": "1cab995",
   "gitBranch": "python_boi",
   "gitTag": "unknown",
   "environment": "development",

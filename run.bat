@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
+set SCRIPT_DIR=%~dp0
 cls
 
 REM Get local IP address
@@ -200,11 +201,11 @@ if /i "%opt%"=="A" (
     timeout /t 3 >nul
     
     REM Start Host App
-    start "Host App" cmd /k "cd host-app && if not exist node_modules npm install && npm start"
+    start "Host App" cmd /k "cd /d \"%SCRIPT_DIR%host-app\" && if not exist node_modules npm install && npm start"
     timeout /t 3 >nul
     
     REM Start Frontend with fixed port
-    start "Frontend" cmd /k "cd frontend && echo Frontend: http://localhost:%FRONTEND_PORT% && npm run dev -- --port %FRONTEND_PORT% --host 0.0.0.0"
+    start "Frontend" cmd /k "cd /d \"%SCRIPT_DIR%frontend\" && echo Frontend: http://localhost:%FRONTEND_PORT% && npm run dev -- --port %FRONTEND_PORT% --host 0.0.0.0"
     
     echo.
     echo All services started in separate windows!
@@ -341,8 +342,8 @@ if "%opt%"=="9" (
     echo Starting Host App in Dev Mode...
     echo.
     
-    REM Start Host App in new console window
-    start "Predicto Host App" cmd /k "cd /d host-app && if not exist node_modules npm install && npm start"
+    REM Start Host App in new console window using the script directory
+    start "Host App" cmd /k "cd /d \"%SCRIPT_DIR%host-app\" && if not exist node_modules (npm install) && npm start"
     
     echo.
     echo Host App started in new console window!
@@ -354,7 +355,7 @@ if "%opt%"=="9" (
 if "%opt%"=="0" (
     cls
     echo Building Host App EXE...
-    cd host-app
+    cd /d "%SCRIPT_DIR%host-app"
     if not exist node_modules (
         echo Installing dependencies...
         call npm install

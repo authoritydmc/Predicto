@@ -4,7 +4,7 @@
   "description": "Predicto Host App - Admin/Host interface for prediction management",
   "main": "main.cjs",
   "scripts": {
-    "start": "electron .",
+    "start": "concurrently \"npm --prefix ../frontend run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "build-win": "electron-builder --win --x64",
     "dist-win": "electron-builder --win --x64 --publish never",
     "build-mac": "electron-builder --mac",
@@ -14,7 +14,9 @@
     "electron": "^28.0.0"
   },
   "devDependencies": {
-    "electron-builder": "^24.9.1"
+    "concurrently": "^8.2.0",
+    "electron-builder": "^24.9.1",
+    "wait-on": "^7.0.1"
   },
   "build": {
     "appId": "com.predicto.host",
