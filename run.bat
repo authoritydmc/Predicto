@@ -8,23 +8,121 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address" ^| fin
 )
 set LOCAL_IP=%LOCAL_IP: =%
 
+:SHOW_PORT_STATUS
+echo.
+echo  ==========================================
+echo    Port Status Monitor
+echo  ==========================================
+echo.
+
+REM Check Backend Port (4173)
+set BACKEND_STATUS=FREE
+set BACKEND_PID=
+set BACKEND_PROCESS=
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :4173 ^| findstr LISTENING 2^>nul') do (
+    set BACKEND_PID=%%a
+    set BACKEND_STATUS=IN_USE
+)
+if "!BACKEND_STATUS!"=="IN_USE" (
+    for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !BACKEND_PID!" /FO CSV ^| findstr /v "INFO"') do (
+        set BACKEND_PROCESS=%%~a
+    )
+    echo  [Backend] Port 4173: IN USE by !BACKEND_PROCESS! (PID: !BACKEND_PID!)
+) else (
+    echo  [Backend] Port 4173: FREE
+)
+
+REM Check Frontend Port (5173)
+set FRONTEND_STATUS=FREE
+set FRONTEND_PID=
+set FRONTEND_PROCESS=
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5173 ^| findstr LISTENING 2^>nul') do (
+    set FRONTEND_PID=%%a
+    set FRONTEND_STATUS=IN_USE
+)
+if "!FRONTEND_STATUS!"=="IN_USE" (
+    for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !FRONTEND_PID!" /FO CSV ^| findstr /v "INFO"') do (
+        set FRONTEND_PROCESS=%%~a
+    )
+    echo  [Frontend] Port 5173: IN USE by !FRONTEND_PROCESS! (PID: !FRONTEND_PID!)
+) else (
+    echo  [Frontend] Port 5173: FREE
+)
+
+REM Check for Electron processes (Host App)
+set HOST_STATUS=FREE
+set HOST_PID=
+set HOST_PROCESS=
+for /f "tokens=1,5" %%a in ('tasklist /FI "IMAGENAME eq electron.exe" /FO CSV ^| findstr /v "INFO"') do (
+    set HOST_PROCESS=%%~a
+    set HOST_PID=%%~b
+    set HOST_STATUS=RUNNING
+)
+if "!HOST_STATUS!"=="RUNNING" (
+    echo  [Host App] Electron: RUNNING (PID: !HOST_PID!)
+) else (
+    echo  [Host App] Electron: NOT RUNNING
+)
+
+echo.
+echo  ==========================================
+goto :eof
+
 :CHECK_PORT_CONFLICT
-netstat -ano | findstr :4173 >nul
+set APP_NAME=%1
+set PORT_NUMBER=%2
+
+netstat -ano | findstr :%PORT_NUMBER% >nul
 if %errorlevel% equ 0 (
     echo.
-    echo  WARNING: Port 4173 is already in use!
+    echo  WARNING: Port %PORT_NUMBER% is already in use!
     echo.
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :4173 ^| findstr LISTENING') do set PID=%%a
-    echo  Process ID using port 4173: %PID%
+    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%PORT_NUMBER% ^| findstr LISTENING') do set CONFLICT_PID=%%a
+    
+    REM Get process name
+    for /f "tokens=1,2" %%a in ('tasklist /FI "PID eq !CONFLICT_PID!" /FO CSV ^| findstr /v "INFO"') do (
+        set CONFLICT_PROCESS=%%~a
+    )
+    
+    echo  Port %PORT_NUMBER% is used by: !CONFLICT_PROCESS! (PID: !CONFLICT_PID!)
     echo.
-    set /p kill_process="Do you want to close the existing process and restart? (y/n): "
+    set /p kill_process="Do you want to close !CONFLICT_PROCESS! and start %APP_NAME%? (y/n): "
     if /i "!kill_process!"=="y" (
-        echo Closing process %PID%...
-        taskkill /F /PID %PID% >nul 2>&1
+        echo Closing !CONFLICT_PROCESS! (PID: !CONFLICT_PID!)...
+        taskkill /F /PID !CONFLICT_PID! >nul 2>&1
         timeout /t 2 >nul
-        echo Process closed. Starting backend server...
+        echo Process closed. Starting %APP_NAME%...
     ) else (
-        echo Cannot start backend server while port 4173 is in use.
+        echo Cannot start %APP_NAME% while port %PORT_NUMBER% is in use.
+        pause
+        goto :menu
+    )
+)
+goto :eof
+
+:CHECK_ELECTRON_CONFLICT
+set APP_NAME=%1
+
+REM Check for existing Electron processes
+tasklist /FI "IMAGENAME eq electron.exe" 2>nul | findstr /I "electron.exe" >nul
+if %errorlevel% equ 0 (
+    echo.
+    echo  WARNING: Electron process is already running!
+    echo.
+    for /f "tokens=1,5" %%a in ('tasklist /FI "IMAGENAME eq electron.exe" /FO CSV ^| findstr /v "INFO"') do (
+        set ELECTRON_PROCESS=%%~a
+        set ELECTRON_PID=%%~b
+    )
+    echo  Electron is running: !ELECTRON_PROCESS! (PID: !ELECTRON_PID!)
+    echo.
+    set /p kill_electron="Do you want to close existing Electron and start %APP_NAME%? (y/n): "
+    if /i "!kill_electron!"=="y" (
+        echo Closing Electron process (PID: !ELECTRON_PID!)...
+        taskkill /F /PID !ELECTRON_PID! >nul 2>&1
+        timeout /t 2 >nul
+        echo Process closed. Starting %APP_NAME%...
+    ) else (
+        echo Cannot start %APP_NAME% while Electron is already running.
         pause
         goto :menu
     )
@@ -38,9 +136,14 @@ echo  ==========================================
 echo    Predicto Dev Console
 echo  ==========================================
 echo.
+
+REM Show port status
+call :SHOW_PORT_STATUS
+
 echo  Local IP: %LOCAL_IP%
 echo.
 echo  [A] Start ALL (Backend + Host App + Frontend)
+echo  [P] Show Port Status
 echo.
 echo  ----- Frontend (Audience) -----
 echo  [1] Start Frontend (Dev Mode)
@@ -65,6 +168,15 @@ echo  [G] Exit
 echo.
 set /p opt="Select option: "
 
+REM Port Status
+if /i "%opt%"=="P" (
+    cls
+    call :SHOW_PORT_STATUS
+    echo.
+    pause
+    goto :menu
+)
+
 REM Start ALL
 if /i "%opt%"=="A" (
     cls
@@ -72,7 +184,7 @@ if /i "%opt%"=="A" (
     echo.
     
     REM Check for port conflicts before starting backend
-    call :CHECK_PORT_CONFLICT
+    call :CHECK_PORT_CONFLICT "Backend Server" "4173"
     
     REM Start Backend
     start "Backend" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python server.py"
@@ -98,6 +210,10 @@ REM Frontend
 if "%opt%"=="1" (
     cls
     echo Starting Frontend Dev Server...
+    
+    REM Check for port conflicts before starting frontend
+    call :CHECK_PORT_CONFLICT "Frontend Dev Server" "5173"
+    
     cd frontend
     echo Available at:
     echo  - Local: http://localhost:5173
@@ -135,7 +251,7 @@ if "%opt%"=="4" (
     echo Starting Backend Server...
     
     REM Check for port conflicts before starting backend
-    call :CHECK_PORT_CONFLICT
+    call :CHECK_PORT_CONFLICT "Backend Server" "4173"
     
     cd backend
     if exist venv (call venv\Scripts\activate)
@@ -180,6 +296,10 @@ REM Host App
 if "%opt%"=="9" (
     cls
     echo Starting Host App in Dev Mode...
+    
+    REM Check for existing Electron processes
+    call :CHECK_ELECTRON_CONFLICT "Predicto Host App"
+    
     cd host-app
     if not exist node_modules (
         echo Installing dependencies...
