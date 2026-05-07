@@ -12,7 +12,7 @@ set LOCAL_IP=%LOCAL_IP: =%
 cls
 echo.
 echo  ==========================================
-echo    OverlayChat Dev Console
+echo    Predicto Dev Console
 echo  ==========================================
 echo.
 echo  Local IP: %LOCAL_IP%

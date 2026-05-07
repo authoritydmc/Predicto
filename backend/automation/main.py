@@ -10,7 +10,7 @@ logger = setup_logging()
 
 def main():
     parser = argparse.ArgumentParser(
-        description='OverlayChat Automation System',
+        description='Predicto Automation System',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

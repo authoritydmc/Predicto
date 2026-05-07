@@ -6,7 +6,7 @@ import logging
 from typing import Dict, List, Optional
 from datetime import datetime
 
-app = FastAPI(title="OverlayChat Automation API")
+app = FastAPI(title="Predicto Automation API")
 
 # Determine the backend app mode from environment variables
 raw_app_mode = os.getenv("APP_MODE") or os.getenv("NODE_ENV") or "production"

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Docker initialization script for OverlayChat backend
+# Docker initialization script for Predicto backend
 set -e
 
-echo "🚀 Initializing OverlayChat Backend Automation..."
+echo "🚀 Initializing Predicto Backend Automation..."
 
 # Wait for Firebase to be ready
 echo "⏳ Waiting for Firebase emulator..."

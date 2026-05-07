@@ -1,8 +1,8 @@
-# Repository Architecture - OverlayChat
+# Repository Architecture - Predicto
 
 ## Overview
 
-OverlayChat is a full-stack web application that provides live cricket and football scores with AI-powered chat capabilities. It features:
+Predicto is a full-stack sports prediction platform that provides live cricket and football scores with prediction capabilities. It features:
 
 - **Real-time score scraping** from multiple sources (Cricbuzz, Google, CricAPI)
 - **Prediction system** where users can predict match outcomes
@@ -16,7 +16,7 @@ OverlayChat is a full-stack web application that provides live cricket and footb
 ## Directory Structure
 
 ```
-OverlayChat/
+Predicto/
 ├── backend/                    # Python FastAPI backend
 │   ├── server.py              # FastAPI server (serves frontend static files)
 │   ├── scraper/              # Score scraping modules

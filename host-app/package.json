@@ -1,7 +1,7 @@
 {
-  "name": "overlaychat-host",
+  "name": "predicto-host",
   "version": "1.0.0",
-  "description": "OverlayChat Host App - Admin/Host interface for automation management",
+  "description": "Predicto Host App - Admin/Host interface for prediction management",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
@@ -17,8 +17,8 @@
     "electron-builder": "^24.9.1"
   },
   "build": {
-    "appId": "com.overlaychat.host",
-    "productName": "OverlayChat Host",
+    "appId": "com.predicto.host",
+    "productName": "Predicto Host",
     "directories": {
       "output": "dist"
     },
@@ -38,7 +38,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "OverlayChat Host"
+      "shortcutName": "Predicto Host"
     }
   }
 }

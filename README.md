@@ -1,6 +1,6 @@
-# Predictor Manager 
+# Predicto
 
-A premium sports broadcasting tool for live audience predictions and interactive chat overlays. 
+A premium sports prediction platform for live audience predictions and interactive scoring. 
 
 ## 🏗️ Architecture
 The project is split into two specialized applications:
@@ -123,18 +123,18 @@ Both local and production URLs can be configured via the Electron preload script
 
 **Local URL** (for development):
 - Default: `http://localhost:5173`
-- Configure via: `window.OVERLAY_LOCAL_URL`
+- Configure via: `window.PREDICTO_LOCAL_URL`
 
 **Production URL** (for production):
 - Default: `https://vrccim.com`
-- Configure via: `window.OVERLAY_PROD_URL`
+- Configure via: `window.PREDICTO_PROD_URL`
 
 To set custom URLs, modify the preload script in `backend/desktop/preload.cjs`:
 ```javascript
-contextBridge.exposeInMainWorld('overlayDesktop', {
+contextBridge.exposeInMainWorld('predictoDesktop', {
   // ... other properties
-  OVERLAY_LOCAL_URL: 'http://localhost:3000',  // if your frontend runs on port 3000
-  OVERLAY_PROD_URL: 'https://yourdomain.com'
+  PREDICTO_LOCAL_URL: 'http://localhost:3000',  // if your frontend runs on port 3000
+  PREDICTO_PROD_URL: 'https://yourdomain.com'
 });
 ```
 
@@ -202,7 +202,7 @@ The Audience App must be hosted on Firebase to be accessible via the internet.
 To create a standalone `.exe` for yourself or other broadcasters:
 1. Navigate to `backend/`.
 2. Run `npm run dist:win`.
-3. Find your installer in `backend/dist/Predictor Manager Setup 1.0.9.exe`.
+3. Find your installer in `backend/dist/Predicto Setup 1.0.9.exe`.
 
 ---
 

@@ -1,7 +1,7 @@
-# Docker Setup Guide - OverlayChat Backend
+# Docker Setup Guide - Predicto Backend
 
 ## Overview
-This guide explains how to build and run the OverlayChat backend using Docker, including Firebase credentials setup.
+This guide explains how to build and run the Predicto backend using Docker, including Firebase credentials setup.
 
 ## Prerequisites
 - Docker installed
@@ -32,7 +32,7 @@ cp path/to/service-account.json backend/firebase-service-account.json
 
 ```bash
 cd backend
-docker build -t overlaychat-backend .
+docker build -t predicto-backend .
 ```
 
 ### 3. Run Docker Container
@@ -40,22 +40,22 @@ docker build -t overlaychat-backend .
 **With Environment Variable:**
 ```bash
 docker run -d \
-  --name overlaychat-backend \
+  --name predicto-backend \
   -p 4173:4173 \
   -e FIREBASE_SERVICE_ACCOUNT='{"type":"service_account","project_id":"..."}' \
   -e APP_MODE=prod \
-  overlaychat-backend
+  predicto-backend
 ```
 
 **With File Mount:**
 ```bash
 docker run -d \
-  --name overlaychat-backend \
+  --name predicto-backend \
   -p 4173:4173 \
   -v $(pwd)/firebase-service-account.json:/app/firebase-service-account.json \
   -e GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json \
   -e APP_MODE=prod \
-  overlaychat-backend
+  predicto-backend
 ```
 
 ### 4. Verify Container is Running
@@ -65,7 +65,7 @@ docker run -d \
 docker ps
 
 # View logs
-docker logs -f overlaychat-backend
+docker logs -f predicto-backend
 
 # Test API endpoint
 curl http://localhost:4173/api/automation/jobs
@@ -83,7 +83,7 @@ docker run -d \
   -p 4173:4173 \
   -v $(pwd)/firebase-key.json:/app/firebase-key.json \
   -e GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-key.json \
-  overlaychat-backend
+  predicto-backend
 ```
 
 ### GitHub Actions (CI/CD)
@@ -102,24 +102,24 @@ Then in your workflow file (see `.github/workflows/docker-deploy.yml`):
     docker run -d \
       -p 4173:4173 \
       -e FIREBASE_SERVICE_ACCOUNT="$(cat firebase_temp.json)" \
-      overlaychat-backend
+      predicto-backend
 ```
 
 ### Production Server
 ```bash
 # Create a secure directory for credentials
-mkdir -p /opt/overlaychat/secrets
-cp service-account.json /opt/overlaychat/secrets/firebase.json
+mkdir -p /opt/predicto/secrets
+cp service-account.json /opt/predicto/secrets/firebase.json
 
 # Run with secrets mounted
 docker run -d \
-  --name overlaychat-backend \
+  --name predicto-backend \
   -p 4173:4173 \
-  -v /opt/overlaychat/secrets:/secrets:ro \
+  -v /opt/predicto/secrets:/secrets:ro \
   -e GOOGLE_APPLICATION_CREDENTIALS=/secrets/firebase.json \
   -e APP_MODE=prod \
   --restart unless-stopped \
-  overlaychat-backend
+  predicto-backend
 ```
 
 ## Docker Compose (Optional)
@@ -255,7 +255,7 @@ backend/
 
 ## Next Steps
 
-1. Build the Docker image: `docker build -t overlaychat-backend .`
-2. Run tests: `docker run --rm overlaychat-backend python test_with_mocks.py`
-3. Start production: `docker run -d -p 4173:4173 --name backend overlaychat-backend`
+1. Build the Docker image: `docker build -t predicto-backend .`
+2. Run tests: `docker run --rm predicto-backend python test_with_mocks.py`
+3. Start production: `docker run -d -p 4173:4173 --name backend predicto-backend`
 4. Monitor: `docker logs -f backend`
