@@ -25,8 +25,8 @@ function createWindowManager(config, eventHandlers) {
     const { BrowserWindow } = require('electron');
     
     const windowOptions = {
-      width: 800,
-      height: 600,
+      width: options.width || 1200,
+      height: options.height || 800,
       show: false,
       frame: true,
       transparent: false,
@@ -46,7 +46,9 @@ function createWindowManager(config, eventHandlers) {
           canvas: true,
           webgl: true,
           webgpu: true
-        }
+        },
+        // Enable devTools in development
+        devTools: isDev || false
       },
       ...options
     };
@@ -123,10 +125,10 @@ function createWindowManager(config, eventHandlers) {
     if (!controlWindow || controlWindow.isDestroyed()) {
       controlWindow = createWindow({
         title: `Predicto Control v${APP_VERSION}`,
-        width: 1000,
-        height: 700,
-        minWidth: 800,
-        minHeight: 600,
+        width: 1200,
+        height: 900,
+        minWidth: 1000,
+        minHeight: 700,
         isDev: isDev
       });
       
@@ -293,8 +295,8 @@ function createWindowManager(config, eventHandlers) {
       console.log('[WindowManager] Creating debug window...');
       debugWindow = createWindow({
         title: 'Predicto Debug',
-        width: 800,
-        height: 600,
+        width: 1200,
+        height: 800,
         isDev: isDev
       });
       

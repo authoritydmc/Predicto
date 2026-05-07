@@ -757,7 +757,7 @@ const ControlPanel: React.FC = () => {
     // Initialize WebSocket connection to automation orchestrator
     const connectWebSocket = () => {
       try {
-        const ws = new WebSocket('ws://localhost:9222');
+        const ws = new WebSocket('ws://localhost:8080');
         
         ws.onopen = () => {
           console.log('[ControlPanel] Connected to automation orchestrator');

@@ -220,7 +220,7 @@ const DebugWindow: React.FC = () => {
   const [connectionState, setConnectionState] = useState<'connecting' | 'live' | 'offline'>('connecting');
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:9222');
+    const ws = new WebSocket('ws://localhost:8080');
     ws.onopen  = () => setConnectionState('live');
     ws.onclose = () => setConnectionState('offline');
     ws.onerror = () => setConnectionState('offline');
