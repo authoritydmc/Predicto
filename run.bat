@@ -8,6 +8,29 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address" ^| fin
 )
 set LOCAL_IP=%LOCAL_IP: =%
 
+:CHECK_PORT_CONFLICT
+netstat -ano | findstr :4173 >nul
+if %errorlevel% equ 0 (
+    echo.
+    echo  WARNING: Port 4173 is already in use!
+    echo.
+    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :4173 ^| findstr LISTENING') do set PID=%%a
+    echo  Process ID using port 4173: %PID%
+    echo.
+    set /p kill_process="Do you want to close the existing process and restart? (y/n): "
+    if /i "!kill_process!"=="y" (
+        echo Closing process %PID%...
+        taskkill /F /PID %PID% >nul 2>&1
+        timeout /t 2 >nul
+        echo Process closed. Starting backend server...
+    ) else (
+        echo Cannot start backend server while port 4173 is in use.
+        pause
+        goto :menu
+    )
+)
+goto :eof
+
 :menu
 cls
 echo.
@@ -47,6 +70,9 @@ if /i "%opt%"=="A" (
     cls
     echo Starting ALL services...
     echo.
+    
+    REM Check for port conflicts before starting backend
+    call :CHECK_PORT_CONFLICT
     
     REM Start Backend
     start "Backend" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python server.py"
@@ -107,6 +133,10 @@ REM Backend
 if "%opt%"=="4" (
     cls
     echo Starting Backend Server...
+    
+    REM Check for port conflicts before starting backend
+    call :CHECK_PORT_CONFLICT
+    
     cd backend
     if exist venv (call venv\Scripts\activate)
     python server.py
