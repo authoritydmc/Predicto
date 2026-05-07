@@ -22,9 +22,30 @@ else:
 from automation.logging_config import setup_logging
 logger = setup_logging(log_file='logs/automation.log')
 
+@app.get("/")
+async def root():
+    """Root endpoint with server info"""
+    return {
+        "name": "Predicto Backend Server",
+        "version": "1.0.0",
+        "mode": APP_MODE,
+        "status": "running",
+        "endpoints": {
+            "automation": "/api/automation",
+            "jobs": "/api/automation/jobs",
+            "logs": "/api/automation/logs",
+            "websocket": "/ws/logs"
+        },
+        "timestamp": datetime.now().isoformat(),
+        "docs": "FastAPI docs available at /docs"
+    }
+
 # Mount the static files from frontend/ directory
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/static", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+else:
+    logger.warning(f"Frontend directory not found: {frontend_dir}")
 
 print(f"Starting Predictor Manager backend server in {APP_MODE} mode")
 
