@@ -28,8 +28,10 @@ function createWindowManager(config, eventHandlers) {
       height: 600,
       show: false,
       webPreferences: {
-        nodeIntegration: true,
+        nodeIntegration: false,
         contextIsolation: true,
+        enableRemoteModule: false,
+        webSecurity: true,
         preload: `${__dirname}/../preload.cjs`
       },
       ...options
@@ -41,7 +43,15 @@ function createWindowManager(config, eventHandlers) {
     if (isDev && VITE_DEV_SERVER_URL) {
       win.loadURL(VITE_DEV_SERVER_URL);
     } else {
-      win.loadFile(`${__dirname}/../../frontend/dist/index.html`);
+      const filePath = `${__dirname}/../../frontend/dist/index.html`;
+      console.log(`Loading file: ${filePath}`);
+      win.loadFile(filePath).catch(err => {
+        console.error('Failed to load file:', err);
+        // Fallback to try loading from current directory
+        win.loadFile('frontend/dist/index.html').catch(err2 => {
+          console.error('Fallback also failed:', err2);
+        });
+      });
     }
     
     // Open DevTools in development mode
