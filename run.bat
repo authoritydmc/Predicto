@@ -256,9 +256,17 @@ if /i "%opt%"=="A" (
     
     echo.
     echo All services started in separate windows!
-    echo  - Backend: http://localhost:%BACKEND_PORT%
-    echo  - Frontend: http://localhost:%FRONTEND_PORT%
-    echo  - Host App: Electron window
+    echo.
+    echo  Backend Server:
+    echo   - Local:   http://localhost:%BACKEND_PORT%
+    echo   - Network: http://%LOCAL_IP%:%BACKEND_PORT%
+    echo.
+    echo  Frontend Dev Server:
+    echo   - Local:   http://localhost:%FRONTEND_PORT%
+    echo   - Network: http://%LOCAL_IP%:%FRONTEND_PORT%
+    echo   - LAN Access: ENABLED (0.0.0.0)
+    echo.
+    echo  Host App: Electron window
     pause
     goto :menu
 )
@@ -275,9 +283,18 @@ if "%opt%"=="1" (
     call :CHECK_PORT_CONFLICT "Frontend Dev Server" "%FRONTEND_PORT%"
     
     cd frontend
-    echo Available at:
-    echo  - Local: http://localhost:%FRONTEND_PORT%
-    echo  - Network: http://%LOCAL_IP%:%FRONTEND_PORT%
+    echo ==========================================
+    echo  Frontend Dev Server Starting...
+    echo ==========================================
+    echo.
+    echo  Available URLs:
+    echo   - Local:   http://localhost:%FRONTEND_PORT%
+    echo   - Network: http://%LOCAL_IP%:%FRONTEND_PORT%
+    echo.
+    echo  LAN Access: ENABLED (0.0.0.0)
+    echo  Test from other devices: http://%LOCAL_IP%:%FRONTEND_PORT%
+    echo.
+    echo ==========================================
     npm run dev -- --port %FRONTEND_PORT% --host 0.0.0.0
     pause
     goto :menu

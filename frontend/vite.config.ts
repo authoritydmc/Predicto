@@ -8,5 +8,11 @@ export default defineConfig(({ mode }) => {
     define: {
       __APP_ENV__: JSON.stringify(mode),
     },
+    server: {
+      host: '0.0.0.0', // Allow access from entire LAN
+      port: 3456,       // Default port (can be overridden by command line)
+      strictPort: false, // Find alternative port if 3456 is taken
+      open: false,       // Don't auto-open browser
+    },
   }
 })
