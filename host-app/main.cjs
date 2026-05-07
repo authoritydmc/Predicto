@@ -21,6 +21,7 @@ const { createScheduler } = require("./modules/scheduler.cjs");
 const { createWindowManager } = require("./modules/window-manager.cjs");
 const { registerIpcHandlers } = require("./modules/ipc-handlers.cjs");
 const { registerAutomationHandlers, getOrchestratorStatus } = require("./modules/automation-handlers.cjs");
+const { registerAutomationIPCHandlers } = require("./modules/automation-ipc.cjs");
 const { registerNotificationHandlers } = require("./modules/notification-handlers.cjs");
 const { registerScraperHandlers } = require("./modules/scraper-handlers.cjs");
 const { registerSetupGuideHandlers } = require("./modules/setup-guide-handlers.cjs");
@@ -72,6 +73,7 @@ listenToMatchStatus();
 
 // ── Register Automation Handlers ─────────────────────────────────────────────
 registerAutomationHandlers(APP_MODE);
+registerAutomationIPCHandlers();
 registerNotificationHandlers();
 registerScraperHandlers();
 registerSetupGuideHandlers();

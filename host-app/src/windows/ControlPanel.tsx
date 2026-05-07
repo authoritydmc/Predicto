@@ -57,14 +57,36 @@ export default function ControlPanel() {
     navigate('/reaction');
   };
 
-  const startAutomation = () => {
-    addLog('Starting automation...', 'success');
-    setAutomationStatus('Running');
+  const startAutomation = async () => {
+    addLog('Starting automation...', 'info');
+    try {
+      const { ipcRenderer } = window.require('electron');
+      const result = await ipcRenderer.invoke('automation:start');
+      if (result.success) {
+        addLog('Automation started successfully', 'success');
+        setAutomationStatus('Running');
+      } else {
+        addLog(`Failed to start automation: ${result.error}`, 'error');
+      }
+    } catch (error) {
+      addLog(`Error starting automation: ${error}`, 'error');
+    }
   };
 
-  const stopAutomation = () => {
+  const stopAutomation = async () => {
     addLog('Stopping automation...', 'info');
-    setAutomationStatus('Stopped');
+    try {
+      const { ipcRenderer } = window.require('electron');
+      const result = await ipcRenderer.invoke('automation:stop');
+      if (result.success) {
+        addLog('Automation stopped successfully', 'success');
+        setAutomationStatus('Stopped');
+      } else {
+        addLog(`Failed to stop automation: ${result.error}`, 'error');
+      }
+    } catch (error) {
+      addLog(`Error stopping automation: ${error}`, 'error');
+    }
   };
 
   const refreshStatus = () => {
