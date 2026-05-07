@@ -7,6 +7,11 @@
 
 const { app, globalShortcut } = require("electron");
 
+// Handle GPU cache issues with command line switches
+app.commandLine.appendSwitch('disable-gpu-cache');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-gpu');
+
 // ── Import Modules ────────────────────────────────────────────────────────────
 const config = require("./modules/config.cjs");
 const { initLogServer, broadcastToClients } = require("./modules/websocket-server.cjs");

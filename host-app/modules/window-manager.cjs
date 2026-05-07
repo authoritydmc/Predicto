@@ -39,13 +39,32 @@ function createWindowManager(config, eventHandlers) {
     
     const win = new BrowserWindow(windowOptions);
     
+    // Add page loading event handlers for debugging
+    win.webContents.on('did-start-loading', () => {
+      console.log('Page started loading...');
+    });
+    
+    win.webContents.on('did-finish-load', () => {
+      console.log('Page finished loading successfully');
+    });
+    
+    win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      console.error('Page failed to load:', errorCode, errorDescription);
+    });
+    
+    win.webContents.on('dom-ready', () => {
+      console.log('DOM is ready - content should be visible');
+    });
+    
     // Load appropriate URL based on environment and availability
     if (isDev && VITE_DEV_SERVER_URL) {
       win.loadURL(VITE_DEV_SERVER_URL);
     } else {
       const filePath = `${__dirname}/../../frontend/dist/index.html`;
       console.log(`Loading file: ${filePath}`);
-      win.loadFile(filePath).catch(err => {
+      win.loadFile(filePath).then(() => {
+        console.log('File load promise resolved');
+      }).catch(err => {
         console.error('Failed to load file:', err);
         // Fallback to try loading from current directory
         win.loadFile('frontend/dist/index.html').catch(err2 => {
