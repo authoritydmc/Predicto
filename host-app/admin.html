@@ -4,158 +4,363 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Predicto Host Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'system-blue': '#6366f1',
+                        'system-red': '#ef4444',
+                        'system-green': '#10b981',
+                        'system-gray': '#6b7280',
+                    },
+                    fontFamily: {
+                        'primary': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                        'display': ['Orbitron', 'Inter', 'monospace'],
+                        'gaming': ['Rajdhani', 'Inter', 'sans-serif'],
+                        'header': ['Teko', 'Inter', 'sans-serif'],
+                    },
+                    backgroundImage: {
+                        'gradient-primary': 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                        'gradient-secondary': 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+                        'gradient-success': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        'gradient-gaming': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    }
+                }
+            }
+        }
+    </script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --bg: #0a0a0f;
+            --panel: rgba(20, 20, 35, 0.95);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text: #ffffff;
+            --muted: rgba(255, 255, 255, 0.5);
+            --accent: #6366f1;
+            --shadow-apple: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --glass-blur: blur(20px);
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #1a1a1a;
-            color: #ffffff;
+            background: var(--bg);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
         }
-        .header {
-            background: #2d2d2d;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+
+        .panel {
+            background: var(--panel);
+            border: 0.5px solid var(--panel-border);
+            border-radius: 20px;
+            box-shadow: var(--shadow-apple);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+
+        .panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
         }
-        .section {
-            background: #2d2d2d;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
         }
-        .btn {
-            background: #007acc;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(99, 102, 241, 0.6);
         }
-        .btn:hover {
-            background: #005a9e;
+
+        .btn-primary:active {
+            transform: translateY(0);
         }
-        .status {
-            background: #333;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
+
+        .status-badge {
+            background: rgba(99, 102, 241, 0.15);
+            color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.3);
         }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+
+        .status-badge.running {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .status-badge.stopped {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .log-console {
+            background: #000;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .ambient {
+            position: fixed;
+            width: 40vw;
+            height: 40vw;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.25;
+            pointer-events: none;
+        }
+
+        .ambient-left {
+            left: -10vw;
+            top: -8vw;
+            background: #6366f1;
+            opacity: 0.12;
+        }
+
+        .ambient-right {
+            right: -12vw;
+            bottom: -12vw;
+            background: #8b5cf6;
+            opacity: 0.08;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎮 Predicto Host Admin</h1>
-            <p>Control Panel for Prediction Management System</p>
-        </div>
+<body class="min-h-screen text-white relative">
+    <!-- Ambient Background Effects -->
+    <div class="ambient ambient-left"></div>
+    <div class="ambient ambient-right"></div>
 
-        <div class="grid">
-            <div class="section">
-                <h2>🎯 Match Control</h2>
-                <div class="status" id="match-status">Status: Ready</div>
-                <button class="btn" onclick="startMatch()">Start Match</button>
-                <button class="btn" onclick="pauseMatch()">Pause</button>
-                <button class="btn" onclick="endMatch()">End Match</button>
+    <div class="relative z-10 min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="panel mx-4 mt-4 mb-6 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-black font-header uppercase tracking-wide bg-gradient-to-r from-white to-blue-400 bg-clip-text text-transparent">
+                        Predicto Host Admin
+                    </h1>
+                    <p class="text-gray-400 mt-1 font-medium">Control Panel for Prediction Management System</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="status-badge px-3 py-1 rounded-full text-sm font-semibold">
+                        v1.0.0
+                    </div>
+                    <div class="status-badge running px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2">
+                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        Online
+                    </div>
+                </div>
             </div>
+        </header>
 
-            <div class="section">
-                <h2>🪟 Window Management</h2>
-                <button class="btn" onclick="toggleOverlay()">Toggle Overlay</button>
-                <button class="btn" onclick="toggleTicker()">Toggle Ticker</button>
-                <button class="btn" onclick="toggleReaction()">Toggle Reaction</button>
-            </div>
+        <!-- Main Content -->
+        <main class="flex-1 px-4 pb-8">
+            <div class="max-w-7xl mx-auto">
+                <!-- Control Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <!-- Match Control -->
+                    <div class="panel p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-bold font-display flex items-center gap-2">
+                                🎯 Match Control
+                            </h2>
+                        </div>
+                        <div class="status-badge mb-4 px-3 py-2 rounded-lg text-sm font-medium" id="match-status">
+                            Status: Ready
+                        </div>
+                        <div class="space-y-2">
+                            <button onclick="startMatch()" class="btn-primary w-full py-3 px-4 rounded-xl text-white font-semibold">
+                                Start Match
+                            </button>
+                            <button onclick="pauseMatch()" class="w-full py-3 px-4 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold transition-colors">
+                                Pause Match
+                            </button>
+                            <button onclick="endMatch()" class="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold transition-colors">
+                                End Match
+                            </button>
+                        </div>
+                    </div>
 
-            <div class="section">
-                <h2>🤖 Automation</h2>
-                <div class="status" id="automation-status">Status: Stopped</div>
-                <button class="btn" onclick="startAutomation()">Start Automation</button>
-                <button class="btn" onclick="stopAutomation()">Stop Automation</button>
-            </div>
+                    <!-- Window Management -->
+                    <div class="panel p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-bold font-display flex items-center gap-2">
+                                🪟 Windows
+                            </h2>
+                        </div>
+                        <div class="space-y-2">
+                            <button onclick="toggleOverlay()" class="w-full py-3 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-colors">
+                                Toggle Overlay
+                            </button>
+                            <button onclick="toggleTicker()" class="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors">
+                                Toggle Ticker
+                            </button>
+                            <button onclick="toggleReaction()" class="w-full py-3 px-4 rounded-xl bg-green-600 hover:bg-green-500 text-white font-semibold transition-colors">
+                                Toggle Reaction
+                            </button>
+                        </div>
+                    </div>
 
-            <div class="section">
-                <h2>📊 System Status</h2>
-                <div class="status" id="system-status">Checking...</div>
-                <button class="btn" onclick="refreshStatus()">Refresh Status</button>
-            </div>
-        </div>
+                    <!-- Automation -->
+                    <div class="panel p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-bold font-display flex items-center gap-2">
+                                🤖 Automation
+                            </h2>
+                        </div>
+                        <div class="status-badge stopped mb-4 px-3 py-2 rounded-lg text-sm font-medium" id="automation-status">
+                            Status: Stopped
+                        </div>
+                        <div class="space-y-2">
+                            <button onclick="startAutomation()" class="btn-primary w-full py-3 px-4 rounded-xl text-white font-semibold">
+                                Start Automation
+                            </button>
+                            <button onclick="stopAutomation()" class="w-full py-3 px-4 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold transition-colors">
+                                Stop Automation
+                            </button>
+                        </div>
+                    </div>
 
-        <div class="section">
-            <h2>📝 Logs</h2>
-            <div id="logs" style="background: #000; padding: 10px; border-radius: 4px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;">
-                Admin interface loaded successfully...
+                    <!-- System Status -->
+                    <div class="panel p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-bold font-display flex items-center gap-2">
+                                📊 System Status
+                            </h2>
+                        </div>
+                        <div class="status-badge mb-4 px-3 py-2 rounded-lg text-sm font-medium" id="system-status">
+                            Checking...
+                        </div>
+                        <button onclick="refreshStatus()" class="btn-primary w-full py-3 px-4 rounded-xl text-white font-semibold">
+                            Refresh Status
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Logs Section -->
+                <div class="panel p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-bold font-display flex items-center gap-2">
+                            📝 System Logs
+                        </h2>
+                        <button onclick="clearLogs()" class="px-3 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm font-medium transition-colors">
+                            Clear Logs
+                        </button>
+                    </div>
+                    <div id="logs" class="log-console p-4 rounded-xl h-64 overflow-y-auto text-green-400">
+                        <div>[${new Date().toLocaleTimeString()}] Predicto Host Admin Interface initialized</div>
+                        <div>[${new Date().toLocaleTimeString()}] System ready for operation</div>
+                    </div>
+                </div>
             </div>
-        </div>
+        </main>
     </div>
 
     <script>
         const { ipcRenderer } = require('electron');
         
-        function log(message) {
+        function log(message, type = 'info') {
             const logs = document.getElementById('logs');
             const timestamp = new Date().toLocaleTimeString();
-            logs.innerHTML += `[${timestamp}] ${message}\n`;
+            const color = type === 'error' ? 'text-red-400' : type === 'success' ? 'text-green-400' : 'text-blue-400';
+            logs.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
             logs.scrollTop = logs.scrollHeight;
         }
 
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            log('Logs cleared', 'info');
+        }
+
         function startMatch() {
-            log('Starting match...');
+            log('Starting match...', 'info');
+            document.getElementById('match-status').textContent = 'Status: Running';
+            document.getElementById('match-status').className = 'status-badge running mb-4 px-3 py-2 rounded-lg text-sm font-medium';
             // IPC call to start match
         }
 
         function pauseMatch() {
-            log('Pausing match...');
+            log('Pausing match...', 'info');
+            document.getElementById('match-status').textContent = 'Status: Paused';
+            document.getElementById('match-status').className = 'status-badge mb-4 px-3 py-2 rounded-lg text-sm font-medium';
             // IPC call to pause match
         }
 
         function endMatch() {
-            log('Ending match...');
+            log('Ending match...', 'info');
+            document.getElementById('match-status').textContent = 'Status: Ended';
+            document.getElementById('match-status').className = 'status-badge stopped mb-4 px-3 py-2 rounded-lg text-sm font-medium';
             // IPC call to end match
         }
 
         function toggleOverlay() {
-            log('Toggling overlay window...');
+            log('Toggling overlay window...', 'info');
             // IPC call to toggle overlay
         }
 
         function toggleTicker() {
-            log('Toggling ticker window...');
+            log('Toggling ticker window...', 'info');
             // IPC call to toggle ticker
         }
 
         function toggleReaction() {
-            log('Toggling reaction window...');
+            log('Toggling reaction window...', 'info');
             // IPC call to toggle reaction
         }
 
         function startAutomation() {
-            log('Starting automation...');
+            log('Starting automation...', 'success');
             document.getElementById('automation-status').textContent = 'Status: Running';
+            document.getElementById('automation-status').className = 'status-badge running mb-4 px-3 py-2 rounded-lg text-sm font-medium';
         }
 
         function stopAutomation() {
-            log('Stopping automation...');
+            log('Stopping automation...', 'info');
             document.getElementById('automation-status').textContent = 'Status: Stopped';
+            document.getElementById('automation-status').className = 'status-badge stopped mb-4 px-3 py-2 rounded-lg text-sm font-medium';
         }
 
         function refreshStatus() {
-            log('Refreshing system status...');
-            document.getElementById('system-status').textContent = 'Status: All systems operational';
+            log('Refreshing system status...', 'info');
+            document.getElementById('system-status').textContent = 'All systems operational';
+            document.getElementById('system-status').className = 'status-badge running mb-4 px-3 py-2 rounded-lg text-sm font-medium';
         }
 
         // Initialize
-        log('Predicto Host Admin Interface initialized');
+        log('Predicto Host Admin Interface loaded successfully', 'success');
         refreshStatus();
+
+        // Listen for window controls
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey) {
+                switch(e.key) {
+                    case 'O':
+                        e.preventDefault();
+                        toggleOverlay();
+                        break;
+                    case 'T':
+                        e.preventDefault();
+                        toggleTicker();
+                        break;
+                    case 'R':
+                        e.preventDefault();
+                        toggleReaction();
+                        break;
+                    case 'C':
+                        e.preventDefault();
+                        log('Control window toggle requested', 'info');
+                        break;
+                }
+            }
+        });
     </script>
 </body>
 </html>
