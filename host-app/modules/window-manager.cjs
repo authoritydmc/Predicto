@@ -63,10 +63,6 @@ function createWindowManager(config, eventHandlers) {
       console.log('React app loaded successfully');
     }).catch(err => {
       console.error('Failed to load React app:', err);
-      // Fallback to try loading from current directory
-      win.loadFile('index.html').catch(err2 => {
-        console.error('Fallback also failed:', err2);
-      });
     });
     
     // Open DevTools in development mode
