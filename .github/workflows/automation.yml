@@ -7,31 +7,40 @@ on:
       - develop
     paths:
       - 'backend/automation/**'
-      - 'backend/orchestrator/**'
-      - 'backend/scripts/**'
+      - 'backend/scraper/**'
+      - 'backend/scoring.py'
 
   workflow_dispatch:
     inputs:
-      script_key:
-        description: 'Script key to execute'
+      script:
+        description: 'Script to execute'
         required: true
-      manual_args:
-        description: 'Additional arguments for the script'
+        type: choice
+        options:
+          - live-matches
+          - run-scraper
+          - match-status
+          - auto-schedule
+          - calculate-scores
+          - update-leaderboard
+      sport:
+        description: 'Sport type'
         required: false
-      target_matches:
-        description: 'Target match IDs (for scoring/reconciliation)'
+        default: 'cricket'
+      tournament_id:
+        description: 'Tournament ID'
         required: false
-      force:
-        description: 'Force execution even if recently run'
+      match_id:
+        description: 'Match ID'
         required: false
       environment:
-        description: 'Environment mode (local/prod)'
+        description: 'Environment mode'
         required: false
         default: 'prod'
 
 jobs:
-  run-scraping:
-    name: Run Live Scraping
+  run-automation:
+    name: Run Automation Script
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -42,33 +51,24 @@ jobs:
         with:
           python-version: '3.9'
           
-      - name: Run Live Scraping
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+           
+      - name: Run Script
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_MODE: ${{ inputs.environment || 'prod' }}
         run: |
-          python backend/automation/scripts/master_runner.py \
-            --script scrapping \
-            --env ${{ inputs.environment }}
-            
-  run-scoring:
-    name: Run Score Calculation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-          
-      - name: Run Score Calculation
-        run: |
-          python backend/automation/scripts/master_runner.py \
-            --script scoring \
-            --env ${{ inputs.environment }}
+          cd backend
+          python -m automation.main ${{ inputs.script }} \
+            --sport ${{ inputs.sport }} \
+            ${{ inputs.tournament_id && format('--tournament-id {0}', inputs.tournament_id) || '' }} \
+            ${{ inputs.match_id && format('--match-id {0}', inputs.match_id) || '' }}
 
-  run-reconciliation:
-    name: Run Early Prediction Migration
+  run-scheduler:
+    name: Run Scheduler (Cron Jobs)
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -78,44 +78,29 @@ jobs:
         with:
           python-version: '3.9'
           
-      - name: Run Early Prediction Migration
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+           
+      - name: Run Live Matches
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_MODE: prod
         run: |
-          python backend/automation/scripts/master_runner.py \
-            --script reconciliation \
-            --env ${{ inputs.environment }}
-
-  run-match-creation:
-    name: Run Match Creation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+          cd backend
+          python -m automation.main live-matches --sport cricket
           
-      - name: Run Match Creation
+      - name: Run Scraper
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_MODE: prod
         run: |
-          python backend/automation/scripts/master_runner.py \
-            --script match_creation \
-            --env ${{ inputs.environment }}
-
-  run-cleanup:
-    name: Run Database Cleanup
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+          cd backend
+          python -m automation.main run-scraper
           
-      - name: Run Database Cleanup
+      - name: Process Match Status
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_MODE: prod
         run: |
-          python backend/automation/scripts/master_runner.py \
-            --script cleanup \
-            --env ${{ inputs.environment }}
+          cd backend
+          python -m automation.main match-status --sport cricket

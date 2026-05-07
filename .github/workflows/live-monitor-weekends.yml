@@ -1,26 +1,25 @@
-name: Live Match Automation Bot (Weekends)
+name: Live Match Automation (Weekends)
 
 on:
   schedule:
     # 1:00 PM IST (07:30 UTC) - Weekends
     - cron: '30 7 * * 0,6'
 
-  # Allow manual triggering from the GitHub Actions UI just in case
+  # Allow manual triggering
   workflow_dispatch:
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
     
-    # Allows the script to stay alive parsing updates for up to 12 hours (720 mins) 
-    # to cover double-header t20 matches safely.
-    timeout-minutes: 720 
+    # 12 hour timeout for double-headers
+    timeout-minutes: 720
 
     steps:
-      - name: Checkout Repository Configuration
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
@@ -30,10 +29,13 @@ jobs:
           pip install uv
           uv pip install --system -r backend/requirements.txt
 
-      - name: Run Live Monitor Engine
+      - name: Run Live Monitor
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_ROOM: ipl
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           APP_MODE: prod
-        run: python backend/monitor.py
+        run: |
+          cd backend
+          python -m automation.main run-scraper
+          python -m automation.main match-status --sport cricket

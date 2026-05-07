@@ -1,3 +1,0 @@
-"""
-Football-specific automation modules
-"""

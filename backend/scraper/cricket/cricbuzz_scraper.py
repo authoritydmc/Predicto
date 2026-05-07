@@ -296,19 +296,75 @@ class CricbuzzScraper(BaseCricketScraper):
                 float(team_a_overs), float(team_b_overs)
             )
             
-            # Extract match status
-            status_elem = (soup.find('div', class_='cb-text-live') or 
-                          soup.find('div', class_='cb-text-complete') or
-                          soup.find('div', class_='cb-text-stumps'))
-            status_text = status_elem.get_text(strip=True) if status_elem else ""
+            # Extract match status - improved for new Cricbuzz layout
+            page_text = soup.get_text(separator=' ', strip=True)
             
-            # Determine match status: if any team has overs>0, it's live; otherwise check status text
-            if float(team_a_overs) > 0 or float(team_b_overs) > 0:
-                match_status = "live"  # If either team is batting, match is live
-                debug(f"[Cricbuzz] Determined match status as LIVE based on team overs")
+            # FIRST: Check for completion indicators (most important for completed matches)
+            # These patterns indicate match has ended
+            completion_indicators = [
+                r'\bwon\s+by\s+\d+\s+(runs|wickets)\b',
+                r'\bmatch\s+tied\b',
+                r'\bno\s+result\b',
+                r'\babandoned\b',
+                r'\bwon\s+by\s+an?\s+innings\b',
+                r'\bwon\s+the\s+match\b',
+            ]
+            
+            # Look for result in the FIRST 5000 chars (main content, not sidebar with other matches)
+            # Completed matches prominently display result like "Sunrisers Hyderabad won by 33 runs"
+            main_content = page_text[:5000]
+            
+            is_completed = False
+            is_live = False
+            status_text = ""
+            
+            # Check for completion indicators first
+            for pattern in completion_indicators:
+                match = re.search(pattern, main_content, re.IGNORECASE)
+                if match:
+                    is_completed = True
+                    status_text = match.group(0)
+                    debug(f"[Cricbuzz] Found completion indicator: {pattern} -> {status_text}")
+                    break
+            
+            # If not completed, check for live indicators in main content
+            # Live matches show: "need X runs in Y balls", "CRR:", "REQ:"
+            if not is_completed:
+                live_indicators = [
+                    r'\bneed\s+\d+\s+runs\s+in\s+\d+\s+balls\b',  # "need 153 runs in 72 balls"
+                    r'\bCRR:\s*\d',  # Current Run Rate
+                    r'\bREQ:\s*\d',  # Required Rate
+                    r'\bovers\s+remaining\b',
+                    r'\brequired\s+rate\b',
+                    r'\bstrategic\s+timeout\b',
+                ]
+                
+                for pattern in live_indicators:
+                    if re.search(pattern, main_content, re.IGNORECASE):
+                        is_live = True
+                        status_text = "Live"
+                        debug(f"[Cricbuzz] Found live indicator: {pattern}")
+                        break
+            
+            # Additional check: "Player of the Match" only appears after completed matches
+            if not is_completed and not is_live:
+                if re.search(r'player\s+of\s+the\s+match', main_content, re.IGNORECASE):
+                    is_completed = True
+                    status_text = "Completed"
+                    debug(f"[Cricbuzz] Found 'Player of the Match' - match completed")
+            
+            # Determine final match status
+            if is_completed:
+                match_status = "completed"
+                debug(f"[Cricbuzz] Determined match status as COMPLETED: {status_text}")
+            elif is_live:
+                match_status = "live"
+                debug(f"[Cricbuzz] Determined match status as LIVE")
             else:
-                match_status = self.determine_match_status(status_text, both_have_scores=False)
-                debug(f"[Cricbuzz] Determined match status as {match_status} from status text")
+                # Fallback: use base class method
+                both_batted = float(team_a_overs) > 0 and float(team_b_overs) > 0
+                match_status = self.determine_match_status("", both_have_scores=both_batted)
+                debug(f"[Cricbuzz] Using fallback status determination: {match_status}")
             
             # Extract series and venue from page text (robust to layout changes)
             page_text = soup.get_text(separator=' ', strip=True)

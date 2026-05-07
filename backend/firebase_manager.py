@@ -1,7 +1,7 @@
 import os
 import json
 import firebase_admin
-from firebase_admin import credentials
+from firebase_admin import credentials, db
 
 def setup_firebase():
     try:
@@ -31,3 +31,11 @@ def setup_firebase():
         print(f"Failed to configure Firebase: {e}")
         import sys
         sys.exit(1)
+
+
+class FirebaseManager:
+    """Firebase manager class for automation system"""
+    
+    def __init__(self):
+        setup_firebase()
+        self.db = db

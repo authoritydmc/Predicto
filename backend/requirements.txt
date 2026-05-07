@@ -3,3 +3,6 @@ uvicorn
 firebase-admin
 requests
 python-dotenv
+croniter
+beautifulsoup4
+lxml

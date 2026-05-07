@@ -1,3 +1,0 @@
-"""
-Cricket-specific automation modules
-"""
