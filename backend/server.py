@@ -82,6 +82,60 @@ async def list_jobs():
         logger.error(f"Error listing jobs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/automation/status")
+async def automation_status():
+    """Get automation system status"""
+    return {
+        "running": True,
+        "mode": APP_MODE,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/api/automation/scheduler/{action}")
+async def scheduler_control(action: str):
+    """Start or stop scheduler"""
+    try:
+        if action == "start":
+            # Import and start scheduler
+            from automation.cron.scheduler import Scheduler
+            scheduler = Scheduler()
+            scheduler.start()
+            return {"success": True, "message": "Scheduler started"}
+        elif action == "stop":
+            from automation.cron.scheduler import Scheduler
+            scheduler = Scheduler()
+            scheduler.stop()
+            return {"success": True, "message": "Scheduler stopped"}
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+    except Exception as e:
+        logger.error(f"Scheduler error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/automation/live-matches")
+async def get_live_matches(sport: str = "cricket"):
+    """Get live matches"""
+    try:
+        from automation.matches.live_matches import LiveMatchFetcher
+        fetcher = LiveMatchFetcher()
+        matches = fetcher.get_live_matches(sport)
+        return {"matches": matches, "count": len(matches)}
+    except Exception as e:
+        logger.error(f"Live matches error: {e}")
+        return {"matches": [], "error": str(e)}
+
+@app.get("/api/automation/match/{match_id}/status")
+async def get_match_status(match_id: str):
+    """Get match status"""
+    try:
+        from automation.matches.status_manager import MatchStatusManager
+        mgr = MatchStatusManager()
+        status = mgr.get_status(match_id)
+        return status or {"error": "Match not found"}
+    except Exception as e:
+        logger.error(f"Match status error: {e}")
+        return {"error": str(e)}
+
 @app.get("/api/automation/jobs/{job_id}")
 async def get_job(job_id: str):
     """Get a specific job"""

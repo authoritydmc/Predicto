@@ -69,14 +69,39 @@ function createWindowManager(config, eventHandlers) {
       console.log('DOM is ready - content should be visible');
     });
     
-    // Load React app
-    const indexPath = `${__dirname}/../index.html`;
-    console.log(`Loading React app: ${indexPath}`);
-    win.loadFile(indexPath).then(() => {
-      console.log('React app loaded successfully');
-    }).catch(err => {
-      console.error('Failed to load React app:', err);
-    });
+    // Load React app - use Vite dev server in dev mode, file in prod
+    const isDev = options.isDev;
+    if (isDev) {
+      // Try to read the Vite port from a file written by concurrently
+      const fs = require('fs');
+      const portFile = `${__dirname}/../.vite-port`;
+      let devPort = '3456';
+      
+      try {
+        if (fs.existsSync(portFile)) {
+          devPort = fs.readFileSync(portFile, 'utf8').trim();
+        }
+      } catch (e) {
+        console.log('Using default port 3456');
+      }
+      
+      const devUrl = `http://localhost:${devPort}`;
+      console.log(`Loading from Vite dev server: ${devUrl}`);
+      win.loadURL(devUrl).then(() => {
+        console.log('React app loaded from dev server');
+      }).catch(err => {
+        console.error('Failed to load from dev server:', err);
+      });
+    } else {
+      // Load built files
+      const indexPath = `${__dirname}/../index.html`;
+      console.log(`Loading React app: ${indexPath}`);
+      win.loadFile(indexPath).then(() => {
+        console.log('React app loaded successfully');
+      }).catch(err => {
+        console.error('Failed to load React app:', err);
+      });
+    }
     
     // Open DevTools in development mode
     if (isDev && options.showDevTools !== false) {

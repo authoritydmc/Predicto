@@ -5,7 +5,7 @@ import ControlPanel from './windows/ControlPanel';
 import OverlayWindow from './windows/OverlayWindow';
 import TickerWindow from './windows/TickerWindow';
 import ReactionWindow from './windows/ReactionWindow';
-import DebugWindow from './DebugWindow';
+import DebugWindow from './windows/DebugWindow';
 
 import './styles/global.css';
 import './styles/control-panel.css';

@@ -72,8 +72,11 @@ const listenToMatchStatus = () => {
 listenToMatchStatus();
 
 // ── Register Automation Handlers ─────────────────────────────────────────────
-registerAutomationHandlers(APP_MODE);
-registerAutomationIPCHandlers();
+const { ipcMain } = require('electron');
+registerAutomationHandlers(ipcMain);
+
+// Load automation-ipc module for additional handlers
+require('./modules/automation-ipc.cjs');
 registerNotificationHandlers();
 registerScraperHandlers();
 registerSetupGuideHandlers();

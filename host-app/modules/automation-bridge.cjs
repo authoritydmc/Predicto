@@ -4,7 +4,8 @@ const path = require('path');
 // Bridge between Electron app and Python automation system
 class AutomationBridge {
   constructor() {
-    this.automationPath = path.join(__dirname, '../automation');
+    // Point to backend/automation folder
+    this.automationPath = path.resolve(__dirname, '..', '..', 'backend');
     this.isRunning = false;
   }
 

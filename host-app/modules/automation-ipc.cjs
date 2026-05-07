@@ -1,5 +1,5 @@
 const { ipcMain } = require('electron');
-const { AutomationBridge } = require('./automation-bridge');
+const { AutomationBridge } = require('./automation-bridge.cjs');
 
 // Initialize automation bridge
 const automationBridge = new AutomationBridge();
@@ -50,3 +50,9 @@ ipcMain.handle('automation:run-script', async (event, { scriptName, args = [] })
 });
 
 console.log('[Automation IPC] Automation handlers registered');
+
+module.exports = {
+  registerAutomationIPCHandlers: () => {
+    console.log('[Automation IPC] Handlers already registered in this module');
+  }
+};

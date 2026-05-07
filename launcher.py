@@ -359,8 +359,8 @@ end tell
     def start_host_app(self):
         """Start Electron host app"""
         path = self.script_dir / 'host-app'
-        # Use proper cmd syntax or just npm start (assuming node_modules exists)
-        command = 'npm start'
+        # Start with Vite dev server + Electron
+        command = 'npm run start'
         self.start_new_console('Host App', str(path), command)
     
     def start_automation_scheduler(self):
