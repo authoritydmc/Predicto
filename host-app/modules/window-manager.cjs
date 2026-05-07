@@ -29,7 +29,7 @@ function createWindowManager(config, eventHandlers) {
       show: false,
       webPreferences: {
         nodeIntegration: true,
-        contextIsolation: false,
+        contextIsolation: true,
         preload: `${__dirname}/../preload.cjs`
       },
       ...options

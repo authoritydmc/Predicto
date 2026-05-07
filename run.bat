@@ -278,6 +278,7 @@ REM Backend
 if "%opt%"=="4" (
     cls
     echo Starting Backend Server...
+    echo.
     
     REM Use hardcoded port
     set BACKEND_PORT=8765
@@ -285,10 +286,14 @@ if "%opt%"=="4" (
     REM Check for port conflicts before starting backend
     call :CHECK_PORT_CONFLICT "Backend Server" "%BACKEND_PORT%"
     
-    cd backend
-    if exist venv (call venv\Scripts\activate)
-    set BACKEND_PORT=%BACKEND_PORT%
-    python server.py
+    REM Start Backend in new console window
+    start "Backend Server" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && set BACKEND_PORT=%BACKEND_PORT% && python server.py"
+    
+    echo.
+    echo Backend Server started in new console window!
+    echo  - Local:   http://localhost:%BACKEND_PORT%
+    echo  - Network: http://%LOCAL_IP%:%BACKEND_PORT%
+    echo.
     pause
     goto :menu
 )
@@ -318,9 +323,14 @@ if "%opt%"=="7" (
 if "%opt%"=="8" (
     cls
     echo Running Automation Tests...
-    cd backend
-    if exist venv (call venv\Scripts\activate)
-    python test_with_mocks.py
+    echo.
+    
+    REM Start Automation Tests in new console window
+    start "Automation Tests" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python test_with_mocks.py"
+    
+    echo.
+    echo Automation Tests started in new console window!
+    echo.
     pause
     goto :menu
 )
@@ -329,16 +339,17 @@ REM Host App
 if "%opt%"=="9" (
     cls
     echo Starting Host App in Dev Mode...
+    echo.
     
     REM Check for existing Electron processes
     call :CHECK_ELECTRON_CONFLICT "Predicto Host App"
     
-    cd host-app
-    if not exist node_modules (
-        echo Installing dependencies...
-        call npm install
-    )
-    npm start
+    REM Start Host App in new console window
+    start "Predicto Host App" cmd /k "cd host-app && if not exist node_modules (echo Installing dependencies... && npm install) && npm start"
+    
+    echo.
+    echo Host App started in new console window!
+    echo.
     pause
     goto :menu
 )
@@ -416,38 +427,35 @@ echo.
 set /p script_opt="Select script: "
 
 if "%script_opt%"=="1" (
-    cd backend
-    if exist venv (call venv\Scripts\activate)
-    python -m automation.main live-matches --sport cricket
+    start "Live Matches" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python -m automation.main live-matches --sport cricket"
+    echo Live Matches script started in new console window!
     pause
     goto :AUTOMATION_MENU
 )
 
 if "%script_opt%"=="2" (
-    cd backend
-    if exist venv (call venv\Scripts\activate)
-    python -m automation.main run-scraper
+    start "Scraper" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python -m automation.main run-scraper"
+    echo Scraper script started in new console window!
     pause
     goto :AUTOMATION_MENU
 )
 
 if "%script_opt%"=="3" (
-    cd backend
-    if exist venv (call venv\Scripts\activate)
-    python -m automation.main match-status --sport cricket
+    start "Match Status" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python -m automation.main match-status --sport cricket"
+    echo Match Status script started in new console window!
     pause
     goto :AUTOMATION_MENU
 )
 
 if "%script_opt%"=="4" (
-    cd backend
-    if exist venv (call venv\Scripts\activate)
-    python -m automation.main auto-schedule --sport cricket --days 3
+    start "Auto-Schedule" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python -m automation.main auto-schedule --sport cricket --days 3"
+    echo Auto-Schedule script started in new console window!
     pause
     goto :AUTOMATION_MENU
 )
 
 if "%script_opt%"=="5" (
+    echo Calculate Scores requires input - running in current window
     cd backend
     if exist venv (call venv\Scripts\activate)
     set /p tid="Tournament ID: "
@@ -458,6 +466,7 @@ if "%script_opt%"=="5" (
 )
 
 if "%script_opt%"=="6" (
+    echo Update Leaderboard requires input - running in current window
     cd backend
     if exist venv (call venv\Scripts\activate)
     set /p tid="Tournament ID: "
@@ -467,9 +476,8 @@ if "%script_opt%"=="6" (
 )
 
 if "%script_opt%"=="7" (
-    cd backend
-    if exist venv (call venv\Scripts\activate)
-    python -m automation.main run --script reconciliation
+    start "Reconciliation" cmd /k "cd backend && if exist venv (call venv\Scripts\activate) && python -m automation.main run --script reconciliation"
+    echo Reconciliation script started in new console window!
     pause
     goto :AUTOMATION_MENU
 )
