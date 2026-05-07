@@ -56,15 +56,15 @@ function createWindowManager(config, eventHandlers) {
       console.log('DOM is ready - content should be visible');
     });
     
-    // Load local admin interface
-    const adminPath = `${__dirname}/../admin.html`;
-    console.log(`Loading admin interface: ${adminPath}`);
-    win.loadFile(adminPath).then(() => {
-      console.log('Admin interface loaded successfully');
+    // Load React app
+    const indexPath = `${__dirname}/../index.html`;
+    console.log(`Loading React app: ${indexPath}`);
+    win.loadFile(indexPath).then(() => {
+      console.log('React app loaded successfully');
     }).catch(err => {
-      console.error('Failed to load admin interface:', err);
+      console.error('Failed to load React app:', err);
       // Fallback to try loading from current directory
-      win.loadFile('admin.html').catch(err2 => {
+      win.loadFile('index.html').catch(err2 => {
         console.error('Fallback also failed:', err2);
       });
     });
