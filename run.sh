@@ -1,42 +1,32 @@
 #!/bin/bash
+# Predicto Dev Launcher - Linux/Mac Entry Point
+# This script launches the Python-based launcher
 
-echo "=========================================="
-echo "   Predictor Manager Management Console"
-echo "=========================================="
-echo ""
-echo "[1] Start Host App (Broadcaster Electron + Python)"
-echo "[2] Start Audience App (React Web Dev Mode)"
-echo "[3] Deploy Production (Frontend + Firebase)"
-echo "[4] Clean Root node_modules (Maintenance)"
-echo "[5] Exit"
-echo ""
-read -p "Select an option (1-5): " opt
+echo
+echo "========================================"
+echo "  Predicto Dev Launcher"
+echo "========================================"
+echo
 
-case $opt in
-    1)
-        cd backend
-        [ ! -d "node_modules" ] && npm install
-        npm start
-        ;;
-    2)
-        cd frontend
-        [ ! -d "node_modules" ] && npm install
-        npm run dev
-        ;;
-    3)
-        cd backend
-        npm run deploy
-        ;;
-    4)
-        pkill -f electron
-        rm package.json package-lock.json 2>/dev/null
-        rm -rf node_modules 2>/dev/null
-        echo "Cleanup finished."
-        ;;
-    5)
-        exit 0
-        ;;
-    *)
-        echo "Invalid option."
-        ;;
-esac
+# Check if Python is available
+if ! command -v python3 &> /dev/null; then
+    echo "ERROR: Python 3 is not installed or not in PATH"
+    echo "Please install Python 3.7+ and try again"
+    exit 1
+fi
+
+# Get directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to the script directory
+cd "$SCRIPT_DIR"
+
+# Run Python launcher with all arguments passed through
+python3 launcher.py "$@"
+
+# Check exit code
+if [ $? -ne 0 ]; then
+    echo
+    echo "Launcher exited with error code $?"
+    read -p "Press Enter to continue..."
+fi
